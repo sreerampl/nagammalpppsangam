@@ -32,6 +32,7 @@
 </head>
 <body>
   <div id="root"></div>
+  <script>var exports = {}; var module = { exports: exports };</script>
   <script type="text/babel">
     const { useState, useEffect, useCallback, useRef, createContext, useContext } = React;
 
@@ -465,7 +466,7 @@ function createMockData() {
 // ============================================================
 // MAIN APP COMPONENT
 // ============================================================
-export default function App() {
+function App() {
   // Auth state
   const [user, setUser] = useState(null); // { email, name, picture, token }
   const [role, setRole] = useState(null); // Admin | Editor | Viewer | null
