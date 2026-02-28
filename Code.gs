@@ -57,6 +57,10 @@ function handleRequest(e) {
 
     // All other actions need at least Viewer role
     if (!userRole) {
+      // For loadAll, still return role info so frontend can show proper message
+      if (action === "loadAll") {
+        return jsonResponse({ success: true, data: { role: null, email: userEmail, debug: "Email not found in AccessControl sheet" } });
+      }
       return jsonResponse({ success: false, error: "Access denied. Email not in AccessControl." });
     }
 
@@ -65,6 +69,16 @@ function handleRequest(e) {
       // --- READ (Viewer+) ---
       case "loadAll":
         return handleLoadAll(userEmail, userRole);
+
+      // --- DEBUG (temporary) ---
+      case "debugAccess":
+        var debugSheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.ACCESS);
+        var debugData = debugSheet ? debugSheet.getDataRange().getValues() : [];
+        var debugInfo = [];
+        for (var d = 0; d < debugData.length; d++) {
+          debugInfo.push(debugData[d].map(function(c) { return String(c).trim(); }));
+        }
+        return jsonResponse({ success: true, data: { rows: debugInfo, searchEmail: userEmail, foundRole: userRole } });
 
       // --- WRITE (Editor+) ---
       case "addIncome":
