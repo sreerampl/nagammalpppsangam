@@ -20,6 +20,8 @@
   
   <!-- Babel for JSX (transforms JSX in browser) -->
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   
   <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -155,7 +157,7 @@ const T = {
   // Families
   familiesTitle: { en: "Families", ta: "குடும்பங்கள்" },
   addFamily: { en: "Add Family", ta: "குடும்பம் சேர்" },
-  headOfFamily: { en: "Head of Family", ta: "குடும்பத் தலைவர்" },
+  headOfFamily: { en: "Family Name", ta: "குடும்பப் பெயர்" },
   phone: { en: "Phone", ta: "தொலைபேசி" },
   whatsApp: { en: "WhatsApp Number", ta: "வாட்ஸ்அப் எண்" },
   address: { en: "Address", ta: "முகவரி" },
@@ -243,6 +245,7 @@ const T = {
 
   // Export
   exportCSV: { en: "📥 Export CSV", ta: "📥 CSV ஏற்றுமதி" },
+  exportPDF: { en: "📄 Download PDF", ta: "📄 PDF பதிவிறக்கம்" },
   exportAll: { en: "📥 Export All Data", ta: "📥 அனைத்து தரவு ஏற்றுமதி" },
 
   // Auction photo
@@ -438,95 +441,69 @@ const IS_DEMO = GOOGLE_CLIENT_ID.includes("YOUR_") || APPS_SCRIPT_URL.includes("
 function createMockData() {
   return {
     families: [
-      {
-        FamilyID: "FAM-001",
-        HeadOfFamily: "Rajesh Sharma",
-        Phone: "9876543210",
-        WhatsApp: "9876543210",
-        Address: "12, Temple Street, Chennai",
-      },
-      {
-        FamilyID: "FAM-002",
-        HeadOfFamily: "Venkat Iyer",
-        Phone: "9876543211",
-        WhatsApp: "9876543299",
-        Address: "45, Agraharam, Kumbakonam",
-      },
-      {
-        FamilyID: "FAM-003",
-        HeadOfFamily: "Suresh Reddy",
-        Phone: "9876543212",
-        WhatsApp: "9876543212",
-        Address: "78, MG Road, Hyderabad",
-      },
+      { FamilyID: "F1", FamilyName: "M.Meenachi", Phone: "87545 38295", WhatsApp: "87545 38295", Address: "Plot No. 85, 2nd Floor, AVS Main Road, Annai Nagar, Korattur, Chennai - 600 076" },
+      { FamilyID: "F2", FamilyName: "R.S.Ravi", Phone: "99413 07696", WhatsApp: "99413 07696", Address: "No. 15, Door.No 16, Chakravathi Nagar, Ayanavaram, Chennai - 600 023" },
+      { FamilyID: "F3", FamilyName: "S.Subramanian", Phone: "94432 23162", WhatsApp: "84891 18853", Address: "206/4, Pacha Road, Near Sai Baba Avenue, Kannankurchi, Salem - 636 008" },
+      { FamilyID: "F4", FamilyName: "S.Karuppiah", Phone: "63817 03436", WhatsApp: "63817 03436", Address: "No. 47. New Star City, Payasapakkam Village, Vadaperumbakkam, Redhills, Chennai - 600 060" },
+      { FamilyID: "F5", FamilyName: "C. Thillai", Phone: "90473 90442", WhatsApp: "", Address: "Sirukoodalpatti - 630 212" },
+      { FamilyID: "F6", FamilyName: "C. Nagappan", Phone: "97909 23986", WhatsApp: "97909 23985", Address: "G-3, Dakshinamurthy Flats, Flat No. 27, 3rd Link Street, Anjaneyapuram, Poonga Nagar, Kakkalur, Thiruvallur - 602 003" },
+      { FamilyID: "F7", FamilyName: "C. Ramanathan", Phone: "99625 52307", WhatsApp: "99625 52307", Address: "Flat No. 13B, A/6, Annai Theresa Street, Ganga Nagar, Kallikuppam, Chennai - 600 053" },
+      { FamilyID: "F8", FamilyName: "PL.Alamelu", Phone: "98840 72407", WhatsApp: "98840 72407", Address: "N.KR.RM.PL House, Sirukoodalpatti - 630 212" },
+      { FamilyID: "F9", FamilyName: "PL.Sreeram", Phone: "98844 72407", WhatsApp: "98844 72407", Address: "Plot No:127, 3rd Street, Astalakshmi Nagar, Varadharajapuram, Chennai - 600 048" },
+      { FamilyID: "F10", FamilyName: "PL.Arunachalam", Phone: "98840 72406", WhatsApp: "99426 48923", Address: "1/10, Pilliyar Kovil street, Kallikuppam, Chennai - 600 053" },
+      { FamilyID: "F11", FamilyName: "Dr.A.Radhakrishnan", Phone: "98842 92329", WhatsApp: "98842 92329", Address: "14-3/49-3 S1 1st Floor, Pinjala Subramanian Street, T.Nagar, Chennai - 600 017" },
+      { FamilyID: "F12", FamilyName: "A.Muthiah", Phone: "065 98526457", WhatsApp: "065 98526457", Address: "Blk 197, Bishan Street 13, #03-585, Singapore - 570197 / 30 A Krishna Nagar, KK Pudur, Coimbatore - 641038" },
+      { FamilyID: "F13", FamilyName: "M. Jagan Nagappan", Phone: "065 91833275", WhatsApp: "065 91833275", Address: "298 Bukit Batok Street 22, #08-30, Singapore - 650298" },
+      { FamilyID: "F14", FamilyName: "N. Nagappan", Phone: "99403 93280", WhatsApp: "99403 93280", Address: "2/10B, Parvathi illam, Sirukoodalpatti - 630 212" },
+      { FamilyID: "F15", FamilyName: "N.Gandhi Ramanathan", Phone: "", WhatsApp: "01 8597391016", Address: "2/10B, Parvathi illam, Sirukoodalpatti - 630 212" },
+      { FamilyID: "F16", FamilyName: "N.Narayanan", Phone: "99529 00308", WhatsApp: "99529 00308", Address: "No. 5401, Crystal Springs II, 4th Floor, Raj paris, madambakkam, Chennai - 600 126" },
+      { FamilyID: "F17", FamilyName: "N.Natarajan", Phone: "89396 52411", WhatsApp: "99627 12770", Address: "2/10B, Parvathi illam, Sirukoodalpatti - 630 212" },
+      { FamilyID: "F18", FamilyName: "R. Mohan", Phone: "91763 95176", WhatsApp: "", Address: "2/166, N.P. Illam, Sirukoodalpatti - 630 212" },
+      { FamilyID: "F19", FamilyName: "M.Ganesh", Phone: "99444 67591", WhatsApp: "", Address: "Sangeetha Hospitals, Medical Division, Kuniyamuthur, Coimbatore - 641 044" },
+      { FamilyID: "F20", FamilyName: "Tmt. Azhagu Ganesan", Phone: "93441 33274", WhatsApp: "", Address: "64/58-2, Anna Nagar, Bhakthapuri Street Backside, Kumbakonam - 612 001" },
+      { FamilyID: "F21", FamilyName: "S.Umiyal", Phone: "96771 01805", WhatsApp: "98845 18815", Address: "08/208, TNHB, 90 Flats, 1st Avenue Park Road, Anna Nagar West Extension, Chennai - 600 101" },
+      { FamilyID: "F22", FamilyName: "S.Kasiram", Phone: "98411 94314", WhatsApp: "98411 94314", Address: "08/208, TNHB, 90 Flats, 1st Avenue Park Road, Anna Nagar West Extension, Chennai - 600 101" },
+      { FamilyID: "F23", FamilyName: "S.Nagappan", Phone: "98845 18815", WhatsApp: "98845 18815", Address: "2D, RLD, Tripti, Rampoorna Nagar Extension, Melayanabakkam, Chelliamma Nagar, Chennai - 600 058" },
+      { FamilyID: "F24", FamilyName: "M. Subbiah", Phone: "99403 14871", WhatsApp: "", Address: "No. 1, Jeyathambal Street, Vijayalakshmipuram, Ambattur, Chennai - 600 053" },
+      { FamilyID: "F25", FamilyName: "M.SP. Manikkam", Phone: "98846 12821", WhatsApp: "98846 12821", Address: "No. 1, Jeyathambal Street, Vijayalakshmipuram, Ambattur, Chennai - 600 053" },
+      { FamilyID: "F26", FamilyName: "M. Swaminathan", Phone: "98400 63594", WhatsApp: "98400 63594", Address: "No. 1/3, Balaji Street, Ram Nagar, Ambattur, Chennai - 600 053" },
+      { FamilyID: "F27", FamilyName: "N.Thenappan", Phone: "99402 72945", WhatsApp: "", Address: "6/12, Maduvappar 2nd Street, Chrompet, Chennai - 600 044" },
+      { FamilyID: "F28", FamilyName: "T.Shanmugan", Phone: "86950 11535", WhatsApp: "86950 11535", Address: "A1, 1st Floor, Sahityam Apartments, 1st Main Road, East Balagi Nagar, Kallikuppam, Ambattur, Chennai - 53" },
+      { FamilyID: "F29", FamilyName: "VR. Ramanathan", Phone: "97882 25791", WhatsApp: "97882 25791", Address: "Quality illam, 11-A, Gandhi Road, Salem - 636 007" },
+      { FamilyID: "F30", FamilyName: "RM. Veerappan", Phone: "99444 62981", WhatsApp: "99444 62981", Address: "Quality illam, 11-A, Gandhi Road, Salem - 636 007" },
+      { FamilyID: "F31", FamilyName: "VR. Karuppiah", Phone: "99444 37212", WhatsApp: "99444 37212", Address: "Quality illam, 11-A, Gandhi Road, Salem - 636 007" },
+      { FamilyID: "F32", FamilyName: "KR. Valli Narayanan", Phone: "97902 30460", WhatsApp: "97902 30460", Address: "Quality illam, 11-A, Gandhi Road, Salem - 636 007" },
+      { FamilyID: "F33", FamilyName: "V.V.SP. Valliammai", Phone: "75984 65096", WhatsApp: "", Address: "201, Sankalp CBI Colony Lakshmanan Road, Perungudi, Chennai - 96" },
+      { FamilyID: "F34", FamilyName: "V.V.SP. Balasubramanian", Phone: "91718 33431", WhatsApp: "95245 91969", Address: "201, Sankalp CBI Colony Lakshmanan Road, Perungudi, Chennai - 96" },
+      { FamilyID: "F35", FamilyName: "RM. Srinivasan", Phone: "94872 77755", WhatsApp: "94872 77755", Address: "Sri Indhu Publications, New No: 100 - Canal Bank Road, East CIT Nagar, Chennai - 600 035" },
+      { FamilyID: "F36", FamilyName: "S. Viswanathan", Phone: "94440 21149", WhatsApp: "94440 21149", Address: "Sri Indhu Publications, New No: 100 - Canal Bank Road, East CIT Nagar, Chennai - 600 035" },
+      { FamilyID: "F37", FamilyName: "S.Ramanathan", Phone: "97908 03804", WhatsApp: "97908 03804", Address: "Sri Indhu Publications, New No: 100 - Canal Bank Road, East CIT Nagar, Chennai - 600 035" },
+      { FamilyID: "F38", FamilyName: "RM. Somasundaram", Phone: "93448 00249", WhatsApp: "93448 00249", Address: "Old No.6/New No.12, Masthan Ali Garden Street, Vadapalani, Chennai - 600 026" },
+      { FamilyID: "F39", FamilyName: "RM. Manickam", Phone: "94440 21661", WhatsApp: "99529 01952", Address: "Sri Indhu Publications, New No: 100 - Canal Bank Road, East CIT Nagar, Chennai - 600 035" },
+      { FamilyID: "F40", FamilyName: "RM. Nagappan", Phone: "73973 12481", WhatsApp: "93846 95571", Address: "Sri Indhu Publications, New No: 100 - Canal Bank Road, East CIT Nagar, Chennai - 600 035" },
+      { FamilyID: "F41", FamilyName: "KR.Venkitachalam", Phone: "97861 37179", WhatsApp: "", Address: "2/817 Karpaka Vinayagar Illam, Thanthai Periyar Nagar, 6th Street, Burma Colony, Karaikudi - 630 002" },
+      { FamilyID: "F42", FamilyName: "AL.Saathammai", Phone: "94428 21081", WhatsApp: "94428 21081", Address: "6-A, Perumal Street, Arisipalayam, Salem - 636 009" },
+      { FamilyID: "F43", FamilyName: "AL.Raja", Phone: "99400 71199", WhatsApp: "99400 71199", Address: "14/11 Jakkammal Kovil Street, Postal Audit Colony, Chinmaya Nagar, Chennai - 600 092" },
+      { FamilyID: "F44", FamilyName: "R.Nagappan", Phone: "061 451732752", WhatsApp: "061 451732752", Address: "Unit 6, 1A Darcbin street, Mile end South Australia 5031" },
+      { FamilyID: "F45", FamilyName: "AL.Ravi", Phone: "96774 81588", WhatsApp: "96774 81588", Address: "616, Chinnamuthan Chetty Street, Kilasevalpatti - 630 205, Sivaganga District" },
+      { FamilyID: "F46", FamilyName: "RM. Nagappan", Phone: "90033 25328", WhatsApp: "90033 25328", Address: "Sri Annapoorani Agencies, 210/2 Anna Nagar, Viralimalai Road, Manapparai - 621 306" },
+      { FamilyID: "F47", FamilyName: "RM.Sivalingam", Phone: "99659 87263", WhatsApp: "72006 32933", Address: "Naga Medical Agencies, No.13, 1st Floor, Rahmaniyapuram, Near Ram Nagar, Thillai Nagar, Trichy - 620 018" },
+      { FamilyID: "F48", FamilyName: "S.Nagappan (Mani)", Phone: "99659 87263", WhatsApp: "72006 32933", Address: "Naga Medical Agencies, No.13, 1st Floor, Rahmaniyapuram, Near Ram Nagar, Thillai Nagar, Trichy - 620 018" },
+      { FamilyID: "F49", FamilyName: "RM.Chokkalingam", Phone: "95853 77794", WhatsApp: "63798 01067", Address: "Maha Mariamman Medicals, Perumal Kovil Street, Punavasipatti, Krishnarayapuram Tk, Karur Dt, Lalapet - 639 105" },
+      { FamilyID: "F50", FamilyName: "N. Alaghamai", Phone: "99442 40204", WhatsApp: "7358307310", Address: "616, Chinnamuthan Chetty Street, Keezhachivalpatti - 630 205, Sivaganga District" },
+      { FamilyID: "F51", FamilyName: "N.Nataraja Chockalingam", Phone: "80561 77621", WhatsApp: "80561 77621", Address: "Old No.4 New No.7, Flat DG-1, badani complex, kuppiah street, west mambalam, Chennai - 33" },
+      { FamilyID: "F52", FamilyName: "N. Nagappa Valliappa", Phone: "97882 59952", WhatsApp: "97882 59952", Address: "236 A, Thiruvalluvar Salai, Muthiah Nagar, Annamalai Nagar, Chithambaram - 2" },
     ],
     donations: [
-      {
-        TxnID: "DON-001",
-        Date: "2025-01-10",
-        Day: "1",
-        DonorType: "Family",
-        FamilyID: "FAM-001",
-        DonorName: "Rajesh Sharma",
-        Category: "Membership",
-        Amount: "5000",
-        Description: "Annual membership",
-        EnteredBy: "admin@example.com",
-        Timestamp: "10/01/2025, 9:00 AM",
-      },
-      {
-        TxnID: "DON-002",
-        Date: "2025-01-10",
-        Day: "1",
-        DonorType: "External",
-        FamilyID: "",
-        DonorName: "Ravi Kumar",
-        Category: "Food",
-        Amount: "2000",
-        Description: "Food donation",
-        EnteredBy: "admin@example.com",
-        Timestamp: "10/01/2025, 10:30 AM",
-      },
-      {
-        TxnID: "DON-003",
-        Date: "2025-01-11",
-        Day: "2",
-        DonorType: "Family",
-        FamilyID: "FAM-002",
-        DonorName: "Venkat Iyer",
-        Category: "Temple Expenses",
-        Amount: "3000",
-        Description: "",
-        EnteredBy: "admin@example.com",
-        Timestamp: "11/01/2025, 8:00 AM",
-      },
+      { TxnID: "DON-001", Day: "1", DonorType: "Family", FamilyID: "F9", DonorName: "PL.Sreeram", Category: "Membership", Amount: "5000", Description: "Annual membership", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 9:00 AM" },
+      { TxnID: "DON-002", Day: "1", DonorType: "External", FamilyID: "", DonorName: "Ravi Kumar", Category: "Food", Amount: "2000", Description: "Food donation", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 10:30 AM" },
+      { TxnID: "DON-003", Day: "2", DonorType: "Family", FamilyID: "F1", DonorName: "M.Meenachi", Category: "Temple Expenses", Amount: "3000", Description: "", EnteredBy: "admin@example.com", Timestamp: "11/01/2025, 8:00 AM" },
     ],
     expenses: [
-      {
-        TxnID: "EXP-001",
-        Date: "2025-01-10",
-        Day: "1",
-        Category: "Food",
-        Description: "Lunch provisions",
-        Amount: "8000",
-        Vendor: "Sri Balaji Store",
-        EnteredBy: "admin@example.com",
-        Timestamp: "10/01/2025, 7:00 AM",
-      },
-      {
-        TxnID: "EXP-002",
-        Date: "2025-01-11",
-        Day: "2",
-        Category: "Decorations",
-        Description: "Flowers and garlands",
-        Amount: "3500",
-        Vendor: "Flower Market",
-        EnteredBy: "admin@example.com",
-        Timestamp: "11/01/2025, 6:30 AM",
-      },
+      { TxnID: "EXP-001", Day: "1", Category: "Food", Description: "Lunch provisions", Amount: "8000", Vendor: "Sri Balaji Store", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 7:00 AM" },
+      { TxnID: "EXP-002", Day: "2", Category: "Decorations", Description: "Flowers and garlands", Amount: "3500", Vendor: "Flower Market", EnteredBy: "admin@example.com", Timestamp: "11/01/2025, 6:30 AM" },
     ],
     auction: [
-      // Real item names from 2024 நாகம்மா prayer event
       "மஞ்சள்","மஞ்சள்","மஞ்சள்","மஞ்சள்","மஞ்சள்",
       "உப்பு","உப்பு","உப்பு","உப்பு","உப்பு",
       "கற்கண்டு","கற்கண்டு","கற்கண்டு","கற்கண்டு","கற்கண்டு",
@@ -541,8 +518,8 @@ function createMockData() {
       ItemNo: String(i + 1),
       ItemDescription: name,
       DonatedBy: "",
-      WinnerFamilyID: i < 3 ? ["FAM-001", "FAM-003", "FAM-002"][i] : "",
-      WinnerName: i < 3 ? ["Rajesh Sharma", "Suresh Reddy", "Venkat Iyer"][i] : "",
+      WinnerFamilyID: i < 3 ? ["F9", "F1", "F35"][i] : "",
+      WinnerName: i < 3 ? ["PL.Sreeram", "M.Meenachi", "RM. Srinivasan"][i] : "",
       BidAmount: i < 3 ? [15000, 12000, 8000][i] : "",
       EnteredBy1: i < 3 ? "admin@example.com" : "",
       ConfirmedBy2: i < 2 ? "editor@example.com" : "",
@@ -551,9 +528,9 @@ function createMockData() {
       Status: i < 2 ? "Confirmed" : i === 2 ? "Pending" : "",
     })),
     access: [
-      { Email: "admin@example.com", Name: "Admin User", FamilyID: "FAM-001", Role: "Admin" },
-      { Email: "editor@example.com", Name: "Editor User", FamilyID: "FAM-002", Role: "Editor" },
-      { Email: "viewer@example.com", Name: "Viewer User", FamilyID: "FAM-003", Role: "Viewer" },
+      { Email: "admin@example.com", Name: "Admin User", FamilyID: "F9", Role: "Admin" },
+      { Email: "editor@example.com", Name: "Editor User", FamilyID: "F1", Role: "Editor" },
+      { Email: "viewer@example.com", Name: "Viewer User", FamilyID: "F35", Role: "Viewer" },
     ],
   };
 }
@@ -895,7 +872,7 @@ function App() {
   const addFamily = async (family) => {
     const row = {
       FamilyID: generateId("FAM"),
-      HeadOfFamily: family.headOfFamily,
+      FamilyName: family.familyName,
       Phone: family.phone,
       WhatsApp: family.whatsApp || "",
       Address: family.address,
@@ -905,7 +882,7 @@ function App() {
     }
     setFamilies((prev) => [...prev, row]);
     showToast(t("toastFamily", lang));
-    audit("CREATE", "Families", `${row.FamilyID} ${row.HeadOfFamily}`);
+    audit("CREATE", "Families", `${row.FamilyID} ${row.FamilyName}`);
     setShowForm(null);
   };
 
@@ -1772,14 +1749,14 @@ function AuctionView({ auction, families, canEdit, isAdmin, userEmail, onBid, on
                       value={bidForm.familyId}
                       onChange={(e) => {
                         const fam = families.find((f) => f.FamilyID === e.target.value);
-                        setBidForm({ ...bidForm, familyId: e.target.value, winnerName: fam?.HeadOfFamily || "" });
+                        setBidForm({ ...bidForm, familyId: e.target.value, winnerName: fam?.FamilyName || "" });
                       }}
                       style={styles.input}
                     >
                       <option value="">{t("selectFamily", lang)}</option>
                       {families.map((f) => (
                         <option key={f.FamilyID} value={f.FamilyID}>
-                          {f.HeadOfFamily} ({f.FamilyID})
+                          {f.FamilyName} ({f.FamilyID})
                         </option>
                       ))}
                     </select>
@@ -1845,15 +1822,116 @@ function FamiliesView({ families, isAdmin, canEdit, onAdd, showToast, lang: prop
   const [search, setSearch] = useState("");
 
   const exportFamiliesCSV = () => {
-    const headers = ["Family ID", "Family Name", "Head of Family", "Phone", "WhatsApp", "Address"];
-    const rows = (families || []).map((f) => [f.FamilyID, f.FamilyName, f.HeadOfFamily, f.Phone, f.WhatsApp, f.Address]);
+    const headers = ["Family ID", "Family Name", "Phone", "WhatsApp", "Address"];
+    const rows = (families || []).map((f) => [f.FamilyID, f.FamilyName, f.Phone, f.WhatsApp, f.Address]);
     exportToCSV("families_" + new Date().toISOString().slice(0, 10) + ".csv", headers, rows);
+    if (showToast) showToast(t("toastExported", lang));
+  };
+
+  const exportFamiliesPDF = () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+
+    // Complete family directory data with multiple phones/whatsapp
+    const pdfFamilies = [
+      { s:"1", n:"M.Meenachi", a:"Plot No. 85, 2nd  Floor,\nAVS  Main Road, Annai  Nagar, Korattur\nChennai - 600 076", p:"87545 38295\n97910 63715", w:"87545 38295" },
+      { s:"2", n:"R.S.Ravi", a:"No. 15, Door.No 16,\nChakravathi Nagar,\nAyanavaram,\nChennai - 600 023", p:"99413 07696\n98413 17307", w:"99413 07696\n98413 17307\n94457 08791" },
+      { s:"3", n:"S.Subramanian", a:"206/4, Pacha Road, Near Sai Baba Avenue\nKannankurchi,\nSalem - 636 008", p:"94432 23162\n86681 54891\n63830 83795", w:"84891 18853\n94432 23162" },
+      { s:"4", n:"S.Karuppiah", a:"No. 47. New Star  City,\nPayasapakkam Village,\nVadaperumbakkam, Redhills,\nJeeva Jothi Illam (back side)\nChennai - 600 060", p:"63817 03436", w:"63817 03436" },
+      { s:"5", n:"C. Thillai", a:"Sirukoodalpatti \u2013 630 212", p:"90473 90442", w:"" },
+      { s:"6", n:"C. Nagappan", a:"G-3, Dakshinamurthy Flats\nFlat No. 27, 3rd Link Street\nAnjaneyapuram, Poonga Nagar\nKakkalur, Thiruvallur \u2013 602 003", p:"97909 23986", w:"97909 23985" },
+      { s:"7", n:"C. Ramanathan", a:"Flat No. 13B, A/6\nAnnai Theresa Street\nGanga Nagar, Kallikuppam\nChennai \u2013 600 053", p:"99625 52307", w:"99625 52307" },
+      { s:"8", n:"PL.Alamelu", a:"N.KR.RM.PL House\nSirukoodalpatti - 630 212", p:"98840 72407", w:"98840 72407" },
+      { s:"9", n:"PL.Sreeram", a:"Plot No:127, 3rd Street,\nAstalakshmi Nagar,\nVaradharajapuram,\nChennai - 600 048", p:"98844 72407", w:"98844 72407\n99628 57560" },
+      { s:"10", n:"PL.Arunachalam", a:"1 / 10, Pilliyar Kovil street,\nKallikuppam, Chennai - 600 053", p:"98840 72406", w:"99426 48923\n79048 71922" },
+      { s:"11", n:"Dr.A.Radhakrishnan", a:"14-3 /49-3 S1 1st Floor ,\nPinjala Subramanian Street, T.Nagar\nChennai - 600 017", p:"98842 92329", w:"98842 92329" },
+      { s:"12.A", n:"A.Muthiah", a:"Blk 197, Bishan Street 13,\n#03-585\nSingapore - 570197", p:"065 98526457\n065 67262443", w:"065 98526457\n96005 06298" },
+      { s:"12.B", n:"A.Muthiah", a:"30 A Krishna Nagar ,\nKK Pudur ,\nCoimbatore - 641038", p:"065 98526457\n065 67262443", w:"065 98526457\n96005 06298" },
+      { s:"13", n:"M. Jagan Nagappan", a:"298 Bukit Batok Street 22 ,\n#08-30\nSingapore - 650298", p:"065 91833275", w:"065 91833275" },
+      { s:"14", n:"N . Nagappan", a:"2/10B, Parvathi illam,\nSirukoodalpatti - 630 212", p:"99403 93280", w:"99403 93280" },
+      { s:"15", n:"N.Gandhi Ramanathan", a:"2/10B, Parvathi illam,\nSirukoodalpatti - 630 212", p:"", w:"01 8597391016\n01 9204921261" },
+      { s:"16", n:"N.Narayanan", a:"No. 5401, Crystal Springs  II,\n4th Floor, Raj paris, madambakkam,\nChennai - 600 126", p:"99529 00308\n80721 20043", w:"99529 00308\n99529 00307" },
+      { s:"17", n:"N.Natarajan", a:"2/10B, Parvathi illam,\nSirukoodalpatti - 630 212", p:"89396 52411", w:"99627 12770" },
+      { s:"18", n:"R. Mohan", a:"2/166, N.P. Illam,\nSirukoodalpatti \u2013 630 212", p:"91763 95176", w:"" },
+      { s:"19", n:"M.Ganesh", a:"Sangeetha Hospitals\nMedical Division, Kuniyamuthur,\nCoimbatore - 641 044", p:"99444 67591", w:"" },
+      { s:"20", n:"Tmt. Azhagu Ganesan", a:"64/58-2, Anna Nagar,\nBhakthapuri Street Backside,\nKumbakonam - 612 001", p:"93441 33274\nSala: 90257 73949", w:"" },
+      { s:"21", n:"S.Umiyal", a:"08/208, TNHB, 90 Flats,\n1st Avenue Park Road,\nAnna Nagar West Extension,\nChennai - 600 101", p:"96771 01805", w:"98845 18815" },
+      { s:"22", n:"S.Kasiram", a:"08/208, TNHB, 90 Flats,\n1st Avenue Park Road,\nAnna Nagar West Extension,\nChennai - 600 101", p:"98411 94314", w:"98411 94314" },
+      { s:"23", n:"S.Nagappan", a:"2D , RLD, Tripti\nRampoorna Nagar Extension,\nMelayanabakkam,Chelliamma Nagar\nChennai - 600 058", p:"98845 18815", w:"98845 18815" },
+      { s:"24", n:"M. Subbiah", a:"No. 1, Jeyathambal Street,\nVijayalakshmipuram, Ambattur,\nChennai \u2013 600 053", p:"99403 14871", w:"" },
+      { s:"25", n:"M.SP. Manikkam", a:"No. 1, Jeyathambal Street,\nVijayalakshmipuram, Ambattur,\nChennai \u2013 600 053", p:"98846 12821", w:"98846 12821" },
+      { s:"26", n:"M. Swaminathan", a:"No. 1/3, Balaji Street,\nRam Nagar, Ambattur,\nChennai \u2013 600 053", p:"98400 63594", w:"98400 63594\n96298 80777\n80561 34205" },
+      { s:"27", n:"N.Thenappan", a:"6/12, Maduvappar 2nd Street,\nChrompet,\nChennai - 600 044", p:"99402 72945", w:"" },
+      { s:"28", n:"T.Shanmugan", a:"A1 ,1st Floor, Sahityam Appartmets ,\n1st Main Road,East Balagi Nagar ,\nKallikuppam, Ambattur,\nChennai - 53", p:"86950 11535\n88381 65189", w:"86950 11535\n88381 65189" },
+      { s:"29", n:"VR. Ramanathan", a:"Quality illam,\n11-A, Gandhi Road,\nSalem - 636 007", p:"97882 25791", w:"97882 25791" },
+      { s:"30", n:"RM. Veerappan", a:"Quality illam,\n11-A, Gandhi Road,\nSalem - 636 007", p:"99444 62981", w:"99444 62981" },
+      { s:"31", n:"VR. Karuppiah", a:"Quality illam,\n11-A, Gandhi Road,\nSalem - 636 007", p:"99444 37212", w:"99444 37212" },
+      { s:"32", n:"KR. Valli Narayanan", a:"Quality illam,\n11-A, Gandhi Road,\nSalem - 636 007", p:"97902 30460", w:"97902 30460" },
+      { s:"33", n:"V.V.SP. Valliammai", a:"201, Sankalp CBI Colony Lakshmanan Road,\nPerungudi, Chennai - 96", p:"75984 65096\n94983 12881", w:"" },
+      { s:"34", n:"V.V.SP. Balasubramanian", a:"201, Sankalp CBI Colony Lakshmanan Road,\nPerungudi, Chennai - 96", p:"91718 33431", w:"95245 91969" },
+      { s:"35", n:"RM. Srinivasan", a:"Sri Indhu Publications,\nNew No: 100 - Canal Bank Road,\nEast CIT Nagar,\nChennai - 600 035", p:"94872 77755", w:"94872 77755\n97908 03804\n89390 65474" },
+      { s:"36", n:"S. Viswanathan", a:"Sri Indhu Publications,\nNew No: 100 - Canal Bank Road,\nEast CIT Nagar,\nChennai - 600 035", p:"94440 21149", w:"94440 21149" },
+      { s:"37", n:"S.Ramanathan", a:"Sri Indhu Publications,\nNew No: 100 - Canal Bank Road,\nEast CIT Nagar,\nChennai - 600 035", p:"97908 03804", w:"97908 03804" },
+      { s:"38", n:"RM. Somasundaram", a:"Old No.6/New No.12,\nMasthan Ali Garden Street,\nVadapalani\nChennai - 600 026", p:"93448 00249", w:"93448 00249" },
+      { s:"39", n:"RM. Manickam", a:"Sri Indhu Publications,\nNew No: 100 - Canal Bank Road,\nEast CIT Nagar,\nChennai - 600 035", p:"94440 21661", w:"99529 01952" },
+      { s:"40", n:"RM. Nagappan", a:"Sri Indhu Publications,\nNew No: 100 - Canal Bank Road,\nEast CIT Nagar,\nChennai - 600 035", p:"73973 12481", w:"93846 95571" },
+      { s:"41", n:"KR.Venkitachalam", a:"2/817 Karpaka Vinayagar Illam,\nThanthai Periyar Nagar, 6th Street,\nBurma Colony,\nKaraikudi - 630 002", p:"97861 37179 (Uma)", w:"" },
+      { s:"42", n:"AL.Saathammai", a:"6-A, Perumal Street,\nArisipalayam, Salem - 636 009", p:"94428 21081", w:"94428 21081" },
+      { s:"43", n:"AL.Raja", a:"14/11 Jakkammal Kovil Street,\nPostal Audit Colony, Chinmaya Nagar,\nChennai - 600 092", p:"99400 71199\n96772 24185", w:"99400 71199\n061 451732752" },
+      { s:"44", n:"R.Nagappan", a:"Unit 6, 1A Darcbin street,\nMile end South Australia 5031", p:"061 451732752\n63851 14185", w:"061 451732752" },
+      { s:"45", n:"AL.Ravi", a:"616, Chinnamuthan Chetty Street,\nKilasevalpatti - 630 205,\nSivaganga District", p:"96774 81588\nLakshmi:97898 32379\n82704 30548", w:"96774 81588" },
+      { s:"46", n:"RM. Nagappan", a:"Sri Annapoorani Agencies,\n210/2 Anna Nagar, Viralimalai Road,\nManapparai - 621 306", p:"90033 25328", w:"90033 25328" },
+      { s:"47", n:"RM.Sivalingam", a:"Naga Medical Agencies\nNo.13, 1st Floor, Rahmaniyapuram,\nNear Ram Nagar, 9th Cross, Thillai Nagar,\nTrichy - 620 018", p:"99659 87263", w:"72006 32933 (Mani)" },
+      { s:"48", n:"S.Nagappan (Mani)", a:"Naga Medical Agencies\nNo.13, 1st Floor, Rahmaniyapuram,\nNear Ram Nagar, 9th Cross, Thillai Nagar,\nTrichy - 620 018", p:"99659 87263", w:"72006 32933 (Mani)" },
+      { s:"49", n:"RM.Chokkalingam", a:"Maha Mariamman Medicals,\nPerumal Kovil Street, Punavasipatti,\nKrishnarayapuram Tk,\nKarur Dt, Lalapet - 639 105", p:"95853 77794\n63798 01067", w:"63798 01067" },
+      { s:"50", n:"N. Alaghamai", a:"616, Chinnamuthan Chetty Street,\nKeezhachivalpatti - 630 205,\nSivaganga District", p:"99442 40204", w:"7358307310" },
+      { s:"51", n:"N.Nataraja Chockalingam", a:"Old No.4 New No.7,\nFlat DG - 1, badani complex,\nkuppiah street, west mambalam,\nChennai - 33", p:"80561 77621", w:"80561 77621\n89395 69101\n94446 38931" },
+      { s:"52", n:"N. Nagappa Valliappa", a:"236 A, Thiruvalluvar Salai,\nMuthiah Nagar, Annamalai Nagar,\nChithambaram - 2", p:"97882 59952\n99407 37464", w:"97882 59952\n96559 73731" },
+    ];
+
+    // Title
+    doc.setFontSize(22);
+    doc.setFont("helvetica", "bold");
+    const currentYear = new Date().getFullYear();
+    doc.text("Pangali Villasam (" + currentYear + ")", doc.internal.pageSize.getWidth() / 2, 15, { align: "center" });
+
+    // Table rows: each family = [srl, name+address, phones, whatsapp]
+    const body = pdfFamilies.map(f => [
+      f.s,
+      f.n + "\n" + f.a,
+      f.p,
+      f.w
+    ]);
+
+    doc.autoTable({
+      startY: 22,
+      head: [["Srl.No.", "Address", "Phone No.", "Whatsapp No."]],
+      body: body,
+      theme: "grid",
+      styles: { fontSize: 8, cellPadding: 2, lineColor: [0,0,0], lineWidth: 0.3, overflow: "linebreak" },
+      headStyles: { fillColor: [46, 125, 50], textColor: 255, fontStyle: "bold", fontSize: 10, halign: "center" },
+      columnStyles: {
+        0: { cellWidth: 14, halign: "center", valign: "middle" },
+        1: { cellWidth: 75 },
+        2: { cellWidth: 45 },
+        3: { cellWidth: 50 },
+      },
+      didParseCell: function(data) {
+        // Bold the name (first line of address column)
+        if (data.section === "body" && data.column.index === 1) {
+          // Can't do per-line bold in autoTable, but name is first line
+        }
+      },
+      margin: { left: 10, right: 10 },
+    });
+
+    doc.save("Pangali_Villasam_" + currentYear + ".pdf");
     if (showToast) showToast(t("toastExported", lang));
   };
 
   const filtered = families.filter(
     (f) =>
-      f.HeadOfFamily?.toLowerCase().includes(search.toLowerCase()) ||
+      f.FamilyName?.toLowerCase().includes(search.toLowerCase()) ||
       f.FamilyID?.toLowerCase().includes(search.toLowerCase())
   );
 
@@ -1861,10 +1939,11 @@ function FamiliesView({ families, isAdmin, canEdit, onAdd, showToast, lang: prop
     <div style={styles.page}>
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>{t("familiesTitle", lang)}</h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          {families.length > 0 && (
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {families.length > 0 && (<>
+            <button onClick={exportFamiliesPDF} style={{ ...styles.addBtn, background: "#f5f5f4", color: "#57534e", fontSize: 12 }}>{t("exportPDF", lang)}</button>
             <button onClick={exportFamiliesCSV} style={{ ...styles.addBtn, background: "#f5f5f4", color: "#57534e", fontSize: 12 }}>{t("exportCSV", lang)}</button>
-          )}
+          </>)}
           {canEdit && (
             <button onClick={onAdd} style={styles.addBtn}>{t("add", lang)}</button>
           )}
@@ -1882,10 +1961,10 @@ function FamiliesView({ families, isAdmin, canEdit, onAdd, showToast, lang: prop
         {filtered.map((f, i) => (
           <div key={i} style={styles.familyCard}>
             <div style={styles.familyAvatar}>
-              {f.HeadOfFamily?.[0] || "?"}
+              {f.FamilyName?.[0] || "?"}
             </div>
             <div style={{ flex: 1 }}>
-              <p style={styles.txnName}>{f.HeadOfFamily}</p>
+              <p style={styles.txnName}>{f.FamilyName}</p>
               <p style={styles.txnMeta}>{f.FamilyID}</p>
               <p style={styles.txnMeta}>📞 {f.Phone}</p>
               {f.WhatsApp && <p style={styles.txnMeta}>💬 {f.WhatsApp}</p>}
@@ -1942,13 +2021,13 @@ function DonationForm({ families, onSubmit, onClose }) {
               onChange={(e) => {
                 const fam = families.find((f) => f.FamilyID === e.target.value);
                 set("familyId", e.target.value);
-                if (fam) set("donorName", fam.HeadOfFamily);
+                if (fam) set("donorName", fam.FamilyName);
               }}
               style={styles.input}
             >
               <option value="">{t("select", lang)}</option>
               {families.map((f) => (
-                <option key={f.FamilyID} value={f.FamilyID}>{f.HeadOfFamily}</option>
+                <option key={f.FamilyID} value={f.FamilyID}>{f.FamilyName}</option>
               ))}
             </select>
           </label>
@@ -2035,7 +2114,7 @@ function ExpenseForm({ onSubmit, onClose }) {
 function FamilyForm({ onSubmit, onClose }) {
   const lang = useLang();
   const [form, setForm] = useState({
-    headOfFamily: "",
+    familyName: "",
     phone: "",
     whatsApp: "",
     address: "",
@@ -2047,7 +2126,7 @@ function FamilyForm({ onSubmit, onClose }) {
     <Modal title={t("addFamily", lang)} onClose={onClose}>
       <div style={styles.formGrid}>
         <label style={styles.label}>{t("headOfFamily", lang)}
-          <input value={form.headOfFamily} onChange={(e) => set("headOfFamily", e.target.value)} style={styles.input} placeholder="e.g. Rajesh Sharma" />
+          <input value={form.familyName} onChange={(e) => set("familyName", e.target.value)} style={styles.input} placeholder="e.g. M.Meenachi" />
         </label>
         <label style={styles.label}>{t("phone", lang)}
           <input value={form.phone} onChange={(e) => set("phone", e.target.value)} style={styles.input} placeholder="9876543210" />
@@ -2060,9 +2139,9 @@ function FamilyForm({ onSubmit, onClose }) {
         </label>
       </div>
       <button
-        onClick={() => { if (form.headOfFamily) onSubmit(form); }}
+        onClick={() => { if (form.familyName) onSubmit(form); }}
         style={{ ...styles.btnPrimary, width: "100%", marginTop: 16 }}
-        disabled={!form.headOfFamily}
+        disabled={!form.familyName}
       >
         {t("saveFamily", lang)}
       </button>
@@ -2393,7 +2472,7 @@ function AddressReport({ families }) {
             {families.map((f, i) => (
               <tr key={i} style={i % 2 === 0 ? styles.trEven : styles.trOdd}>
                 <td style={styles.td}>
-                  <p style={styles.tableName}>{f.HeadOfFamily}</p>
+                  <p style={styles.tableName}>{f.FamilyName}</p>
                   <p style={styles.tableAddr}>{f.Address}</p>
                 </td>
                 <td style={styles.td}>
@@ -2658,7 +2737,7 @@ function SetupInstructions() {
           <p><strong>Step 2:</strong> Create OAuth 2.0 credentials (Web application). Add your domain to authorized origins. Copy the <strong>Client ID</strong>.</p>
           <p><strong>Step 3:</strong> Upload the provided Excel template to Google Drive and open as Google Sheets. It has these tabs pre-configured:</p>
           <ul style={{ margin: "8px 0", paddingLeft: 20 }}>
-            <li><strong>Families</strong> — FamilyID, HeadOfFamily, Phone, WhatsApp, Address</li>
+            <li><strong>Families</strong> — FamilyID, FamilyName, Phone, WhatsApp, Address</li>
             <li><strong>Income</strong> — TxnID, Date, Day, DonorType, FamilyID, DonorName, Category, Amount, Description, EnteredBy, Timestamp</li>
             <li><strong>Expenses</strong> — TxnID, Date, Day, Category, Description, Amount, Vendor, EnteredBy, Timestamp</li>
             <li><strong>Auction</strong> — ItemNo, ItemDescription, DonatedBy, WinnerFamilyID, WinnerName, BidAmount, EnteredBy1, ConfirmedBy2, Timestamp1, Timestamp2, Status</li>
