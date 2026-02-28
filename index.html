@@ -601,6 +601,12 @@ function App() {
   const audit = (action, module, details) =>
     logAudit(action, module, details, user?.email, IS_DEMO, setAuditLog);
 
+  // --- Toast ---
+  const showToast = useCallback((msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
   // --- Sync offline queue ---
   const syncOfflineQueue = useCallback(async () => {
     if (!backendRef.current || IS_DEMO) return;
@@ -665,12 +671,6 @@ function App() {
       throw e;
     }
   }, [isOnline, lang, showToast]);
-
-  // --- Toast ---
-  const showToast = useCallback((msg, type = "success") => {
-    setToast({ msg, type });
-    setTimeout(() => setToast(null), 3000);
-  }, []);
 
   // --- Demo login ---
   useEffect(() => {
