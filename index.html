@@ -318,11 +318,18 @@ class AppBackend {
   async post(action, data = {}) {
     const res = await fetch(this.url, {
       method: "POST",
+      redirect: "follow",
       headers: { "Content-Type": "text/plain" },
       body: JSON.stringify({ action, data, userEmail: this.userEmail }),
     });
-    if (!res.ok) throw new Error(`Backend error: ${res.status}`);
-    const result = await res.json();
+    const text = await res.text();
+    let result;
+    try {
+      result = JSON.parse(text);
+    } catch(e) {
+      console.error("Backend returned non-JSON:", text.substring(0, 200));
+      throw new Error("Backend returned invalid response");
+    }
     if (!result.success) throw new Error(result.error || "Unknown error");
     return result.data;
   }

@@ -1,5 +1,5 @@
 // Service Worker for Prayer Tracker PWA
-const CACHE_NAME = 'prayer-tracker-v1';
+const CACHE_NAME = 'prayer-tracker-v2';
 const PRECACHE = [
   './',
   './index.html',
@@ -23,6 +23,10 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
+  // Skip non-GET requests and API calls
+  if (event.request.method !== 'GET' || event.request.url.includes('script.google.com') || event.request.url.includes('googleapis.com') || event.request.url.includes('accounts.google.com')) {
+    return;
+  }
   event.respondWith(
     caches.match(event.request).then((cached) => {
       return cached || fetch(event.request).catch(() => caches.match('./index.html'));
