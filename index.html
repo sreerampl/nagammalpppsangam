@@ -524,21 +524,7 @@ function App() {
 
   // --- Google Sign-In (real mode) ---
   const googleReadyRef = useRef(false);
-  const googleBtnRef = useRef(null);
   
-  const renderGoogleBtn = useCallback(() => {
-    if (googleReadyRef.current && googleBtnRef.current) {
-      googleBtnRef.current.innerHTML = "";
-      window.google.accounts.id.renderButton(googleBtnRef.current, {
-        theme: "outline",
-        size: "large",
-        width: 300,
-        text: "signin_with",
-        shape: "rectangular",
-      });
-    }
-  }, []);
-
   const initGoogle = useCallback(() => {
     if (window.google && window.google.accounts) {
       window.google.accounts.id.initialize({
@@ -549,7 +535,6 @@ function App() {
       });
       googleReadyRef.current = true;
       setLoading(false);
-      renderGoogleBtn();
     }
   }, []);
 
@@ -801,7 +786,7 @@ function App() {
   // ============================================================
 
   if (loading) return <LangContext.Provider value={lang}><LoadingScreen /></LangContext.Provider>;
-  if (!user) return <LangContext.Provider value={lang}><LoginScreen lang={lang} setLang={setLang} googleBtnRef={googleBtnRef} renderGoogleBtn={renderGoogleBtn} onDemoLogin={() => {
+  if (!user) return <LangContext.Provider value={lang}><LoginScreen lang={lang} setLang={setLang} onDemoLogin={() => {
     setUser({ email: "admin@example.com", name: "Demo Admin", picture: "", token: null });
     setRole("Admin");
     const mock = createMockData();
@@ -1013,7 +998,26 @@ function LoadingScreen() {
   );
 }
 
-function LoginScreen({ onDemoLogin, lang, setLang, googleBtnRef, renderGoogleBtn }) {
+function LoginScreen({ onDemoLogin, lang, setLang }) {
+  useEffect(() => {
+    if (IS_DEMO) return;
+    const tryRender = () => {
+      const el = document.getElementById("g-signin-btn");
+      if (el && window.google && window.google.accounts) {
+        window.google.accounts.id.renderButton(el, {
+          theme: "outline",
+          size: "large",
+          width: 300,
+          text: "signin_with",
+          shape: "rectangular",
+        });
+      }
+    };
+    tryRender();
+    const interval = setInterval(tryRender, 500);
+    setTimeout(() => clearInterval(interval), 10000);
+    return () => clearInterval(interval);
+  }, []);
   return (
     <div style={styles.loginScreen}>
       <div style={styles.loginCard}>
@@ -1030,10 +1034,7 @@ function LoginScreen({ onDemoLogin, lang, setLang, googleBtnRef, renderGoogleBtn
         <div style={styles.loginDivider} />
         {!IS_DEMO ? (
           <div style={{ marginTop: 24 }}>
-            <div ref={(el) => { googleBtnRef.current = el; renderGoogleBtn(); }} style={{ display: "flex", justifyContent: "center", minHeight: 44 }} />
-            <button onClick={() => { if (window.google) window.google.accounts.id.prompt(); else alert("Google Sign-In still loading."); }} style={{...styles.googleBtn, marginTop: 12, fontSize: 13, background: "#f5f5f4", color: "#78716c"}}>
-              {t("signInGoogle", lang)} (alternate)
-            </button>
+            <div id="g-signin-btn" style={{ display: "flex", justifyContent: "center", minHeight: 44 }} />
           </div>
         ) : (
           <button onClick={onDemoLogin} style={styles.googleBtn}>
