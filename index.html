@@ -1,0 +1,3092 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Family Prayer — Financial Tracker</title>
+  <meta name="description" content="Family Prayer Event Financial Tracker — Income, Expenses, Auction, Reports" />
+  <meta name="theme-color" content="#7c3aed" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🙏</text></svg>" />
+  
+  <!-- Google Identity Services -->
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  
+  <!-- React 18 -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  
+  <!-- Babel for JSX (transforms JSX in browser) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #f5f3ff; }
+    .toast { animation: slideIn 0.3s ease-out; }
+    @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect, useCallback, useRef, createContext, useContext } = React;
+
+
+// ============================================================
+// FAMILY PRAYER EVENT — FINANCIAL TRACKER
+// ============================================================
+// Architecture:
+//   Frontend: React PWA (this file)
+//   Auth: Google Identity Services (Sign-In)
+//   Database: Google Sheets via Google Sheets API v4
+//   Access: Role-based (Admin / Editor / Viewer)
+//
+// SETUP INSTRUCTIONS (README at bottom of this component)
+// ============================================================
+
+// --- i18n: Language Support ---
+const LangContext = createContext("en");
+const useLang = () => useContext(LangContext);
+
+const T = {
+  // App header
+  appTitle: { en: "Family Prayer", ta: "குடும்ப பிரார்த்தனை" },
+  appSubtitle: { en: "Family Prayer", ta: "குடும்ப பிரார்த்தனை" },
+
+  // Navigation
+  navHome: { en: "Home", ta: "முகப்பு" },
+  navDonate: { en: "Income", ta: "வரவு" },
+  navExpense: { en: "Expense", ta: "செலவு" },
+  navAuction: { en: "Auction", ta: "ஏலம்" },
+  navFamily: { en: "Family", ta: "குடும்பம்" },
+  navReports: { en: "Reports", ta: "அறிக்கை" },
+  navAuditLog: { en: "Audit Log", ta: "தணிக்கைப் பதிவு" },
+
+  // Common
+  add: { en: "+ Add", ta: "+ சேர்" },
+  save: { en: "Save", ta: "சேமி" },
+  cancel: { en: "Cancel", ta: "ரத்து" },
+  total: { en: "Total", ta: "மொத்தம்" },
+  all: { en: "All", ta: "அனைத்தும்" },
+  date: { en: "Date", ta: "தேதி" },
+  day: { en: "Day", ta: "நாள்" },
+  day1: { en: "Day 1", ta: "நாள் 1" },
+  day2: { en: "Day 2", ta: "நாள் 2" },
+  day3: { en: "Day 3", ta: "நாள் 3" },
+  family: { en: "Family", ta: "குடும்பம்" },
+  external: { en: "External", ta: "வெளியாள்" },
+  amount: { en: "Amount", ta: "தொகை" },
+  category: { en: "Category", ta: "வகை" },
+  description: { en: "Description", ta: "விவரம்" },
+  entries: { en: "entries", ta: "பதிவுகள்" },
+  select: { en: "Select...", ta: "தேர்வு..." },
+  loading: { en: "Loading...", ta: "ஏற்றுகிறது..." },
+
+  // Dashboard
+  dashboard: { en: "Dashboard", ta: "முகப்புப் பலகை" },
+  totalDonations: { en: "Total Income", ta: "மொத்த வரவு" },
+  auctionIncome: { en: "Auction Income", ta: "ஏல வருமானம்" },
+  totalExpenses: { en: "Total Expenses", ta: "மொத்த செலவு" },
+  netBalance: { en: "Net Balance", ta: "நிகர இருப்பு" },
+  surplus: { en: "Surplus", ta: "மிகுதி" },
+  deficit: { en: "Deficit", ta: "பற்றாக்குறை" },
+  families: { en: "Families", ta: "குடும்பங்கள்" },
+  pendingBids: { en: "Pending Bids", ta: "நிலுவை ஏலம்" },
+  unsoldItems: { en: "Unsold Items", ta: "விற்கப்படாதவை" },
+  daySummary: { en: "Day-wise Summary", ta: "நாள்வாரி சுருக்கம்" },
+  inflow: { en: "In", ta: "வரவு" },
+  outflow: { en: "Out", ta: "செலவு" },
+  net: { en: "Net", ta: "நிகர" },
+  recentTxns: { en: "Recent Transactions", ta: "சமீபத்திய பரிவர்த்தனைகள்" },
+  confirmed: { en: "confirmed", ta: "உறுதிசெய்யப்பட்டது" },
+
+  // Income
+  donations: { en: "Income", ta: "வரவு" },
+  recordDonation: { en: "Record Income", ta: "வரவு பதிவு" },
+  donorType: { en: "Donor Type", ta: "நன்கொடையாளர் வகை" },
+  donorName: { en: "Donor Name", ta: "நன்கொடையாளர் பெயர்" },
+  saveDonation: { en: "Save", ta: "சேமி" },
+  noDonations: { en: "No income recorded yet.", ta: "வரவு எதுவும் பதிவாகவில்லை." },
+  nameOfDonor: { en: "Name of donor", ta: "நன்கொடையாளர் பெயர்" },
+  descOptional: { en: "Description (optional)", ta: "விவரம் (விரும்பினால்)" },
+  notes: { en: "Notes...", ta: "குறிப்புகள்..." },
+
+  // Expenses
+  expenses: { en: "Expenses", ta: "செலவுகள்" },
+  recordExpense: { en: "Record Expense", ta: "செலவு பதிவு" },
+  saveExpense: { en: "Save Expense", ta: "செலவு சேமி" },
+  noExpenses: { en: "No expenses recorded yet.", ta: "செலவுகள் எதுவும் பதிவாகவில்லை." },
+  whatPurchased: { en: "What was purchased?", ta: "என்ன வாங்கப்பட்டது?" },
+  vendorPayee: { en: "Vendor / Payee", ta: "விற்பனையாளர்" },
+  shopName: { en: "Shop name...", ta: "கடை பெயர்..." },
+
+  // Auction
+  auctionTitle: { en: "Auction", ta: "ஏலம்" },
+  itemsCount: { en: "Items", ta: "பொருட்கள்" },
+  enterBid: { en: "Enter Bid", ta: "ஏலம் இடு" },
+  confirmBid: { en: "✓ Confirm Bid", ta: "✓ ஏலம் உறுதி" },
+  submitBid: { en: "Submit Bid", ta: "ஏலம் சமர்ப்பி" },
+  waitingConfirm: { en: "⏳ Waiting for another person to confirm", ta: "⏳ மற்றொருவர் உறுதிசெய்ய காத்திருக்கிறது" },
+  bidFamily: { en: "🏠 Family", ta: "🏠 குடும்பம்" },
+  bidExternal: { en: "👤 External", ta: "👤 வெளியாள்" },
+  winnerName: { en: "Winner name", ta: "வெற்றியாளர் பெயர்" },
+  externalBidder: { en: "External bidder name", ta: "வெளி ஏலதாரர் பெயர்" },
+  bidAmount: { en: "Bid amount (₹)", ta: "ஏல தொகை (₹)" },
+  selectFamily: { en: "Select family...", ta: "குடும்பம் தேர்வு..." },
+  filterAll: { en: "All", ta: "அனைத்தும்" },
+  filterUnsold: { en: "Unsold", ta: "விற்கப்படாதவை" },
+  filterPending: { en: "Pending", ta: "நிலுவை" },
+  filterConfirmed: { en: "Confirmed", ta: "உறுதி" },
+  enteredBy: { en: "Entered by", ta: "பதிவு செய்தவர்" },
+  winner: { en: "Winner", ta: "வெற்றியாளர்" },
+  addItem: { en: "+ Add Item", ta: "+ பொருள் சேர்" },
+  addAuctionItem: { en: "Add Auction Item", ta: "ஏலப் பொருள் சேர்" },
+  itemName: { en: "Item Name", ta: "பொருளின் பெயர்" },
+  itemNamePlaceholder: { en: "e.g. Turmeric, Salt", ta: "எ.கா. மஞ்சள், உப்பு" },
+  saveItem: { en: "Save Item", ta: "பொருள் சேமி" },
+  toastItemAdded: { en: "Auction item added!", ta: "ஏலப் பொருள் சேர்க்கப்பட்டது!" },
+  donatedBy: { en: "Donated by", ta: "நன்கொடையாளர்" },
+
+  // Families
+  familiesTitle: { en: "Families", ta: "குடும்பங்கள்" },
+  addFamily: { en: "Add Family", ta: "குடும்பம் சேர்" },
+  headOfFamily: { en: "Head of Family", ta: "குடும்பத் தலைவர்" },
+  phone: { en: "Phone", ta: "தொலைபேசி" },
+  whatsApp: { en: "WhatsApp Number", ta: "வாட்ஸ்அப் எண்" },
+  address: { en: "Address", ta: "முகவரி" },
+  saveFamily: { en: "Save Family", ta: "குடும்பம் சேமி" },
+  noFamilies: { en: "No families found.", ta: "குடும்பங்கள் இல்லை." },
+  searchFamilies: { en: "Search families...", ta: "குடும்பம் தேடு..." },
+  sameOrDiff: { en: "Same or different from phone", ta: "தொலைபேசி போல் அல்லது வேறு" },
+  fullAddress: { en: "Full address", ta: "முழு முகவரி" },
+
+  // Reports
+  reports: { en: "Reports", ta: "அறிக்கைகள்" },
+  addressBook: { en: "📒 Address Book", ta: "📒 முகவரி புத்தகம்" },
+  auctionBalance: { en: "🔨 Auction Balance", ta: "🔨 ஏல இருப்பு" },
+  familyAddressDir: { en: "Family Address Directory", ta: "குடும்ப முகவரி அடைவு" },
+  eventBalanceSheet: { en: "Event Balance Sheet", ta: "நிகழ்வு இருப்புநிலை" },
+  income: { en: "INCOME", ta: "வருமானம்" },
+  expensesLabel: { en: "EXPENSES", ta: "செலவுகள்" },
+  auctionConfirmed: { en: "Auction (Confirmed)", ta: "ஏலம் (உறுதி)" },
+  auctionPending: { en: "Auction (Pending) *", ta: "ஏலம் (நிலுவை) *" },
+  totalIncome: { en: "Total Income", ta: "மொத்த வருமானம்" },
+  totalOutflow: { en: "Total Outflow", ta: "மொத்த வெளியீடு" },
+  netBalanceLabel: { en: "NET BALANCE", ta: "நிகர இருப்பு" },
+  auctionSummary: { en: "Auction Summary", ta: "ஏல சுருக்கம்" },
+  confirmedLabel: { en: "Confirmed", ta: "உறுதி" },
+  pendingLabel: { en: "Pending", ta: "நிலுவை" },
+  unsoldLabel: { en: "Unsold", ta: "விற்கப்படாதவை" },
+  auctionByBidder: { en: "Auction by Bidder", ta: "ஏலதாரர் வாரியாக" },
+  bidder: { en: "Bidder", ta: "ஏலதாரர்" },
+  itemsWon: { en: "Items Won", ta: "வென்ற பொருட்கள்" },
+  totalAmount: { en: "Total Amount", ta: "மொத்த தொகை" },
+  auctionItemDetails: { en: "Auction Item Details (Confirmed)", ta: "ஏல பொருள் விவரம் (உறுதி)" },
+  item: { en: "Item", ta: "பொருள்" },
+  pendingDisclaimer: {
+    en: "* Pending auction amounts ({amount}) are not included in the confirmed total. They require a second person's confirmation.",
+    ta: "* நிலுவை ஏல தொகைகள் ({amount}) உறுதிசெய்யப்பட்ட மொத்தத்தில் சேர்க்கப்படவில்லை. அவை இரண்டாம் நபரின் உறுதிப்படுத்தல் தேவை."
+  },
+  nameAddress: { en: "Name & Address", ta: "பெயர் & முகவரி" },
+
+  // Login
+  loginTitle: { en: "Family Prayer Event Tracker", ta: "குடும்ப பிரார்த்தனை நிகழ்வு கணக்கு" },
+  signInGoogle: { en: "Sign in with Google", ta: "Google மூலம் உள்நுழை" },
+  enterDemo: { en: "🎭 Enter Demo Mode", ta: "🎭 செயல்விளக்கம்" },
+  loginFooter: {
+    en: "Sign in with your Google account to access the event tracker. Your admin will assign your role.",
+    ta: "நிகழ்வு கணக்கை அணுக உங்கள் Google கணக்கில் உள்நுழையவும். நிர்வாகி உங்கள் பங்கை வழங்குவார்."
+  },
+  accessPending: { en: "Access Pending", ta: "அணுகல் நிலுவையில்" },
+  noAccess: {
+    en: "does not have access yet. Please contact the admin to be added to the system.",
+    ta: "இன்னும் அணுகல் இல்லை. கணினியில் சேர்க்க நிர்வாகியைத் தொடர்புகொள்ளவும்."
+  },
+  signOut: { en: "Sign out", ta: "வெளியேறு" },
+
+  // Demo
+  demoMode: { en: "🎭 Demo Mode — Switch role:", ta: "🎭 செயல்விளக்கம் — பங்கு மாற்று:" },
+  setupInstructions: {
+    en: "Setup Instructions (for real Google Sheets integration)",
+    ta: "அமைப்பு வழிமுறைகள் (Google Sheets இணைப்புக்கு)"
+  },
+
+  // Toast messages
+  toastDonation: { en: "Income recorded!", ta: "வரவு பதிவாகியது!" },
+  toastExpense: { en: "Expense recorded!", ta: "செலவு பதிவாகியது!" },
+  toastFamily: { en: "Family added!", ta: "குடும்பம் சேர்க்கப்பட்டது!" },
+  toastBidSubmit: { en: "Bid submitted! Awaiting confirmation.", ta: "ஏலம் சமர்ப்பிக்கப்பட்டது! உறுதிக்காக காத்திருக்கிறது." },
+  toastBidConfirm: { en: "Bid confirmed!", ta: "ஏலம் உறுதிசெய்யப்பட்டது!" },
+  toastBidSelfError: { en: "Cannot confirm your own entry!", ta: "உங்கள் சொந்த பதிவை உறுதிசெய்ய முடியாது!" },
+
+  // Donation categories
+  catFood: { en: "Food", ta: "உணவு" },
+  catTempleExpenses: { en: "Temple Expenses", ta: "கோவில் செலவுகள்" },
+  catMembership: { en: "Membership", ta: "உறுப்பினர் கட்டணம்" },
+  catPrayerObjects: { en: "Prayer Objects", ta: "பூஜை பொருட்கள்" },
+  catAuctionObjects: { en: "Objects for Auction", ta: "ஏலப் பொருட்கள்" },
+  objectName: { en: "Object Name *", ta: "பொருளின் பெயர் *" },
+  catGroceries: { en: "Groceries", ta: "மளிகை" },
+  catVegetables: { en: "Vegetables", ta: "காய்கறிகள்" },
+  catOther: { en: "Other", ta: "மற்றவை" },
+  catTemple: { en: "Temple", ta: "கோவில்" },
+  catSupplies: { en: "Supplies", ta: "பொருட்கள்" },
+  catDecorations: { en: "Decorations", ta: "அலங்காரம்" },
+  catTransport: { en: "Transport", ta: "போக்குவரத்து" },
+};
+
+// Helper: get translated text
+const t = (key, lang) => T[key]?.[lang] || T[key]?.en || key;
+
+// Category translation maps
+const DONATION_CAT_KEYS = ["catFood", "catTempleExpenses", "catMembership", "catPrayerObjects", "catAuctionObjects", "catGroceries", "catVegetables", "catOther"];
+const EXPENSE_CAT_KEYS = ["catFood", "catTemple", "catVegetables", "catGroceries", "catSupplies", "catDecorations", "catTransport", "catOther"];
+
+// English category values (stored in data/sheets)
+const DONATION_CATEGORIES_EN = ["Food", "Temple Expenses", "Membership", "Prayer Objects", "Objects for Auction", "Groceries", "Vegetables", "Other"];
+const EXPENSE_CATEGORIES_EN = ["Food", "Temple", "Vegetables", "Groceries", "Supplies", "Decorations", "Transport", "Other"];
+
+// Map English category value → i18n key
+const catKeyMap = {
+  "Food": "catFood", "Temple Expenses": "catTempleExpenses", "Membership": "catMembership",
+  "Prayer Objects": "catPrayerObjects", "Objects for Auction": "catAuctionObjects", "Groceries": "catGroceries", "Vegetables": "catVegetables",
+  "Other": "catOther", "Temple": "catTemple", "Supplies": "catSupplies",
+  "Decorations": "catDecorations", "Transport": "catTransport",
+};
+const tCat = (catVal, lang) => t(catKeyMap[catVal] || "catOther", lang);
+
+// --- Google Config ---
+// Replace these with your actual values
+const GOOGLE_CLIENT_ID = "65330609098-1ufgiac4e6mbvoh70cb1rhtmj9hu8f45.apps.googleusercontent.com";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwKWrmcwupHeX9402YLW2R9n8cw-Q0jaURAyrKGjnt8xoGOsNNe6xOPPVdk7okRaj-f/exec";
+
+// Sheet names
+const SHEETS = {
+  FAMILIES: "Families",
+  DONATIONS: "Income",
+  EXPENSES: "Expenses",
+  AUCTION: "Auction",
+  LEDGER: "Ledger",
+  ACCESS: "AccessControl",
+  AUDIT: "AuditLog",
+};
+
+// Categories (English values — stored in sheets)
+const DONATION_CATEGORIES = DONATION_CATEGORIES_EN;
+const EXPENSE_CATEGORIES = EXPENSE_CATEGORIES_EN;
+
+// --- Utility: Generate IDs ---
+const generateId = (prefix) =>
+  `${prefix}-${Date.now().toString(36).toUpperCase()}`;
+const formatCurrency = (amt) =>
+  new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0,
+  }).format(amt || 0);
+const today = () => new Date().toISOString().split("T")[0];
+const now = () => new Date().toLocaleString("en-IN");
+
+// --- Audit Log ---
+const logAudit = async (action, module, details, userEmail, isDemo, setAuditLog) => {
+  const entry = {
+    Timestamp: now(),
+    User: userEmail || "unknown",
+    Action: action,
+    Module: module,
+    Details: details,
+  };
+  // In demo mode, log locally. In real mode, backend writes audit on every action automatically.
+  if (isDemo) {
+    setAuditLog((prev) => [entry, ...prev]);
+  }
+  return entry;
+};
+
+// --- Apps Script Backend Helper ---
+class AppBackend {
+  constructor(userEmail) {
+    this.userEmail = userEmail;
+    this.url = APPS_SCRIPT_URL;
+  }
+
+  async post(action, data = {}) {
+    const res = await fetch(this.url, {
+      method: "POST",
+      headers: { "Content-Type": "text/plain" },
+      body: JSON.stringify({ action, data, userEmail: this.userEmail }),
+    });
+    if (!res.ok) throw new Error(`Backend error: ${res.status}`);
+    const result = await res.json();
+    if (!result.success) throw new Error(result.error || "Unknown error");
+    return result.data;
+  }
+
+  async loadAll() {
+    return this.post("loadAll");
+  }
+
+  async checkAccess() {
+    return this.post("checkAccess");
+  }
+}
+
+// --- DEMO / MOCK MODE ---
+// When Google credentials aren't configured, the app runs with local state
+const IS_DEMO = GOOGLE_CLIENT_ID.includes("YOUR_") || APPS_SCRIPT_URL.includes("YOUR_");
+
+function createMockData() {
+  return {
+    families: [
+      {
+        FamilyID: "FAM-001",
+        HeadOfFamily: "Rajesh Sharma",
+        Phone: "9876543210",
+        WhatsApp: "9876543210",
+        Address: "12, Temple Street, Chennai",
+      },
+      {
+        FamilyID: "FAM-002",
+        HeadOfFamily: "Venkat Iyer",
+        Phone: "9876543211",
+        WhatsApp: "9876543299",
+        Address: "45, Agraharam, Kumbakonam",
+      },
+      {
+        FamilyID: "FAM-003",
+        HeadOfFamily: "Suresh Reddy",
+        Phone: "9876543212",
+        WhatsApp: "9876543212",
+        Address: "78, MG Road, Hyderabad",
+      },
+    ],
+    donations: [
+      {
+        TxnID: "DON-001",
+        Date: "2025-01-10",
+        Day: "1",
+        DonorType: "Family",
+        FamilyID: "FAM-001",
+        DonorName: "Rajesh Sharma",
+        Category: "Membership",
+        Amount: "5000",
+        Description: "Annual membership",
+        EnteredBy: "admin@example.com",
+        Timestamp: "10/01/2025, 9:00 AM",
+      },
+      {
+        TxnID: "DON-002",
+        Date: "2025-01-10",
+        Day: "1",
+        DonorType: "External",
+        FamilyID: "",
+        DonorName: "Ravi Kumar",
+        Category: "Food",
+        Amount: "2000",
+        Description: "Food donation",
+        EnteredBy: "admin@example.com",
+        Timestamp: "10/01/2025, 10:30 AM",
+      },
+      {
+        TxnID: "DON-003",
+        Date: "2025-01-11",
+        Day: "2",
+        DonorType: "Family",
+        FamilyID: "FAM-002",
+        DonorName: "Venkat Iyer",
+        Category: "Temple Expenses",
+        Amount: "3000",
+        Description: "",
+        EnteredBy: "admin@example.com",
+        Timestamp: "11/01/2025, 8:00 AM",
+      },
+    ],
+    expenses: [
+      {
+        TxnID: "EXP-001",
+        Date: "2025-01-10",
+        Day: "1",
+        Category: "Food",
+        Description: "Lunch provisions",
+        Amount: "8000",
+        Vendor: "Sri Balaji Store",
+        EnteredBy: "admin@example.com",
+        Timestamp: "10/01/2025, 7:00 AM",
+      },
+      {
+        TxnID: "EXP-002",
+        Date: "2025-01-11",
+        Day: "2",
+        Category: "Decorations",
+        Description: "Flowers and garlands",
+        Amount: "3500",
+        Vendor: "Flower Market",
+        EnteredBy: "admin@example.com",
+        Timestamp: "11/01/2025, 6:30 AM",
+      },
+    ],
+    auction: [
+      // Real item names from 2024 நாகம்மா prayer event
+      "மஞ்சள்","மஞ்சள்","மஞ்சள்","மஞ்சள்","மஞ்சள்",
+      "உப்பு","உப்பு","உப்பு","உப்பு","உப்பு",
+      "கற்கண்டு","கற்கண்டு","கற்கண்டு","கற்கண்டு","கற்கண்டு",
+      "தேங்காய்","தேங்காய்","தேங்காய்","தேங்காய்","தேங்காய்",
+      "பாக்கு","பாக்கு","பாக்கு","பாக்கு","பாக்கு",
+      "வெல்லம்","வெல்லம்","வெல்லம்","வெல்லம்","வெல்லம்",
+      "சர்க்கரை","சர்க்கரை","சர்க்கரை","சர்க்கரை","சர்க்கரை",
+      "ஜீனி","ஜீனி","ஜீனி","ஜீனி","ஜீனி",
+      "எலுமிச்சம் பழம்","எலுமிச்சம் பழம்","எலுமிச்சம் பழம்","எலுமிச்சம் பழம்","எலுமிச்சம் பழம்",
+      "வாழைப்பழம்","வாழைப்பழம்","வாழைப்பழம்",
+    ].map((name, i) => ({
+      ItemNo: String(i + 1),
+      ItemDescription: name,
+      DonatedBy: "",
+      WinnerFamilyID: i < 3 ? ["FAM-001", "FAM-003", "FAM-002"][i] : "",
+      WinnerName: i < 3 ? ["Rajesh Sharma", "Suresh Reddy", "Venkat Iyer"][i] : "",
+      BidAmount: i < 3 ? [15000, 12000, 8000][i] : "",
+      EnteredBy1: i < 3 ? "admin@example.com" : "",
+      ConfirmedBy2: i < 2 ? "editor@example.com" : "",
+      Timestamp1: i < 3 ? "12/01/2025, 2:00 PM" : "",
+      Timestamp2: i < 2 ? "12/01/2025, 2:05 PM" : "",
+      Status: i < 2 ? "Confirmed" : i === 2 ? "Pending" : "",
+    })),
+    access: [
+      { Email: "admin@example.com", Name: "Admin User", FamilyID: "FAM-001", Role: "Admin" },
+      { Email: "editor@example.com", Name: "Editor User", FamilyID: "FAM-002", Role: "Editor" },
+      { Email: "viewer@example.com", Name: "Viewer User", FamilyID: "FAM-003", Role: "Viewer" },
+    ],
+  };
+}
+
+// ============================================================
+// MAIN APP COMPONENT
+// ============================================================
+export default function App() {
+  // Auth state
+  const [user, setUser] = useState(null); // { email, name, picture, token }
+  const [role, setRole] = useState(null); // Admin | Editor | Viewer | null
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [lang, setLang] = useState("en"); // "en" or "ta"
+
+  // Data state
+  const [families, setFamilies] = useState([]);
+  const [donations, setDonations] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [auction, setAuction] = useState([]);
+  const [accessList, setAccessList] = useState([]);
+  const [auditLog, setAuditLog] = useState([]);
+
+  // UI state
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [showForm, setShowForm] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [currentYear] = useState(new Date().getFullYear());
+
+  const backendRef = useRef(null);
+
+  // Audit helper
+  const audit = (action, module, details) =>
+    logAudit(action, module, details, user?.email, isDemo, setAuditLog);
+
+  // --- Toast ---
+  const showToast = useCallback((msg, type = "success") => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  }, []);
+
+  // --- Demo login ---
+  useEffect(() => {
+    if (IS_DEMO) {
+      // Auto-login as admin in demo mode
+      setUser({
+        email: "admin@example.com",
+        name: "Demo Admin",
+        picture: "",
+        token: null,
+      });
+      setRole("Admin");
+      const mock = createMockData();
+      setFamilies(mock.families);
+      setDonations(mock.donations);
+      setExpenses(mock.expenses);
+      setAuction(mock.auction);
+      setAccessList(mock.access);
+      setAuditLog([{ Timestamp: now(), User: "admin@example.com", Action: "LOGIN", Module: "Auth", Details: "Demo Admin logged in" }]);
+      setLoading(false);
+    }
+  }, []);
+
+  // --- Google Sign-In (real mode) ---
+  useEffect(() => {
+    if (IS_DEMO) return;
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.onload = () => {
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleGoogleLogin,
+        scope:
+          "https://www.googleapis.com/auth/spreadsheets https://www.googleapis.com/auth/userinfo.email",
+      });
+      setLoading(false);
+    };
+    document.head.appendChild(script);
+  }, []);
+
+  const handleGoogleLogin = async (response) => {
+    try {
+      const payload = JSON.parse(atob(response.credential.split(".")[1]));
+      const u = {
+        email: payload.email,
+        name: payload.name,
+        picture: payload.picture,
+        token: response.credential,
+      };
+      setUser(u);
+      backendRef.current = new AppBackend(u.email);
+      await loadAllData(u.email);
+    } catch (e) {
+      setError("Login failed: " + e.message);
+    }
+  };
+
+  const loadAllData = async (email) => {
+    try {
+      setLoading(true);
+      const api = backendRef.current;
+      const result = await api.loadAll();
+      setFamilies(result.families || []);
+      setDonations(result.income || []);
+      setExpenses(result.expenses || []);
+      setAuction(result.auction || []);
+      setAccessList(result.access || []);
+      if (result.auditLog) setAuditLog(result.auditLog.reverse());
+      setRole(result.role || null);
+    } catch (e) {
+      setError("Failed to load data: " + e.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDemoRoleSwitch = (newRole) => {
+    const emailMap = { Admin: "admin@example.com", Editor: "editor@example.com", Viewer: "viewer@example.com" };
+    setRole(newRole);
+    setUser({ email: emailMap[newRole], name: `Demo ${newRole}`, picture: "", token: null });
+  };
+
+  const logout = () => {
+    audit("LOGOUT", "Auth", `${user?.name || user?.email} logged out`);
+    setUser(null);
+    setRole(null);
+    setActiveTab("dashboard");
+  };
+
+  // --- Data operations (local for demo, Apps Script for real) ---
+  const addDonation = async (donation) => {
+    const row = {
+      TxnID: generateId("DON"),
+      Date: donation.date,
+      Day: donation.day,
+      DonorType: donation.donorType,
+      FamilyID: donation.familyId || "",
+      DonorName: donation.donorName,
+      Category: donation.category,
+      Amount: donation.amount,
+      Description: donation.description || "",
+      EnteredBy: user.email,
+      Timestamp: now(),
+    };
+    if (!IS_DEMO) {
+      await backendRef.current.post("addIncome", donation);
+    }
+    setDonations((prev) => [...prev, row]);
+
+    // Auto-add to auction if category is "Objects for Auction"
+    if (donation.category === "Objects for Auction" && donation.description) {
+      const auctionRow = {
+        ItemNo: String(auction.length + 1),
+        ItemDescription: donation.description,
+        DonatedBy: donation.donorName,
+        WinnerFamilyID: "",
+        WinnerName: "",
+        BidAmount: "",
+        EnteredBy1: "",
+        ConfirmedBy2: "",
+        Timestamp1: "",
+        Timestamp2: "",
+        Status: "",
+      };
+      // Backend already handles auction auto-add
+      setAuction((prev) => [...prev, auctionRow]);
+    }
+
+    showToast(t("toastDonation", lang));
+    audit("CREATE", "Income", `${row.TxnID} ₹${row.Amount} ${row.Category} by ${row.DonorName}`);
+    if (donation.category === "Objects for Auction" && donation.description) {
+      audit("CREATE", "Auction", `Auto-added "${donation.description}" from income by ${donation.donorName}`);
+    }
+    setShowForm(null);
+  };
+
+  const addAuctionItem = async (item) => {
+    const row = {
+      ItemNo: String(auction.length + 1),
+      ItemDescription: item.itemName,
+      DonatedBy: item.donatedBy || "",
+      WinnerFamilyID: "",
+      WinnerName: "",
+      BidAmount: "",
+      EnteredBy1: "",
+      ConfirmedBy2: "",
+      Timestamp1: "",
+      Timestamp2: "",
+      Status: "",
+    };
+    if (!IS_DEMO) {
+      await backendRef.current.post("addAuctionItem", item);
+    }
+    setAuction((prev) => [...prev, row]);
+    showToast(t("toastItemAdded", lang));
+    audit("CREATE", "Auction", `Manual add #${row.ItemNo} "${item.itemName}"${item.donatedBy ? ` by ${item.donatedBy}` : ""}`);
+    setShowForm(null);
+  };
+
+  const addExpense = async (expense) => {
+    const row = {
+      TxnID: generateId("EXP"),
+      Date: expense.date,
+      Day: expense.day,
+      Category: expense.category,
+      Description: expense.description,
+      Amount: expense.amount,
+      Vendor: expense.vendor || "",
+      EnteredBy: user.email,
+      Timestamp: now(),
+    };
+    if (!IS_DEMO) {
+      await backendRef.current.post("addExpense", expense);
+    }
+    setExpenses((prev) => [...prev, row]);
+    showToast(t("toastExpense", lang));
+    audit("CREATE", "Expenses", `${row.TxnID} ₹${row.Amount} ${row.Category} - ${row.Description}`);
+    setShowForm(null);
+  };
+
+  const addFamily = async (family) => {
+    const row = {
+      FamilyID: generateId("FAM"),
+      HeadOfFamily: family.headOfFamily,
+      Phone: family.phone,
+      WhatsApp: family.whatsApp || "",
+      Address: family.address,
+    };
+    if (!IS_DEMO) {
+      await backendRef.current.post("addFamily", family);
+    }
+    setFamilies((prev) => [...prev, row]);
+    showToast(t("toastFamily", lang));
+    audit("CREATE", "Families", `${row.FamilyID} ${row.HeadOfFamily}`);
+    setShowForm(null);
+  };
+
+  const enterAuctionBid = async (itemIndex, bid) => {
+    const updated = [...auction];
+    const item = { ...updated[itemIndex] };
+    if (!item.EnteredBy1 || item.EnteredBy1 === "") {
+      // First entry
+      item.WinnerFamilyID = bid.familyId;
+      item.WinnerName = bid.winnerName;
+      item.BidAmount = bid.amount;
+      item.EnteredBy1 = user.email;
+      item.Timestamp1 = now();
+      item.Status = "Pending";
+    } else if (item.EnteredBy1 !== user.email && (!item.ConfirmedBy2 || item.ConfirmedBy2 === "")) {
+      // Second person confirms
+      item.ConfirmedBy2 = user.email;
+      item.Timestamp2 = now();
+      item.Status = "Confirmed";
+    } else {
+      showToast(t("toastBidSelfError", lang), "error");
+      return;
+    }
+    updated[itemIndex] = item;
+    if (!IS_DEMO) {
+      await backendRef.current.post("enterBid", { ...bid, rowIndex: itemIndex });
+    }
+    setAuction(updated);
+    if (item.Status === "Confirmed") {
+      showToast(t("toastBidConfirm", lang));
+      audit("CONFIRM", "Auction", `#${item.ItemNo} "${item.ItemDescription}" ₹${item.BidAmount} to ${item.WinnerName}`);
+    } else {
+      showToast(t("toastBidSubmit", lang));
+      audit("BID", "Auction", `#${item.ItemNo} "${item.ItemDescription}" ₹${bid.amount} by ${bid.winnerName}`);
+    }
+  };
+
+  // --- Computed values ---
+  const totalDonations = donations.reduce((s, d) => s + Number(d.Amount || 0), 0);
+  const totalExpenses = expenses.reduce((s, e) => s + Number(e.Amount || 0), 0);
+  const totalAuction = auction
+    .filter((a) => a.Status === "Confirmed")
+    .reduce((s, a) => s + Number(a.BidAmount || 0), 0);
+  const balance = totalDonations + totalAuction - totalExpenses;
+
+  const canEdit = role === "Admin" || role === "Editor";
+  const isAdmin = role === "Admin";
+
+  // ============================================================
+  // RENDER
+  // ============================================================
+
+  if (loading) return <LangContext.Provider value={lang}><LoadingScreen /></LangContext.Provider>;
+  if (!user) return <LangContext.Provider value={lang}><LoginScreen lang={lang} setLang={setLang} onDemoLogin={() => {
+    setUser({ email: "admin@example.com", name: "Demo Admin", picture: "", token: null });
+    setRole("Admin");
+    const mock = createMockData();
+    setFamilies(mock.families);
+    setDonations(mock.donations);
+    setExpenses(mock.expenses);
+    setAuction(mock.auction);
+    setAccessList(mock.access);
+  }} /></LangContext.Provider>;
+  if (!role) return <LangContext.Provider value={lang}><NoAccessScreen email={user.email} onLogout={logout} /></LangContext.Provider>;
+
+  return (
+    <LangContext.Provider value={lang}>
+    <div style={styles.app}>
+      {/* Header */}
+      <header style={styles.header}>
+        <div style={styles.headerInner}>
+          <div style={styles.headerLeft}>
+            <div style={styles.logo}>🪔</div>
+            <div>
+              <h1 style={styles.headerTitle}>{t("appTitle", lang)}</h1>
+              <p style={styles.headerSubtitle}>{t("appSubtitle", lang === "ta" ? "en" : "ta")} · {currentYear}</p>
+            </div>
+          </div>
+          <div style={styles.headerRight}>
+            {/* Language Toggle */}
+            <button
+              onClick={() => setLang(lang === "en" ? "ta" : "en")}
+              style={styles.langToggle}
+              title={lang === "en" ? "Switch to Tamil" : "Switch to English"}
+            >
+              {lang === "en" ? "தமிழ்" : "ENG"}
+            </button>
+            <div style={styles.userBadge}>
+              <span style={styles.rolePill}>{role}</span>
+              <span style={styles.userName}>{user.name?.split(" ")[0]}</span>
+            </div>
+            <button onClick={logout} style={styles.logoutBtn}>↗</button>
+          </div>
+        </div>
+        {IS_DEMO && (
+          <div style={styles.demoBanner}>
+            <span>{t("demoMode", lang)} </span>
+            {["Admin", "Editor", "Viewer"].map((r) => (
+              <button
+                key={r}
+                onClick={() => handleDemoRoleSwitch(r)}
+                style={{
+                  ...styles.demoRoleBtn,
+                  background: role === r ? "#fff" : "transparent",
+                  color: role === r ? "#b45309" : "#fff",
+                }}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+        )}
+      </header>
+
+      {/* Toast */}
+      {toast && (
+        <div style={{
+          ...styles.toast,
+          background: toast.type === "error" ? "#dc2626" : "#059669",
+        }}>
+          {toast.msg}
+        </div>
+      )}
+
+      {/* Main Content */}
+      <main style={styles.main}>
+        {activeTab === "dashboard" && (
+          <Dashboard
+            totalDonations={totalDonations}
+            totalExpenses={totalExpenses}
+            totalAuction={totalAuction}
+            balance={balance}
+            donations={donations}
+            expenses={expenses}
+            auction={auction}
+            families={families}
+          />
+        )}
+        {activeTab === "donations" && (
+          <DonationsView
+            donations={donations}
+            families={families}
+            canEdit={canEdit}
+            onAdd={() => setShowForm("donation")}
+          />
+        )}
+        {activeTab === "expenses" && (
+          <ExpensesView
+            expenses={expenses}
+            canEdit={canEdit}
+            onAdd={() => setShowForm("expense")}
+          />
+        )}
+        {activeTab === "auction" && (
+          <AuctionView
+            auction={auction}
+            families={families}
+            canEdit={canEdit}
+            isAdmin={isAdmin}
+            userEmail={user.email}
+            onBid={enterAuctionBid}
+            onAddItem={() => setShowForm("auctionItem")}
+          />
+        )}
+        {activeTab === "families" && (
+          <FamiliesView
+            families={families}
+            isAdmin={isAdmin}
+            canEdit={canEdit}
+            onAdd={() => setShowForm("family")}
+          />
+        )}
+        {activeTab === "reports" && (
+          <ReportsView
+            families={families}
+            donations={donations}
+            expenses={expenses}
+            auction={auction}
+            totalDonations={totalDonations}
+            totalExpenses={totalExpenses}
+            totalAuction={totalAuction}
+            balance={balance}
+          />
+        )}
+        {activeTab === "auditlog" && isAdmin && (
+          <AuditLogView entries={auditLog} />
+        )}
+      </main>
+
+      {/* Forms (Modal) */}
+      {showForm === "donation" && (
+        <DonationForm
+          families={families}
+          onSubmit={addDonation}
+          onClose={() => setShowForm(null)}
+        />
+      )}
+      {showForm === "expense" && (
+        <ExpenseForm
+          onSubmit={addExpense}
+          onClose={() => setShowForm(null)}
+        />
+      )}
+      {showForm === "family" && (
+        <FamilyForm
+          onSubmit={addFamily}
+          onClose={() => setShowForm(null)}
+        />
+      )}
+      {showForm === "auctionItem" && (
+        <AuctionItemForm
+          onSubmit={addAuctionItem}
+          onClose={() => setShowForm(null)}
+        />
+      )}
+
+      {/* Bottom Nav */}
+      <nav style={styles.nav}>
+        {[
+          { id: "dashboard", icon: "📊", label: t("navHome", lang) },
+          { id: "donations", icon: "💰", label: t("navDonate", lang) },
+          { id: "expenses", icon: "💸", label: t("navExpense", lang) },
+          { id: "auction", icon: "🔨", label: t("navAuction", lang) },
+          { id: "families", icon: "👨‍👩‍👧‍👦", label: t("navFamily", lang) },
+          { id: "reports", icon: "📋", label: t("navReports", lang) },
+          ...(isAdmin ? [{ id: "auditlog", icon: "📜", label: t("navAuditLog", lang) }] : []),
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            style={{
+              ...styles.navBtn,
+              color: activeTab === tab.id ? "#b45309" : "#78716c",
+              borderTop: activeTab === tab.id ? "3px solid #b45309" : "3px solid transparent",
+            }}
+          >
+            <span style={{ fontSize: 20 }}>{tab.icon}</span>
+            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5 }}>{tab.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      {/* Setup Instructions (shown once in demo) */}
+      {IS_DEMO && activeTab === "dashboard" && <SetupInstructions />}
+    </div>
+    </LangContext.Provider>
+  );
+}
+
+// ============================================================
+// SCREENS
+// ============================================================
+
+function LoadingScreen() {
+  const lang = useLang();
+  return (
+    <div style={styles.centerScreen}>
+      <div style={styles.spinner} />
+      <p style={{ color: "#78716c", marginTop: 16, fontFamily: "'Cormorant Garamond', serif" }}>
+        {t("loading", lang)}
+      </p>
+    </div>
+  );
+}
+
+function LoginScreen({ onDemoLogin, lang, setLang }) {
+  return (
+    <div style={styles.loginScreen}>
+      <div style={styles.loginCard}>
+        {/* Language toggle on login */}
+        <button
+          onClick={() => setLang(lang === "en" ? "ta" : "en")}
+          style={{ ...styles.langToggle, position: "absolute", top: 16, right: 16, background: "#292524", color: "#fff" }}
+        >
+          {lang === "en" ? "தமிழ்" : "ENG"}
+        </button>
+        <div style={{ fontSize: 64, marginBottom: 8 }}>🪔</div>
+        <h1 style={styles.loginTitle}>குடும்ப பிரார்த்தனை</h1>
+        <p style={styles.loginSubtitle}>{t("loginTitle", lang)}</p>
+        <div style={styles.loginDivider} />
+        {!IS_DEMO ? (
+          <div id="google-signin-btn" style={{ marginTop: 24 }}>
+            <button style={styles.googleBtn}>
+              <span style={{ marginRight: 8 }}>G</span> {t("signInGoogle", lang)}
+            </button>
+          </div>
+        ) : (
+          <button onClick={onDemoLogin} style={styles.googleBtn}>
+            {t("enterDemo", lang)}
+          </button>
+        )}
+        <p style={styles.loginFooter}>
+          {t("loginFooter", lang)}
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function NoAccessScreen({ email, onLogout }) {
+  const lang = useLang();
+  return (
+    <div style={styles.centerScreen}>
+      <div style={{ textAlign: "center", padding: 32 }}>
+        <div style={{ fontSize: 48 }}>🔒</div>
+        <h2 style={{ fontFamily: "'Cormorant Garamond', serif", color: "#292524", marginTop: 16 }}>
+          {t("accessPending", lang)}
+        </h2>
+        <p style={{ color: "#78716c", marginTop: 8, maxWidth: 300 }}>
+          <strong>{email}</strong> {t("noAccess", lang)}
+        </p>
+        <button onClick={onLogout} style={{ ...styles.btnPrimary, marginTop: 24 }}>
+          {t("signOut", lang)}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// DASHBOARD
+// ============================================================
+
+function Dashboard({ totalDonations, totalExpenses, totalAuction, balance, donations, expenses, auction, families }) {
+  const lang = useLang();
+  const confirmedAuctions = auction.filter((a) => a.Status === "Confirmed").length;
+  const pendingAuctions = auction.filter((a) => a.Status === "Pending").length;
+
+  return (
+    <div style={styles.page}>
+      <h2 style={styles.pageTitle}>{t("dashboard", lang)}</h2>
+
+      {/* Summary Cards */}
+      <div style={styles.cardGrid}>
+        <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #065f46, #059669)" }}>
+          <p style={styles.cardLabel}>{t("totalDonations", lang)}</p>
+          <p style={styles.cardValue}>{formatCurrency(totalDonations)}</p>
+          <p style={styles.cardCount}>{donations.length} {t("entries", lang)}</p>
+        </div>
+        <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #92400e, #b45309)" }}>
+          <p style={styles.cardLabel}>{t("auctionIncome", lang)}</p>
+          <p style={styles.cardValue}>{formatCurrency(totalAuction)}</p>
+          <p style={styles.cardCount}>{confirmedAuctions}/{auction.length} {t("confirmed", lang)}</p>
+        </div>
+        <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #991b1b, #dc2626)" }}>
+          <p style={styles.cardLabel}>{t("totalExpenses", lang)}</p>
+          <p style={styles.cardValue}>{formatCurrency(totalExpenses)}</p>
+          <p style={styles.cardCount}>{expenses.length} {t("entries", lang)}</p>
+        </div>
+        <div style={{
+          ...styles.summaryCard,
+          background: balance >= 0
+            ? "linear-gradient(135deg, #1e3a5f, #2563eb)"
+            : "linear-gradient(135deg, #7f1d1d, #991b1b)",
+        }}>
+          <p style={styles.cardLabel}>{t("netBalance", lang)}</p>
+          <p style={styles.cardValue}>{formatCurrency(balance)}</p>
+          <p style={styles.cardCount}>{balance >= 0 ? t("surplus", lang) : t("deficit", lang)}</p>
+        </div>
+      </div>
+
+      {/* Quick Stats */}
+      <div style={styles.statsRow}>
+        <div style={styles.statBox}>
+          <span style={styles.statNum}>{families.length}</span>
+          <span style={styles.statLabel}>{t("families", lang)}</span>
+        </div>
+        <div style={styles.statBox}>
+          <span style={styles.statNum}>{pendingAuctions}</span>
+          <span style={styles.statLabel}>{t("pendingBids", lang)}</span>
+        </div>
+        <div style={styles.statBox}>
+          <span style={styles.statNum}>{auction.length - confirmedAuctions - pendingAuctions}</span>
+          <span style={styles.statLabel}>{t("unsoldItems", lang)}</span>
+        </div>
+      </div>
+
+      {/* Day-wise Breakdown */}
+      <h3 style={styles.sectionTitle}>{t("daySummary", lang)}</h3>
+      <div style={styles.dayGrid}>
+        {[1, 2, 3].map((day) => {
+          const dayDon = donations.filter((d) => d.Day === String(day));
+          const dayExp = expenses.filter((e) => e.Day === String(day));
+          const dayDonTotal = dayDon.reduce((s, d) => s + Number(d.Amount || 0), 0);
+          const dayExpTotal = dayExp.reduce((s, e) => s + Number(e.Amount || 0), 0);
+          return (
+            <div key={day} style={styles.dayCard}>
+              <div style={styles.dayBadge}>{t("day", lang)} {day}</div>
+              <div style={styles.dayRow}>
+                <span style={{ color: "#059669" }}>↓ {t("inflow", lang)}</span>
+                <span style={{ fontWeight: 700 }}>{formatCurrency(dayDonTotal)}</span>
+              </div>
+              <div style={styles.dayRow}>
+                <span style={{ color: "#dc2626" }}>↑ {t("outflow", lang)}</span>
+                <span style={{ fontWeight: 700 }}>{formatCurrency(dayExpTotal)}</span>
+              </div>
+              <div style={{ ...styles.dayRow, borderTop: "1px solid #e7e5e4", paddingTop: 8, marginTop: 4 }}>
+                <span style={{ fontWeight: 600 }}>{t("net", lang)}</span>
+                <span style={{ fontWeight: 700, color: dayDonTotal - dayExpTotal >= 0 ? "#059669" : "#dc2626" }}>
+                  {formatCurrency(dayDonTotal - dayExpTotal)}
+                </span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Recent Transactions */}
+      <h3 style={styles.sectionTitle}>{t("recentTxns", lang)}</h3>
+      <div style={styles.recentList}>
+        {[...donations.map((d) => ({ ...d, _type: "donation" })),
+        ...expenses.map((e) => ({ ...e, _type: "expense" }))]
+          .sort((a, b) => b.Timestamp?.localeCompare(a.Timestamp))
+          .slice(0, 5)
+          .map((txn, i) => (
+            <div key={i} style={styles.recentItem}>
+              <div style={{
+                ...styles.recentIcon,
+                background: txn._type === "donation" ? "#d1fae5" : "#fee2e2",
+                color: txn._type === "donation" ? "#059669" : "#dc2626",
+              }}>
+                {txn._type === "donation" ? "↓" : "↑"}
+              </div>
+              <div style={{ flex: 1 }}>
+                <p style={styles.recentName}>
+                  {txn._type === "donation" ? txn.DonorName : txn.Description}
+                </p>
+                <p style={styles.recentMeta}>{tCat(txn.Category, lang)} · {t("day", lang)} {txn.Day}</p>
+              </div>
+              <p style={{
+                ...styles.recentAmount,
+                color: txn._type === "donation" ? "#059669" : "#dc2626",
+              }}>
+                {txn._type === "donation" ? "+" : "-"}{formatCurrency(txn.Amount)}
+              </p>
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// DONATIONS VIEW
+// ============================================================
+
+function DonationsView({ donations, families, canEdit, onAdd }) {
+  const lang = useLang();
+  const [filter, setFilter] = useState("All");
+  const filtered = filter === "All" ? donations : donations.filter((d) => d.Category === filter);
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>{t("donations", lang)}</h2>
+        {canEdit && (
+          <button onClick={onAdd} style={styles.addBtn}>{t("add", lang)}</button>
+        )}
+      </div>
+
+      {/* Filter Pills */}
+      <div style={styles.filterRow}>
+        {["All", ...DONATION_CATEGORIES].map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setFilter(cat)}
+            style={{
+              ...styles.filterPill,
+              background: filter === cat ? "#292524" : "#f5f5f4",
+              color: filter === cat ? "#fff" : "#57534e",
+            }}
+          >
+            {cat === "All" ? t("all", lang) : tCat(cat, lang)}
+          </button>
+        ))}
+      </div>
+
+      {/* Total */}
+      <div style={styles.inlineTotal}>
+        {t("total", lang)}: <strong>{formatCurrency(filtered.reduce((s, d) => s + Number(d.Amount || 0), 0))}</strong>
+        <span style={styles.countBadge}>{filtered.length}</span>
+      </div>
+
+      {/* List */}
+      <div style={styles.txnList}>
+        {filtered.length === 0 ? (
+          <p style={styles.empty}>{t("noDonations", lang)}</p>
+        ) : (
+          filtered.map((d, i) => (
+            <div key={i} style={styles.txnCard}>
+              <div style={styles.txnTop}>
+                <div>
+                  <p style={styles.txnName}>{d.DonorName}</p>
+                  <p style={styles.txnMeta}>
+                    {d.DonorType === "Family" ? `🏠 ${d.FamilyID}` : `👤 ${t("external", lang)}`} · {tCat(d.Category, lang)}
+                  </p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <p style={{ ...styles.txnAmount, color: "#059669" }}>{formatCurrency(d.Amount)}</p>
+                  <p style={styles.txnMeta}>{t("day", lang)} {d.Day} · {d.Date}</p>
+                </div>
+              </div>
+              {d.Description && <p style={styles.txnDesc}>{d.Description}</p>}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// EXPENSES VIEW
+// ============================================================
+
+function ExpensesView({ expenses, canEdit, onAdd }) {
+  const lang = useLang();
+  const [filter, setFilter] = useState("All");
+  const filtered = filter === "All" ? expenses : expenses.filter((e) => e.Category === filter);
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>{t("expenses", lang)}</h2>
+        {canEdit && (
+          <button onClick={onAdd} style={styles.addBtn}>{t("add", lang)}</button>
+        )}
+      </div>
+
+      <div style={styles.filterRow}>
+        {["All", ...EXPENSE_CATEGORIES].map((cat) => (
+          <button
+            key={cat}
+            onClick={() => setFilter(cat)}
+            style={{
+              ...styles.filterPill,
+              background: filter === cat ? "#292524" : "#f5f5f4",
+              color: filter === cat ? "#fff" : "#57534e",
+            }}
+          >
+            {cat === "All" ? t("all", lang) : tCat(cat, lang)}
+          </button>
+        ))}
+      </div>
+
+      <div style={styles.inlineTotal}>
+        {t("total", lang)}: <strong>{formatCurrency(filtered.reduce((s, e) => s + Number(e.Amount || 0), 0))}</strong>
+        <span style={styles.countBadge}>{filtered.length}</span>
+      </div>
+
+      <div style={styles.txnList}>
+        {filtered.length === 0 ? (
+          <p style={styles.empty}>{t("noExpenses", lang)}</p>
+        ) : (
+          filtered.map((e, i) => (
+            <div key={i} style={styles.txnCard}>
+              <div style={styles.txnTop}>
+                <div>
+                  <p style={styles.txnName}>{e.Description}</p>
+                  <p style={styles.txnMeta}>{tCat(e.Category, lang)}{e.Vendor ? ` · ${e.Vendor}` : ""}</p>
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  <p style={{ ...styles.txnAmount, color: "#dc2626" }}>{formatCurrency(e.Amount)}</p>
+                  <p style={styles.txnMeta}>{t("day", lang)} {e.Day} · {e.Date}</p>
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// AUCTION VIEW
+// ============================================================
+
+function AuctionView({ auction, families, canEdit, isAdmin, userEmail, onBid, onAddItem }) {
+  const lang = useLang();
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [bidForm, setBidForm] = useState({ bidderType: "Family", familyId: "", winnerName: "", amount: "" });
+  const [filterStatus, setFilterStatus] = useState("All");
+
+  const filtered = filterStatus === "All"
+    ? auction
+    : filterStatus === "Unsold"
+      ? auction.filter((a) => !a.Status)
+      : auction.filter((a) => a.Status === filterStatus);
+
+  const handleSubmitBid = (index) => {
+    if (!bidForm.amount || !bidForm.winnerName) return;
+    onBid(index, bidForm);
+    setSelectedItem(null);
+    setBidForm({ bidderType: "Family", familyId: "", winnerName: "", amount: "" });
+  };
+
+  const statusLabels = { All: t("filterAll", lang), Unsold: t("filterUnsold", lang), Pending: t("filterPending", lang), Confirmed: t("filterConfirmed", lang) };
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>{t("auctionTitle", lang)} ({auction.length} {t("itemsCount", lang)})</h2>
+        {isAdmin && (
+          <button onClick={onAddItem} style={styles.addBtn}>{t("addItem", lang)}</button>
+        )}
+      </div>
+
+      <div style={styles.filterRow}>
+        {["All", "Unsold", "Pending", "Confirmed"].map((s) => (
+          <button
+            key={s}
+            onClick={() => setFilterStatus(s)}
+            style={{
+              ...styles.filterPill,
+              background: filterStatus === s ? "#292524" : "#f5f5f4",
+              color: filterStatus === s ? "#fff" : "#57534e",
+            }}
+          >
+            {statusLabels[s]}
+          </button>
+        ))}
+      </div>
+
+      <div style={styles.auctionInfo}>
+        <span>🔐 Dual-entry required: Two different people must enter/confirm each bid.</span>
+      </div>
+
+      <div style={styles.txnList}>
+        {filtered.map((item, i) => {
+          const realIndex = auction.indexOf(item);
+          const isPending = item.Status === "Pending";
+          const isConfirmed = item.Status === "Confirmed";
+          const isUnsold = !item.Status;
+          const canConfirm = isPending && item.EnteredBy1 !== userEmail && canEdit;
+
+          return (
+            <div key={i} style={{
+              ...styles.auctionCard,
+              borderLeft: `4px solid ${isConfirmed ? "#059669" : isPending ? "#f59e0b" : "#d6d3d1"}`,
+            }}>
+              <div style={styles.txnTop}>
+                <div>
+                  <p style={styles.auctionItemNo}>#{item.ItemNo}</p>
+                  <p style={styles.txnName}>{item.ItemDescription}</p>
+                  {item.DonatedBy && <p style={styles.txnMeta}>{t("donatedBy", lang)}: {item.DonatedBy}</p>}
+                </div>
+                <div style={{ textAlign: "right" }}>
+                  {item.BidAmount ? (
+                    <p style={{ ...styles.txnAmount, color: "#059669" }}>{formatCurrency(item.BidAmount)}</p>
+                  ) : (
+                    <span style={styles.unsoldBadge}>Unsold</span>
+                  )}
+                  {item.Status && (
+                    <span style={{
+                      ...styles.statusBadge,
+                      background: isConfirmed ? "#d1fae5" : "#fef3c7",
+                      color: isConfirmed ? "#065f46" : "#92400e",
+                    }}>
+                      {item.Status}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {isPending && (
+                <p style={styles.txnMeta}>
+                  {t("enteredBy", lang)}: {item.EnteredBy1} · {item.WinnerName}
+                  {item.WinnerFamilyID ? ` (${item.WinnerFamilyID})` : ` (${t("external", lang)})`}
+                </p>
+              )}
+              {isConfirmed && (
+                <p style={styles.txnMeta}>
+                  {t("winner", lang)}: {item.WinnerName}
+                  {item.WinnerFamilyID ? ` (${item.WinnerFamilyID})` : ` (${t("external", lang)})`} · ✓ {t("filterConfirmed", lang)}
+                </p>
+              )}
+
+              {/* Action buttons */}
+              {canEdit && isUnsold && (
+                <button
+                  onClick={() => { setSelectedItem(realIndex); setBidForm({ bidderType: "Family", familyId: "", winnerName: "", amount: "" }); }}
+                  style={styles.bidBtn}
+                >
+                  Enter Bid
+                </button>
+              )}
+              {canConfirm && (
+                <button
+                  onClick={() => onBid(realIndex, {
+                    familyId: item.WinnerFamilyID,
+                    winnerName: item.WinnerName,
+                    amount: item.BidAmount,
+                  })}
+                  style={{ ...styles.bidBtn, background: "#059669" }}
+                >
+                  {t("confirmBid", lang)}
+                </button>
+              )}
+              {isPending && item.EnteredBy1 === userEmail && (
+                <p style={{ ...styles.txnMeta, color: "#b45309", fontStyle: "italic" }}>
+                  {t("waitingConfirm", lang)}
+                </p>
+              )}
+
+              {/* Bid entry form (inline) */}
+              {selectedItem === realIndex && (
+                <div style={styles.inlineBidForm}>
+                  {/* Bidder type toggle */}
+                  <div style={{ display: "flex", gap: 6 }}>
+                    {["Family", "External"].map((tp) => (
+                      <button
+                        key={tp}
+                        onClick={() => setBidForm({ ...bidForm, bidderType: tp, familyId: "", winnerName: "" })}
+                        style={{
+                          ...styles.filterPill,
+                          flex: 1,
+                          textAlign: "center",
+                          background: bidForm.bidderType === tp ? "#292524" : "#f5f5f4",
+                          color: bidForm.bidderType === tp ? "#fff" : "#57534e",
+                          padding: "8px 12px",
+                          fontSize: 12,
+                        }}
+                      >
+                        {tp === "Family" ? t("bidFamily", lang) : t("bidExternal", lang)}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Family selector (only for Family type) */}
+                  {bidForm.bidderType === "Family" && (
+                    <select
+                      value={bidForm.familyId}
+                      onChange={(e) => {
+                        const fam = families.find((f) => f.FamilyID === e.target.value);
+                        setBidForm({ ...bidForm, familyId: e.target.value, winnerName: fam?.HeadOfFamily || "" });
+                      }}
+                      style={styles.input}
+                    >
+                      <option value="">{t("selectFamily", lang)}</option>
+                      {families.map((f) => (
+                        <option key={f.FamilyID} value={f.FamilyID}>
+                          {f.HeadOfFamily} ({f.FamilyID})
+                        </option>
+                      ))}
+                    </select>
+                  )}
+
+                  <input
+                    placeholder={bidForm.bidderType === "Family" ? t("winnerName", lang) : t("externalBidder", lang)}
+                    value={bidForm.winnerName}
+                    onChange={(e) => setBidForm({ ...bidForm, winnerName: e.target.value })}
+                    style={styles.input}
+                  />
+                  <input
+                    type="number"
+                    placeholder={t("bidAmount", lang)}
+                    value={bidForm.amount}
+                    onChange={(e) => setBidForm({ ...bidForm, amount: e.target.value })}
+                    style={styles.input}
+                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button
+                      onClick={() => handleSubmitBid(realIndex)}
+                      style={styles.btnPrimary}
+                    >
+                      {t("submitBid", lang)}
+                    </button>
+                    <button
+                      onClick={() => setSelectedItem(null)}
+                      style={styles.btnSecondary}
+                    >
+                      {t("cancel", lang)}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// FAMILIES VIEW
+// ============================================================
+
+function FamiliesView({ families, isAdmin, canEdit, onAdd }) {
+  const lang = useLang();
+  const [search, setSearch] = useState("");
+  const filtered = families.filter(
+    (f) =>
+      f.HeadOfFamily?.toLowerCase().includes(search.toLowerCase()) ||
+      f.FamilyID?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>{t("familiesTitle", lang)}</h2>
+        {canEdit && (
+          <button onClick={onAdd} style={styles.addBtn}>{t("add", lang)}</button>
+        )}
+      </div>
+
+      <input
+        placeholder={t("searchFamilies", lang)}
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        style={{ ...styles.input, marginBottom: 16 }}
+      />
+
+      <div style={styles.txnList}>
+        {filtered.map((f, i) => (
+          <div key={i} style={styles.familyCard}>
+            <div style={styles.familyAvatar}>
+              {f.HeadOfFamily?.[0] || "?"}
+            </div>
+            <div style={{ flex: 1 }}>
+              <p style={styles.txnName}>{f.HeadOfFamily}</p>
+              <p style={styles.txnMeta}>{f.FamilyID}</p>
+              <p style={styles.txnMeta}>📞 {f.Phone}</p>
+              {f.WhatsApp && <p style={styles.txnMeta}>💬 {f.WhatsApp}</p>}
+              <p style={styles.txnMeta}>📍 {f.Address}</p>
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && (
+          <p style={styles.empty}>{t("noFamilies", lang)}</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// FORMS (Modals)
+// ============================================================
+
+function DonationForm({ families, onSubmit, onClose }) {
+  const lang = useLang();
+  const [form, setForm] = useState({
+    date: today(),
+    day: "1",
+    donorType: "Family",
+    familyId: "",
+    donorName: "",
+    category: DONATION_CATEGORIES[0],
+    amount: "",
+    description: "",
+  });
+
+  const set = (k, v) => setForm({ ...form, [k]: v });
+
+  return (
+    <Modal title={t("recordDonation", lang)} onClose={onClose}>
+      <div style={styles.formGrid}>
+        <label style={styles.label}>{t("date", lang)}
+          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
+        </label>
+        <label style={styles.label}>{t("day", lang)}
+          <select value={form.day} onChange={(e) => set("day", e.target.value)} style={styles.input}>
+            <option value="1">{t("day1", lang)}</option>
+            <option value="2">{t("day2", lang)}</option>
+            <option value="3">{t("day3", lang)}</option>
+          </select>
+        </label>
+        <label style={styles.label}>{t("donorType", lang)}
+          <select value={form.donorType} onChange={(e) => set("donorType", e.target.value)} style={styles.input}>
+            <option value="Family">{t("family", lang)}</option>
+            <option value="External">{t("external", lang)}</option>
+          </select>
+        </label>
+        {form.donorType === "Family" && (
+          <label style={styles.label}>{t("family", lang)}
+            <select
+              value={form.familyId}
+              onChange={(e) => {
+                const fam = families.find((f) => f.FamilyID === e.target.value);
+                set("familyId", e.target.value);
+                if (fam) set("donorName", fam.HeadOfFamily);
+              }}
+              style={styles.input}
+            >
+              <option value="">{t("select", lang)}</option>
+              {families.map((f) => (
+                <option key={f.FamilyID} value={f.FamilyID}>{f.HeadOfFamily}</option>
+              ))}
+            </select>
+          </label>
+        )}
+        <label style={styles.label}>{t("donorName", lang)}
+          <input value={form.donorName} onChange={(e) => set("donorName", e.target.value)} style={styles.input} placeholder={t("nameOfDonor", lang)} />
+        </label>
+        <label style={styles.label}>{t("category", lang)}
+          <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
+            {DONATION_CATEGORIES.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
+          </select>
+        </label>
+        {form.category !== "Objects for Auction" && (
+          <label style={styles.label}>{t("amount", lang)} (₹)
+            <input type="number" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} placeholder="0" />
+          </label>
+        )}
+        <label style={styles.label}>{form.category === "Objects for Auction" ? t("objectName", lang) : t("descOptional", lang)}
+          <input value={form.description} onChange={(e) => set("description", e.target.value)} style={styles.input} placeholder={form.category === "Objects for Auction" ? (lang === "ta" ? "எ.கா. மஞ்சள், உப்பு" : "e.g. Turmeric, Salt") : t("notes", lang)} />
+        </label>
+      </div>
+      <button
+        onClick={() => {
+          const isAuctionObj = form.category === "Objects for Auction";
+          if (form.donorName && (isAuctionObj || form.amount)) onSubmit({ ...form, amount: isAuctionObj ? "0" : form.amount });
+        }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16 }}
+        disabled={!form.donorName || (form.category !== "Objects for Auction" && !form.amount)}
+      >
+        {t("saveDonation", lang)}
+      </button>
+    </Modal>
+  );
+}
+
+function ExpenseForm({ onSubmit, onClose }) {
+  const lang = useLang();
+  const [form, setForm] = useState({
+    date: today(),
+    day: "1",
+    category: EXPENSE_CATEGORIES[0],
+    description: "",
+    amount: "",
+    vendor: "",
+  });
+
+  const set = (k, v) => setForm({ ...form, [k]: v });
+
+  return (
+    <Modal title={t("recordExpense", lang)} onClose={onClose}>
+      <div style={styles.formGrid}>
+        <label style={styles.label}>{t("date", lang)}
+          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
+        </label>
+        <label style={styles.label}>{t("day", lang)}
+          <select value={form.day} onChange={(e) => set("day", e.target.value)} style={styles.input}>
+            <option value="1">{t("day1", lang)}</option>
+            <option value="2">{t("day2", lang)}</option>
+            <option value="3">{t("day3", lang)}</option>
+          </select>
+        </label>
+        <label style={styles.label}>{t("category", lang)}
+          <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
+            {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
+          </select>
+        </label>
+        <label style={styles.label}>{t("description", lang)}
+          <input value={form.description} onChange={(e) => set("description", e.target.value)} style={styles.input} placeholder={t("whatPurchased", lang)} />
+        </label>
+        <label style={styles.label}>{t("amount", lang)} (₹)
+          <input type="number" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} placeholder="0" />
+        </label>
+        <label style={styles.label}>{t("vendorPayee", lang)}
+          <input value={form.vendor} onChange={(e) => set("vendor", e.target.value)} style={styles.input} placeholder={t("shopName", lang)} />
+        </label>
+      </div>
+      <button
+        onClick={() => { if (form.description && form.amount) onSubmit(form); }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16 }}
+        disabled={!form.description || !form.amount}
+      >
+        {t("saveExpense", lang)}
+      </button>
+    </Modal>
+  );
+}
+
+function FamilyForm({ onSubmit, onClose }) {
+  const lang = useLang();
+  const [form, setForm] = useState({
+    headOfFamily: "",
+    phone: "",
+    whatsApp: "",
+    address: "",
+  });
+
+  const set = (k, v) => setForm({ ...form, [k]: v });
+
+  return (
+    <Modal title={t("addFamily", lang)} onClose={onClose}>
+      <div style={styles.formGrid}>
+        <label style={styles.label}>{t("headOfFamily", lang)}
+          <input value={form.headOfFamily} onChange={(e) => set("headOfFamily", e.target.value)} style={styles.input} placeholder="e.g. Rajesh Sharma" />
+        </label>
+        <label style={styles.label}>{t("phone", lang)}
+          <input value={form.phone} onChange={(e) => set("phone", e.target.value)} style={styles.input} placeholder="9876543210" />
+        </label>
+        <label style={styles.label}>{t("whatsApp", lang)}
+          <input value={form.whatsApp} onChange={(e) => set("whatsApp", e.target.value)} style={styles.input} placeholder={t("sameOrDiff", lang)} />
+        </label>
+        <label style={styles.label}>{t("address", lang)}
+          <input value={form.address} onChange={(e) => set("address", e.target.value)} style={styles.input} placeholder={t("fullAddress", lang)} />
+        </label>
+      </div>
+      <button
+        onClick={() => { if (form.headOfFamily) onSubmit(form); }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16 }}
+        disabled={!form.headOfFamily}
+      >
+        {t("saveFamily", lang)}
+      </button>
+    </Modal>
+  );
+}
+
+function Modal({ title, onClose, children }) {
+  return (
+    <div style={styles.modalOverlay} onClick={onClose}>
+      <div style={styles.modalContent} onClick={(e) => e.stopPropagation()}>
+        <div style={styles.modalHeader}>
+          <h3 style={styles.modalTitle}>{title}</h3>
+          <button onClick={onClose} style={styles.modalClose}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// AUCTION ITEM FORM (Admin only)
+// ============================================================
+
+function AuctionItemForm({ onSubmit, onClose }) {
+  const lang = useLang();
+  const [form, setForm] = useState({ itemName: "", donatedBy: "" });
+  const set = (k, v) => setForm({ ...form, [k]: v });
+
+  return (
+    <Modal title={t("addAuctionItem", lang)} onClose={onClose}>
+      <div style={styles.formGrid}>
+        <label style={styles.label}>{t("itemName", lang)} *
+          <input value={form.itemName} onChange={(e) => set("itemName", e.target.value)} style={styles.input} placeholder={t("itemNamePlaceholder", lang)} />
+        </label>
+        <label style={styles.label}>{t("donatedBy", lang)}
+          <input value={form.donatedBy} onChange={(e) => set("donatedBy", e.target.value)} style={styles.input} placeholder={t("nameOfDonor", lang)} />
+        </label>
+      </div>
+      <button
+        onClick={() => { if (form.itemName) onSubmit(form); }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16 }}
+        disabled={!form.itemName}
+      >
+        {t("saveItem", lang)}
+      </button>
+    </Modal>
+  );
+}
+
+// ============================================================
+// REPORTS VIEW
+// ============================================================
+
+function ReportsView({ families, donations, expenses, auction, totalDonations, totalExpenses, totalAuction, balance }) {
+  const lang = useLang();
+  const [activeReport, setActiveReport] = useState("address");
+
+  return (
+    <div style={styles.page}>
+      <h2 style={styles.pageTitle}>{t("reports", lang)}</h2>
+
+      {/* Report selector */}
+      <div style={styles.filterRow}>
+        {[
+          { id: "address", label: t("addressBook", lang) },
+          { id: "auction_balance", label: t("auctionBalance", lang) },
+        ].map((r) => (
+          <button
+            key={r.id}
+            onClick={() => setActiveReport(r.id)}
+            style={{
+              ...styles.reportTab,
+              background: activeReport === r.id ? "#292524" : "#fff",
+              color: activeReport === r.id ? "#fff" : "#57534e",
+              border: activeReport === r.id ? "1px solid #292524" : "1px solid #d6d3d1",
+            }}
+          >
+            {r.label}
+          </button>
+        ))}
+      </div>
+
+      {activeReport === "address" && <AddressReport families={families} />}
+      {activeReport === "auction_balance" && (
+        <AuctionBalanceSheet
+          auction={auction}
+          families={families}
+          donations={donations}
+          expenses={expenses}
+          totalDonations={totalDonations}
+          totalExpenses={totalExpenses}
+          totalAuction={totalAuction}
+          balance={balance}
+        />
+      )}
+    </div>
+  );
+}
+
+// --- Address Report ---
+function AddressReport({ families }) {
+  const lang = useLang();
+  return (
+    <div>
+      <div style={styles.reportHeader}>
+        <h3 style={styles.reportTitle}>{t("familyAddressDir", lang)}</h3>
+        <p style={styles.reportSubtitle}>{families.length} {t("families", lang).toLowerCase()}</p>
+      </div>
+
+      {/* Table */}
+      <div style={styles.tableWrapper}>
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              <th style={{ ...styles.th, width: "40%" }}>{t("nameAddress", lang)}</th>
+              <th style={{ ...styles.th, width: "30%" }}>{t("phone", lang)}</th>
+              <th style={{ ...styles.th, width: "30%" }}>WhatsApp</th>
+            </tr>
+          </thead>
+          <tbody>
+            {families.map((f, i) => (
+              <tr key={i} style={i % 2 === 0 ? styles.trEven : styles.trOdd}>
+                <td style={styles.td}>
+                  <p style={styles.tableName}>{f.HeadOfFamily}</p>
+                  <p style={styles.tableAddr}>{f.Address}</p>
+                </td>
+                <td style={styles.td}>
+                  <a href={`tel:${f.Phone}`} style={styles.phoneLink}>
+                    📞 {f.Phone}
+                  </a>
+                </td>
+                <td style={styles.td}>
+                  {f.WhatsApp ? (
+                    <a
+                      href={`https://wa.me/91${f.WhatsApp.replace(/\D/g, "")}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={styles.whatsappLink}
+                    >
+                      💬 {f.WhatsApp}
+                    </a>
+                  ) : (
+                    <span style={{ color: "#a8a29e", fontSize: 12 }}>—</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {families.length === 0 && <p style={styles.empty}>{t("noFamilies", lang)}</p>}
+    </div>
+  );
+}
+
+// --- Auction Balance Sheet ---
+function AuctionBalanceSheet({ auction, families, donations, expenses, totalDonations, totalExpenses, totalAuction, balance }) {
+  const lang = useLang();
+  const confirmedItems = auction.filter((a) => a.Status === "Confirmed");
+  const pendingItems = auction.filter((a) => a.Status === "Pending");
+  const unsoldItems = auction.filter((a) => !a.Status);
+  const pendingTotal = pendingItems.reduce((s, a) => s + Number(a.BidAmount || 0), 0);
+
+  // Group auction by family / external
+  const bidderTotals = {};
+  confirmedItems.forEach((item) => {
+    const key = item.WinnerFamilyID || `EXT-${item.WinnerName}`;
+    if (!bidderTotals[key]) {
+      bidderTotals[key] = {
+        name: item.WinnerName,
+        isExternal: !item.WinnerFamilyID,
+        items: 0,
+        total: 0,
+      };
+    }
+    bidderTotals[key].items += 1;
+    bidderTotals[key].total += Number(item.BidAmount || 0);
+  });
+
+  return (
+    <div>
+      {/* Overall Event Summary */}
+      <div style={styles.reportHeader}>
+        <h3 style={styles.reportTitle}>{t("eventBalanceSheet", lang)}</h3>
+      </div>
+
+      <div style={styles.balanceSheet}>
+        {/* Income side */}
+        <div style={styles.bsSection}>
+          <div style={styles.bsSectionHeader}>
+            <span style={styles.bsSectionIcon}>↓</span>
+            <span style={styles.bsSectionTitle}>{t("income", lang)}</span>
+          </div>
+          <div style={styles.bsRow}>
+            <span>{t("donations", lang)}</span>
+            <span style={styles.bsAmount}>{formatCurrency(totalDonations)}</span>
+          </div>
+          <div style={styles.bsRow}>
+            <span>{t("auctionConfirmed", lang)}</span>
+            <span style={styles.bsAmount}>{formatCurrency(totalAuction)}</span>
+          </div>
+          {pendingTotal > 0 && (
+            <div style={{ ...styles.bsRow, color: "#b45309" }}>
+              <span>{t("auctionPending", lang)}</span>
+              <span style={styles.bsAmount}>{formatCurrency(pendingTotal)}</span>
+            </div>
+          )}
+          <div style={styles.bsTotalRow}>
+            <span>{t("totalIncome", lang)}</span>
+            <span style={{ ...styles.bsAmount, fontWeight: 800 }}>
+              {formatCurrency(totalDonations + totalAuction)}
+            </span>
+          </div>
+        </div>
+
+        {/* Expense side */}
+        <div style={styles.bsSection}>
+          <div style={styles.bsSectionHeader}>
+            <span style={{ ...styles.bsSectionIcon, background: "#fee2e2", color: "#dc2626" }}>↑</span>
+            <span style={styles.bsSectionTitle}>{t("expensesLabel", lang)}</span>
+          </div>
+          <div style={styles.bsRow}>
+            <span>{t("totalExpenses", lang)}</span>
+            <span style={styles.bsAmount}>{formatCurrency(totalExpenses)}</span>
+          </div>
+          <div style={styles.bsTotalRow}>
+            <span>{t("totalOutflow", lang)}</span>
+            <span style={{ ...styles.bsAmount, fontWeight: 800 }}>
+              {formatCurrency(totalExpenses)}
+            </span>
+          </div>
+        </div>
+
+        {/* Net */}
+        <div style={{
+          ...styles.bsNetRow,
+          background: balance >= 0
+            ? "linear-gradient(135deg, #065f46, #059669)"
+            : "linear-gradient(135deg, #991b1b, #dc2626)",
+        }}>
+          <span>{t("netBalanceLabel", lang)}</span>
+          <span style={{ fontSize: 20, fontWeight: 800 }}>{formatCurrency(balance)}</span>
+        </div>
+      </div>
+
+      {/* Auction Status Summary */}
+      <div style={styles.reportHeader}>
+        <h3 style={{...styles.reportTitle, marginTop: 24}}>{t("auctionSummary", lang)}</h3>
+      </div>
+
+      <div style={styles.auctionSummaryGrid}>
+        <div style={{ ...styles.auctionSummaryCard, borderLeft: "4px solid #059669" }}>
+          <p style={styles.asStat}>{confirmedItems.length}</p>
+          <p style={styles.asLabel}>{t("confirmedLabel", lang)}</p>
+          <p style={styles.asAmount}>{formatCurrency(totalAuction)}</p>
+        </div>
+        <div style={{ ...styles.auctionSummaryCard, borderLeft: "4px solid #f59e0b" }}>
+          <p style={styles.asStat}>{pendingItems.length}</p>
+          <p style={styles.asLabel}>{t("pendingLabel", lang)}</p>
+          <p style={styles.asAmount}>{formatCurrency(pendingTotal)}</p>
+        </div>
+        <div style={{ ...styles.auctionSummaryCard, borderLeft: "4px solid #d6d3d1" }}>
+          <p style={styles.asStat}>{unsoldItems.length}</p>
+          <p style={styles.asLabel}>{t("unsoldLabel", lang)}</p>
+          <p style={styles.asAmount}>—</p>
+        </div>
+      </div>
+
+      {/* Auction by Bidder */}
+      {Object.keys(bidderTotals).length > 0 && (
+        <>
+          <div style={styles.reportHeader}>
+            <h3 style={{ ...styles.reportTitle, marginTop: 24 }}>{t("auctionByBidder", lang)}</h3>
+          </div>
+          <div style={styles.tableWrapper}>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={styles.th}>{t("bidder", lang)}</th>
+                  <th style={{ ...styles.th, textAlign: "center" }}>{t("itemsWon", lang)}</th>
+                  <th style={{ ...styles.th, textAlign: "right" }}>{t("totalAmount", lang)}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(bidderTotals)
+                  .sort((a, b) => b[1].total - a[1].total)
+                  .map(([key, data], i) => (
+                    <tr key={i} style={i % 2 === 0 ? styles.trEven : styles.trOdd}>
+                      <td style={styles.td}>
+                        <p style={styles.tableName}>{data.name}</p>
+                        <p style={styles.tableAddr}>
+                          {data.isExternal ? t("bidExternal", lang) : `🏠 ${key}`}
+                        </p>
+                      </td>
+                      <td style={{ ...styles.td, textAlign: "center", fontWeight: 700 }}>{data.items}</td>
+                      <td style={{ ...styles.td, textAlign: "right", fontWeight: 700, color: "#059669" }}>
+                        {formatCurrency(data.total)}
+                      </td>
+                    </tr>
+                  ))}
+                <tr style={styles.trTotal}>
+                  <td style={{ ...styles.td, fontWeight: 800 }}>{t("total", lang).toUpperCase()}</td>
+                  <td style={{ ...styles.td, textAlign: "center", fontWeight: 800 }}>
+                    {confirmedItems.length}
+                  </td>
+                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 800, color: "#059669" }}>
+                    {formatCurrency(totalAuction)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {/* Auction Item-wise Detail */}
+      {confirmedItems.length > 0 && (
+        <>
+          <div style={styles.reportHeader}>
+            <h3 style={{ ...styles.reportTitle, marginTop: 24 }}>{t("auctionItemDetails", lang)}</h3>
+          </div>
+          <div style={styles.tableWrapper}>
+            <table style={styles.table}>
+              <thead>
+                <tr>
+                  <th style={{ ...styles.th, width: "10%" }}>#</th>
+                  <th style={styles.th}>{t("item", lang)}</th>
+                  <th style={styles.th}>{t("winner", lang)}</th>
+                  <th style={{ ...styles.th, textAlign: "right" }}>{t("amount", lang)}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {confirmedItems.map((item, i) => (
+                  <tr key={i} style={i % 2 === 0 ? styles.trEven : styles.trOdd}>
+                    <td style={{ ...styles.td, fontWeight: 700, color: "#b45309" }}>{item.ItemNo}</td>
+                    <td style={styles.td}>{item.ItemDescription}</td>
+                    <td style={styles.td}>
+                      <p style={styles.tableName}>{item.WinnerName}</p>
+                      <p style={styles.tableAddr}>
+                        {item.WinnerFamilyID ? `🏠 ${item.WinnerFamilyID}` : t("bidExternal", lang)}
+                      </p>
+                    </td>
+                    <td style={{ ...styles.td, textAlign: "right", fontWeight: 700, color: "#059669" }}>
+                      {formatCurrency(item.BidAmount)}
+                    </td>
+                  </tr>
+                ))}
+                <tr style={styles.trTotal}>
+                  <td style={styles.td}></td>
+                  <td style={{ ...styles.td, fontWeight: 800 }}>{t("total", lang).toUpperCase()}</td>
+                  <td style={styles.td}></td>
+                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 800, color: "#059669", fontSize: 15 }}>
+                    {formatCurrency(totalAuction)}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+
+      {pendingTotal > 0 && (
+        <p style={{ ...styles.txnMeta, marginTop: 12, color: "#b45309", fontStyle: "italic" }}>
+          {t("pendingDisclaimer", lang).replace("{amount}", formatCurrency(pendingTotal))}
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// SETUP INSTRUCTIONS
+// ============================================================
+
+function SetupInstructions() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div style={styles.setupBox}>
+      <button onClick={() => setOpen(!open)} style={styles.setupToggle}>
+        {open ? "▾" : "▸"} Setup Instructions (for real Google Sheets integration)
+      </button>
+      {open && (
+        <div style={styles.setupContent}>
+          <p><strong>Step 1:</strong> Go to <em>Google Cloud Console</em> → Create project → Enable <em>Google Sheets API</em> and <em>Google Identity Services</em>.</p>
+          <p><strong>Step 2:</strong> Create OAuth 2.0 credentials (Web application). Add your domain to authorized origins. Copy the <strong>Client ID</strong>.</p>
+          <p><strong>Step 3:</strong> Upload the provided Excel template to Google Drive and open as Google Sheets. It has these tabs pre-configured:</p>
+          <ul style={{ margin: "8px 0", paddingLeft: 20 }}>
+            <li><strong>Families</strong> — FamilyID, HeadOfFamily, Phone, WhatsApp, Address</li>
+            <li><strong>Income</strong> — TxnID, Date, Day, DonorType, FamilyID, DonorName, Category, Amount, Description, EnteredBy, Timestamp</li>
+            <li><strong>Expenses</strong> — TxnID, Date, Day, Category, Description, Amount, Vendor, EnteredBy, Timestamp</li>
+            <li><strong>Auction</strong> — ItemNo, ItemDescription, DonatedBy, WinnerFamilyID, WinnerName, BidAmount, EnteredBy1, ConfirmedBy2, Timestamp1, Timestamp2, Status</li>
+            <li><strong>Ledger</strong> — Year, OpeningBalance, TotalDonations, TotalAuction, TotalExpenses, ClosingBalance</li>
+            <li><strong>AccessControl</strong> — Email, Name, FamilyID, Role</li>
+            <li><strong>AuditLog</strong> — Timestamp, User, Action, Module, Details</li>
+          </ul>
+          <p><strong>Step 4:</strong> In the <strong>AccessControl</strong> sheet, add your Google email with Role = Admin.</p>
+          <p><strong>Step 5:</strong> In the <strong>Auction</strong> sheet, review the 48 pre-filled items. Add or remove as needed.</p>
+          <p><strong>Step 6:</strong> Go to <strong>Extensions → Apps Script</strong>, paste the backend code (Code.gs), and deploy as Web App.</p>
+          <p><strong>Step 7:</strong> Replace the 2 constants at the top of this code: <code>GOOGLE_CLIENT_ID</code> and <code>APPS_SCRIPT_URL</code>.</p>
+          <p style={{ marginTop: 12, color: "#b45309" }}>
+            <strong>💡 Tip:</strong> No API key or Spreadsheet ID needed. The Apps Script backend handles all data access securely.
+            The Google Sheet stays private — only you can see it in Drive.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// AUDIT LOG VIEW (Admin only)
+// ============================================================
+function AuditLogView({ entries }) {
+  const { lang } = useContext(LangContext);
+  const actionColors = {
+    CREATE: "#059669", BID: "#2563eb", CONFIRM: "#7c3aed",
+    LOGIN: "#6b7280", LOGOUT: "#6b7280", UPDATE: "#d97706", DELETE: "#dc2626",
+  };
+  return (
+    <div>
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, fontFamily: "'Outfit', sans-serif" }}>
+        📜 {t("navAuditLog", lang)}
+      </h2>
+      <p style={{ fontSize: 12, color: "#78716c", marginBottom: 12 }}>
+        {entries.length} {lang === "ta" ? "பதிவுகள்" : "entries"}
+      </p>
+      {entries.length === 0 ? (
+        <p style={{ textAlign: "center", color: "#a8a29e", padding: 40 }}>
+          {lang === "ta" ? "தணிக்கைப் பதிவுகள் இல்லை" : "No audit log entries yet"}
+        </p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {entries.map((e, i) => (
+            <div key={i} style={{
+              background: "#fff", borderRadius: 10, padding: "10px 14px",
+              border: "1px solid #e7e5e4", boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
+                <span style={{
+                  fontSize: 10, fontWeight: 700, color: "#fff", textTransform: "uppercase",
+                  background: actionColors[e.Action] || "#6b7280",
+                  padding: "2px 8px", borderRadius: 6, letterSpacing: 0.5,
+                  fontFamily: "'Outfit', sans-serif",
+                }}>
+                  {e.Action}
+                </span>
+                <span style={{ fontSize: 10, color: "#a8a29e", fontFamily: "'Outfit', sans-serif" }}>
+                  {e.Module}
+                </span>
+              </div>
+              <p style={{ margin: "4px 0 2px", fontSize: 13, color: "#292524" }}>{e.Details}</p>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#a8a29e" }}>
+                <span>👤 {e.User}</span>
+                <span>🕐 {e.Timestamp}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// STYLES
+// ============================================================
+
+const styles = {
+  app: {
+    fontFamily: "'Cormorant Garamond', 'Georgia', serif",
+    background: "#fafaf9",
+    minHeight: "100vh",
+    maxWidth: 480,
+    margin: "0 auto",
+    position: "relative",
+    paddingBottom: 80,
+  },
+  // Header
+  header: {
+    background: "linear-gradient(135deg, #292524, #44403c)",
+    color: "#fff",
+    position: "sticky",
+    top: 0,
+    zIndex: 100,
+    boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
+  },
+  headerInner: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "12px 16px",
+  },
+  headerLeft: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+  },
+  logo: {
+    fontSize: 28,
+    lineHeight: 1,
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: 700,
+    margin: 0,
+    letterSpacing: 0.5,
+  },
+  headerSubtitle: {
+    fontSize: 11,
+    margin: 0,
+    opacity: 0.7,
+    fontFamily: "'Outfit', sans-serif",
+    letterSpacing: 1,
+    textTransform: "uppercase",
+  },
+  headerRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  userBadge: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontSize: 12,
+    fontFamily: "'Outfit', sans-serif",
+  },
+  rolePill: {
+    background: "rgba(255,255,255,0.15)",
+    padding: "2px 8px",
+    borderRadius: 20,
+    fontSize: 10,
+    fontWeight: 600,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  userName: {
+    fontWeight: 500,
+  },
+  logoutBtn: {
+    background: "rgba(255,255,255,0.1)",
+    border: "none",
+    color: "#fff",
+    width: 28,
+    height: 28,
+    borderRadius: "50%",
+    cursor: "pointer",
+    fontSize: 14,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  demoBanner: {
+    background: "rgba(180,83,9,0.9)",
+    padding: "6px 16px",
+    fontSize: 11,
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    fontFamily: "'Outfit', sans-serif",
+    flexWrap: "wrap",
+  },
+  demoRoleBtn: {
+    border: "1px solid rgba(255,255,255,0.4)",
+    padding: "2px 10px",
+    borderRadius: 12,
+    fontSize: 10,
+    cursor: "pointer",
+    fontWeight: 600,
+  },
+
+  // Toast
+  toast: {
+    position: "fixed",
+    top: 80,
+    left: "50%",
+    transform: "translateX(-50%)",
+    color: "#fff",
+    padding: "10px 24px",
+    borderRadius: 8,
+    fontSize: 13,
+    fontFamily: "'Outfit', sans-serif",
+    fontWeight: 500,
+    zIndex: 200,
+    boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
+    animation: "slideDown 0.3s ease",
+  },
+
+  // Main
+  main: {
+    padding: "0 0 16px 0",
+  },
+
+  // Pages
+  page: {
+    padding: "16px",
+  },
+  pageTitle: {
+    fontSize: 24,
+    fontWeight: 700,
+    color: "#292524",
+    margin: "0 0 16px 0",
+  },
+  pageHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+
+  // Dashboard cards
+  cardGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 10,
+    marginBottom: 20,
+  },
+  summaryCard: {
+    borderRadius: 12,
+    padding: "16px 14px",
+    color: "#fff",
+    position: "relative",
+    overflow: "hidden",
+  },
+  cardLabel: {
+    fontSize: 11,
+    opacity: 0.85,
+    margin: 0,
+    fontFamily: "'Outfit', sans-serif",
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    fontWeight: 500,
+  },
+  cardValue: {
+    fontSize: 20,
+    fontWeight: 700,
+    margin: "6px 0 2px",
+  },
+  cardCount: {
+    fontSize: 11,
+    opacity: 0.7,
+    margin: 0,
+    fontFamily: "'Outfit', sans-serif",
+  },
+
+  // Stats row
+  statsRow: {
+    display: "flex",
+    gap: 8,
+    marginBottom: 20,
+  },
+  statBox: {
+    flex: 1,
+    background: "#fff",
+    border: "1px solid #e7e5e4",
+    borderRadius: 10,
+    padding: "12px 8px",
+    textAlign: "center",
+  },
+  statNum: {
+    display: "block",
+    fontSize: 22,
+    fontWeight: 700,
+    color: "#292524",
+  },
+  statLabel: {
+    fontSize: 10,
+    color: "#78716c",
+    fontFamily: "'Outfit', sans-serif",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+
+  // Section
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: "#44403c",
+    margin: "20px 0 10px",
+    fontFamily: "'Outfit', sans-serif",
+  },
+
+  // Day cards
+  dayGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 1fr",
+    gap: 8,
+    marginBottom: 20,
+  },
+  dayCard: {
+    background: "#fff",
+    border: "1px solid #e7e5e4",
+    borderRadius: 10,
+    padding: 12,
+  },
+  dayBadge: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#b45309",
+    marginBottom: 8,
+    fontFamily: "'Outfit', sans-serif",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  dayRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    fontSize: 12,
+    marginBottom: 4,
+    fontFamily: "'Outfit', sans-serif",
+  },
+
+  // Recent list
+  recentList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  recentItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    background: "#fff",
+    border: "1px solid #e7e5e4",
+    borderRadius: 10,
+    padding: "10px 12px",
+  },
+  recentIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: "50%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 700,
+    fontSize: 14,
+  },
+  recentName: {
+    margin: 0,
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#292524",
+    fontFamily: "'Outfit', sans-serif",
+  },
+  recentMeta: {
+    margin: 0,
+    fontSize: 11,
+    color: "#78716c",
+    fontFamily: "'Outfit', sans-serif",
+  },
+  recentAmount: {
+    margin: 0,
+    fontSize: 14,
+    fontWeight: 700,
+    fontFamily: "'Outfit', sans-serif",
+  },
+
+  // Filter
+  filterRow: {
+    display: "flex",
+    gap: 6,
+    flexWrap: "wrap",
+    marginBottom: 12,
+  },
+  filterPill: {
+    border: "none",
+    padding: "5px 12px",
+    borderRadius: 16,
+    fontSize: 11,
+    cursor: "pointer",
+    fontFamily: "'Outfit', sans-serif",
+    fontWeight: 500,
+    transition: "all 0.2s",
+  },
+  inlineTotal: {
+    fontSize: 13,
+    color: "#57534e",
+    marginBottom: 12,
+    fontFamily: "'Outfit', sans-serif",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  },
+  countBadge: {
+    background: "#e7e5e4",
+    padding: "1px 8px",
+    borderRadius: 10,
+    fontSize: 11,
+    fontWeight: 600,
+  },
+
+  // Transaction list
+  txnList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+  },
+  txnCard: {
+    background: "#fff",
+    border: "1px solid #e7e5e4",
+    borderRadius: 10,
+    padding: "12px 14px",
+  },
+  txnTop: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+  },
+  txnName: {
+    margin: 0,
+    fontSize: 14,
+    fontWeight: 600,
+    color: "#292524",
+    fontFamily: "'Outfit', sans-serif",
+  },
+  txnMeta: {
+    margin: "2px 0 0",
+    fontSize: 11,
+    color: "#78716c",
+    fontFamily: "'Outfit', sans-serif",
+  },
+  txnAmount: {
+    margin: 0,
+    fontSize: 15,
+    fontWeight: 700,
+    fontFamily: "'Outfit', sans-serif",
+  },
+  txnDesc: {
+    margin: "6px 0 0",
+    fontSize: 12,
+    color: "#57534e",
+    fontStyle: "italic",
+    fontFamily: "'Outfit', sans-serif",
+  },
+
+  // Auction
+  auctionCard: {
+    background: "#fff",
+    border: "1px solid #e7e5e4",
+    borderRadius: 10,
+    padding: "12px 14px",
+  },
+  auctionItemNo: {
+    margin: 0,
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#b45309",
+    fontFamily: "'Outfit', sans-serif",
+  },
+  auctionInfo: {
+    background: "#fef3c7",
+    border: "1px solid #fde68a",
+    borderRadius: 8,
+    padding: "8px 12px",
+    fontSize: 11,
+    color: "#92400e",
+    marginBottom: 12,
+    fontFamily: "'Outfit', sans-serif",
+  },
+  unsoldBadge: {
+    fontSize: 11,
+    color: "#a8a29e",
+    fontFamily: "'Outfit', sans-serif",
+  },
+  statusBadge: {
+    display: "inline-block",
+    padding: "1px 8px",
+    borderRadius: 8,
+    fontSize: 10,
+    fontWeight: 600,
+    marginTop: 4,
+    fontFamily: "'Outfit', sans-serif",
+  },
+  bidBtn: {
+    marginTop: 8,
+    background: "#b45309",
+    color: "#fff",
+    border: "none",
+    padding: "6px 14px",
+    borderRadius: 6,
+    fontSize: 12,
+    fontWeight: 600,
+    cursor: "pointer",
+    fontFamily: "'Outfit', sans-serif",
+  },
+  inlineBidForm: {
+    marginTop: 10,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    padding: 10,
+    background: "#fafaf9",
+    borderRadius: 8,
+    border: "1px solid #e7e5e4",
+  },
+
+  // Family card
+  familyCard: {
+    display: "flex",
+    alignItems: "flex-start",
+    gap: 12,
+    background: "#fff",
+    border: "1px solid #e7e5e4",
+    borderRadius: 10,
+    padding: "14px",
+  },
+  familyAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, #b45309, #d97706)",
+    color: "#fff",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 700,
+    fontSize: 18,
+    flexShrink: 0,
+  },
+
+  // Buttons
+  addBtn: {
+    background: "#292524",
+    color: "#fff",
+    border: "none",
+    padding: "8px 16px",
+    borderRadius: 8,
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
+    fontFamily: "'Outfit', sans-serif",
+  },
+  btnPrimary: {
+    background: "#b45309",
+    color: "#fff",
+    border: "none",
+    padding: "10px 20px",
+    borderRadius: 8,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    fontFamily: "'Outfit', sans-serif",
+  },
+  btnSecondary: {
+    background: "#e7e5e4",
+    color: "#57534e",
+    border: "none",
+    padding: "10px 20px",
+    borderRadius: 8,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    fontFamily: "'Outfit', sans-serif",
+  },
+
+  // Form
+  input: {
+    width: "100%",
+    padding: "10px 12px",
+    border: "1px solid #d6d3d1",
+    borderRadius: 8,
+    fontSize: 14,
+    fontFamily: "'Outfit', sans-serif",
+    background: "#fff",
+    boxSizing: "border-box",
+    outline: "none",
+  },
+  label: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    fontSize: 12,
+    fontWeight: 600,
+    color: "#57534e",
+    fontFamily: "'Outfit', sans-serif",
+  },
+  formGrid: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 12,
+  },
+
+  // Modal
+  modalOverlay: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "rgba(0,0,0,0.5)",
+    zIndex: 150,
+    display: "flex",
+    alignItems: "flex-end",
+    justifyContent: "center",
+  },
+  modalContent: {
+    background: "#fff",
+    borderRadius: "20px 20px 0 0",
+    padding: "20px 20px 32px",
+    width: "100%",
+    maxWidth: 480,
+    maxHeight: "85vh",
+    overflowY: "auto",
+    animation: "slideUp 0.3s ease",
+  },
+  modalHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  modalTitle: {
+    margin: 0,
+    fontSize: 18,
+    fontWeight: 700,
+    color: "#292524",
+  },
+  modalClose: {
+    background: "#f5f5f4",
+    border: "none",
+    width: 30,
+    height: 30,
+    borderRadius: "50%",
+    cursor: "pointer",
+    fontSize: 14,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+
+  // Nav
+  nav: {
+    position: "fixed",
+    bottom: 0,
+    left: "50%",
+    transform: "translateX(-50%)",
+    width: "100%",
+    maxWidth: 480,
+    background: "#fff",
+    borderTop: "1px solid #e7e5e4",
+    display: "flex",
+    justifyContent: "space-around",
+    zIndex: 100,
+    boxShadow: "0 -2px 10px rgba(0,0,0,0.05)",
+  },
+  navBtn: {
+    flex: 1,
+    background: "none",
+    border: "none",
+    padding: "8px 0 6px",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 2,
+    cursor: "pointer",
+    transition: "all 0.2s",
+    fontFamily: "'Outfit', sans-serif",
+  },
+
+  // Login
+  loginScreen: {
+    minHeight: "100vh",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "linear-gradient(135deg, #292524, #57534e)",
+    padding: 24,
+  },
+  loginCard: {
+    background: "#fff",
+    borderRadius: 20,
+    padding: "40px 32px",
+    textAlign: "center",
+    maxWidth: 360,
+    width: "100%",
+    boxShadow: "0 20px 60px rgba(0,0,0,0.3)",
+  },
+  loginTitle: {
+    fontSize: 26,
+    fontWeight: 700,
+    color: "#292524",
+    margin: "0 0 4px",
+  },
+  loginSubtitle: {
+    fontSize: 13,
+    color: "#78716c",
+    margin: 0,
+    fontFamily: "'Outfit', sans-serif",
+  },
+  loginDivider: {
+    width: 40,
+    height: 2,
+    background: "#b45309",
+    margin: "20px auto",
+  },
+  googleBtn: {
+    background: "#292524",
+    color: "#fff",
+    border: "none",
+    padding: "12px 28px",
+    borderRadius: 8,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: "pointer",
+    fontFamily: "'Outfit', sans-serif",
+    marginTop: 16,
+  },
+  loginFooter: {
+    fontSize: 11,
+    color: "#a8a29e",
+    marginTop: 20,
+    fontFamily: "'Outfit', sans-serif",
+    lineHeight: 1.5,
+  },
+
+  // Center screen
+  centerScreen: {
+    minHeight: "100vh",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "#fafaf9",
+  },
+  spinner: {
+    width: 32,
+    height: 32,
+    border: "3px solid #e7e5e4",
+    borderTopColor: "#b45309",
+    borderRadius: "50%",
+    animation: "spin 0.8s linear infinite",
+  },
+
+  // Empty state
+  empty: {
+    textAlign: "center",
+    color: "#a8a29e",
+    padding: 32,
+    fontSize: 14,
+    fontFamily: "'Outfit', sans-serif",
+  },
+
+  // Setup
+  setupBox: {
+    margin: "16px",
+    background: "#fff",
+    border: "1px solid #e7e5e4",
+    borderRadius: 10,
+    overflow: "hidden",
+  },
+  setupToggle: {
+    width: "100%",
+    background: "none",
+    border: "none",
+    padding: "12px 14px",
+    textAlign: "left",
+    fontSize: 13,
+    fontWeight: 600,
+    color: "#57534e",
+    cursor: "pointer",
+    fontFamily: "'Outfit', sans-serif",
+  },
+  setupContent: {
+    padding: "0 14px 14px",
+    fontSize: 12,
+    lineHeight: 1.7,
+    color: "#57534e",
+    fontFamily: "'Outfit', sans-serif",
+  },
+
+  // Report styles
+  reportTab: {
+    padding: "8px 16px",
+    borderRadius: 8,
+    fontSize: 13,
+    cursor: "pointer",
+    fontFamily: "'Outfit', sans-serif",
+    fontWeight: 600,
+    transition: "all 0.2s",
+  },
+  reportHeader: {
+    marginBottom: 12,
+  },
+  reportTitle: {
+    fontSize: 16,
+    fontWeight: 700,
+    color: "#44403c",
+    margin: 0,
+    fontFamily: "'Outfit', sans-serif",
+  },
+  reportSubtitle: {
+    fontSize: 12,
+    color: "#78716c",
+    margin: "2px 0 0",
+    fontFamily: "'Outfit', sans-serif",
+  },
+
+  // Table styles
+  tableWrapper: {
+    overflowX: "auto",
+    borderRadius: 10,
+    border: "1px solid #e7e5e4",
+    marginBottom: 8,
+  },
+  table: {
+    width: "100%",
+    borderCollapse: "collapse",
+    fontFamily: "'Outfit', sans-serif",
+    fontSize: 12,
+  },
+  th: {
+    background: "#292524",
+    color: "#fff",
+    padding: "10px 12px",
+    textAlign: "left",
+    fontSize: 11,
+    fontWeight: 700,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    whiteSpace: "nowrap",
+  },
+  td: {
+    padding: "10px 12px",
+    borderBottom: "1px solid #f5f5f4",
+    verticalAlign: "top",
+    fontSize: 12,
+  },
+  trEven: {
+    background: "#fff",
+  },
+  trOdd: {
+    background: "#fafaf9",
+  },
+  trTotal: {
+    background: "#f5f5f4",
+    borderTop: "2px solid #d6d3d1",
+  },
+  tableName: {
+    margin: 0,
+    fontWeight: 600,
+    color: "#292524",
+    fontSize: 13,
+  },
+  tableAddr: {
+    margin: "2px 0 0",
+    color: "#78716c",
+    fontSize: 11,
+    lineHeight: 1.4,
+  },
+  phoneLink: {
+    color: "#2563eb",
+    textDecoration: "none",
+    fontSize: 12,
+    fontWeight: 500,
+  },
+  whatsappLink: {
+    color: "#059669",
+    textDecoration: "none",
+    fontSize: 12,
+    fontWeight: 500,
+  },
+
+  // Balance sheet styles
+  balanceSheet: {
+    background: "#fff",
+    border: "1px solid #e7e5e4",
+    borderRadius: 12,
+    overflow: "hidden",
+    marginBottom: 16,
+  },
+  bsSection: {
+    padding: "14px 16px",
+    borderBottom: "1px solid #f5f5f4",
+  },
+  bsSectionHeader: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  },
+  bsSectionIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: "50%",
+    background: "#d1fae5",
+    color: "#059669",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontWeight: 700,
+    fontSize: 12,
+  },
+  bsSectionTitle: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: "#57534e",
+    letterSpacing: 1,
+    fontFamily: "'Outfit', sans-serif",
+  },
+  bsRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "6px 0",
+    fontSize: 13,
+    fontFamily: "'Outfit', sans-serif",
+    color: "#44403c",
+  },
+  bsAmount: {
+    fontWeight: 600,
+    fontFamily: "'Outfit', sans-serif",
+  },
+  bsTotalRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "10px 0 4px",
+    fontSize: 14,
+    fontFamily: "'Outfit', sans-serif",
+    color: "#292524",
+    borderTop: "1px solid #e7e5e4",
+    marginTop: 6,
+  },
+  bsNetRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    padding: "14px 16px",
+    color: "#fff",
+    fontFamily: "'Outfit', sans-serif",
+    fontWeight: 700,
+    fontSize: 14,
+    letterSpacing: 0.5,
+  },
+
+  // Auction summary grid
+  auctionSummaryGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr 1fr",
+    gap: 8,
+    marginBottom: 16,
+  },
+  auctionSummaryCard: {
+    background: "#fff",
+    border: "1px solid #e7e5e4",
+    borderRadius: 10,
+    padding: "12px 10px",
+    textAlign: "center",
+  },
+  asStat: {
+    margin: 0,
+    fontSize: 24,
+    fontWeight: 800,
+    color: "#292524",
+  },
+  asLabel: {
+    margin: "2px 0",
+    fontSize: 10,
+    fontWeight: 600,
+    color: "#78716c",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    fontFamily: "'Outfit', sans-serif",
+  },
+  asAmount: {
+    margin: 0,
+    fontSize: 12,
+    fontWeight: 700,
+    color: "#57534e",
+    fontFamily: "'Outfit', sans-serif",
+  },
+};
+
+    // --- Mount the App ---
+    const root = ReactDOM.createRoot(document.getElementById("root"));
+    root.render(React.createElement(App));
+  </script>
+  <script>
+    // Register Service Worker for PWA
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
