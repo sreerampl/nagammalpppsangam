@@ -1908,7 +1908,6 @@ function FamiliesView({ families, isAdmin, canEdit, onAdd, showToast, lang: prop
 function DonationForm({ families, onSubmit, onClose }) {
   const lang = useLang();
   const [form, setForm] = useState({
-    date: today(),
     day: "1",
     donorType: "Family",
     familyId: "",
@@ -1923,9 +1922,6 @@ function DonationForm({ families, onSubmit, onClose }) {
   return (
     <Modal title={t("recordDonation", lang)} onClose={onClose}>
       <div style={styles.formGrid}>
-        <label style={styles.label}>{t("date", lang)}
-          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
-        </label>
         <label style={styles.label}>{t("day", lang)}
           <select value={form.day} onChange={(e) => set("day", e.target.value)} style={styles.input}>
             <option value="1">{t("day1", lang)}</option>
@@ -1991,7 +1987,6 @@ function DonationForm({ families, onSubmit, onClose }) {
 function ExpenseForm({ onSubmit, onClose }) {
   const lang = useLang();
   const [form, setForm] = useState({
-    date: today(),
     day: "1",
     category: EXPENSE_CATEGORIES[0],
     description: "",
@@ -2004,9 +1999,6 @@ function ExpenseForm({ onSubmit, onClose }) {
   return (
     <Modal title={t("recordExpense", lang)} onClose={onClose}>
       <div style={styles.formGrid}>
-        <label style={styles.label}>{t("date", lang)}
-          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
-        </label>
         <label style={styles.label}>{t("day", lang)}
           <select value={form.day} onChange={(e) => set("day", e.target.value)} style={styles.input}>
             <option value="1">{t("day1", lang)}</option>
