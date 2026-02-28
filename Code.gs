@@ -97,10 +97,24 @@ function handleRequest(e) {
 function getUserRole(email) {
   if (!email) return null;
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.ACCESS);
+  if (!sheet) return null;
   var data = sheet.getDataRange().getValues();
+  
+  // Find Email and Role columns by header name (row 0)
+  var headers = data[0];
+  var emailCol = -1;
+  var roleCol = -1;
+  for (var h = 0; h < headers.length; h++) {
+    var hdr = String(headers[h]).trim().toLowerCase();
+    if (hdr === "email") emailCol = h;
+    if (hdr === "role") roleCol = h;
+  }
+  if (emailCol === -1 || roleCol === -1) return null;
+  
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][0]).toLowerCase().trim() === email) {
-      return data[i][1]; // Role column (B)
+    var rowEmail = String(data[i][emailCol]).toLowerCase().trim();
+    if (rowEmail === email) {
+      return String(data[i][roleCol]).trim();
     }
   }
   return null;
