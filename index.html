@@ -524,47 +524,62 @@ function App() {
 
   // --- Google Sign-In (real mode) ---
   const googleReadyRef = useRef(false);
-  useEffect(() => {
-    if (IS_DEMO) return;
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.onload = () => {
+  
+  const initGoogle = useCallback(() => {
+    if (window.google && window.google.accounts) {
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleGoogleLogin,
+        auto_select: false,
       });
       googleReadyRef.current = true;
-      // Try to render button now
-      const btnContainer = document.getElementById("google-signin-btn");
-      if (btnContainer) {
-        window.google.accounts.id.renderButton(btnContainer, {
-          theme: "outline",
-          size: "large",
-          width: 300,
-          text: "signin_with",
-        });
-      }
       setLoading(false);
-    };
-    document.head.appendChild(script);
+    }
   }, []);
 
-  // Re-render Google button when login screen is shown
   useEffect(() => {
-    if (IS_DEMO || user || !googleReadyRef.current) return;
-    setTimeout(() => {
-      const btnContainer = document.getElementById("google-signin-btn");
-      if (btnContainer && window.google) {
-        window.google.accounts.id.renderButton(btnContainer, {
-          theme: "outline",
-          size: "large",
-          width: 300,
-          text: "signin_with",
-        });
+    if (IS_DEMO) return;
+    // Check if already loaded (from <head> script tag)
+    if (window.google && window.google.accounts) {
+      initGoogle();
+      return;
+    }
+    // Wait for the head script to load
+    const interval = setInterval(() => {
+      if (window.google && window.google.accounts) {
+        clearInterval(interval);
+        initGoogle();
       }
-    }, 100);
-  }, [user]);
+    }, 200);
+    // Timeout after 10s
+    setTimeout(() => { clearInterval(interval); setLoading(false); }, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleSignInClick = () => {
+    if (!googleReadyRef.current) {
+      alert("Google Sign-In is still loading. Please wait a moment and try again.");
+      return;
+    }
+    // Method 1: Try prompt (One Tap)
+    window.google.accounts.id.prompt((notification) => {
+      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
+        // Method 2: Fall back to renderButton in a popup
+        const btnDiv = document.getElementById("google-signin-btn-hidden");
+        if (btnDiv) {
+          btnDiv.innerHTML = "";
+          window.google.accounts.id.renderButton(btnDiv, {
+            theme: "outline", size: "large", width: 300, text: "signin_with",
+          });
+          // Click the rendered button
+          setTimeout(() => {
+            const gBtn = btnDiv.querySelector('[role="button"]') || btnDiv.querySelector('div[style]');
+            if (gBtn) gBtn.click();
+          }, 300);
+        }
+      }
+    });
+  };
 
   const handleGoogleLogin = async (response) => {
     try {
@@ -1001,10 +1016,11 @@ function LoginScreen({ onDemoLogin, lang, setLang }) {
         <p style={styles.loginSubtitle}>{t("loginTitle", lang)}</p>
         <div style={styles.loginDivider} />
         {!IS_DEMO ? (
-          <div id="google-signin-btn" style={{ marginTop: 24, minHeight: 44, display: "flex", justifyContent: "center" }}>
-            <button onClick={() => { if (window.google) window.google.accounts.id.prompt(); }} style={styles.googleBtn}>
+          <div style={{ marginTop: 24 }}>
+            <button onClick={handleSignInClick} style={styles.googleBtn}>
               <span style={{ marginRight: 8 }}>G</span> {t("signInGoogle", lang)}
             </button>
+            <div id="google-signin-btn-hidden" style={{ position: "absolute", opacity: 0, pointerEvents: "none" }} />
           </div>
         ) : (
           <button onClick={onDemoLogin} style={styles.googleBtn}>
