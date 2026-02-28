@@ -1017,7 +1017,7 @@ function LoginScreen({ onDemoLogin, lang, setLang }) {
         <div style={styles.loginDivider} />
         {!IS_DEMO ? (
           <div style={{ marginTop: 24 }}>
-            <button onClick={handleSignInClick} style={styles.googleBtn}>
+            <button onClick={() => { if (window.google) window.google.accounts.id.prompt(); else alert("Google Sign-In still loading, please wait."); }} style={styles.googleBtn}>
               <span style={{ marginRight: 8 }}>G</span> {t("signInGoogle", lang)}
             </button>
             <div id="google-signin-btn-hidden" style={{ position: "absolute", opacity: 0, pointerEvents: "none" }} />
