@@ -528,9 +528,9 @@ function createMockData() {
       Status: i < 2 ? "Confirmed" : i === 2 ? "Pending" : "",
     })),
     access: [
-      { Email: "admin@example.com", Name: "Admin User", FamilyID: "F9", Role: "Admin" },
-      { Email: "editor@example.com", Name: "Editor User", FamilyID: "F1", Role: "Editor" },
-      { Email: "viewer@example.com", Name: "Viewer User", FamilyID: "F35", Role: "Viewer" },
+      { Email: "admin@example.com", Role: "Admin", Name: "Admin User" },
+      { Email: "editor@example.com", Role: "Editor", Name: "Editor User" },
+      { Email: "viewer@example.com", Role: "Viewer", Name: "Viewer User" },
     ],
   };
 }
@@ -2785,7 +2785,7 @@ function SetupInstructions() {
             <li><strong>Expenses</strong> — TxnID, Date, Day, Category, Description, Amount, Vendor, EnteredBy, Timestamp</li>
             <li><strong>Auction</strong> — ItemNo, ItemDescription, DonatedBy, WinnerFamilyID, WinnerName, BidAmount, EnteredBy1, ConfirmedBy2, Timestamp1, Timestamp2, Status</li>
             <li><strong>Ledger</strong> — Year, OpeningBalance, TotalDonations, TotalAuction, TotalExpenses, ClosingBalance</li>
-            <li><strong>AccessControl</strong> — Email, Name, FamilyID, Role</li>
+            <li><strong>AccessControl</strong> — Email, Role, Name</li>
             <li><strong>AuditLog</strong> — Timestamp, User, Action, Module, Details</li>
           </ul>
           <p><strong>Step 4:</strong> In the <strong>AccessControl</strong> sheet, add your Google email with Role = Admin.</p>

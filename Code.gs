@@ -73,6 +73,8 @@ function handleRequest(e) {
         return requireRole(userRole, "Editor", function() { return handleAddExpense(params.data, userEmail); });
       case "addFamily":
         return requireRole(userRole, "Editor", function() { return handleAddFamily(params.data, userEmail); });
+      case "bulkAddFamilies":
+        return requireRole(userRole, "Admin", function() { return handleBulkAddFamilies(params.data, userEmail); });
       case "addAuctionItem":
         return requireRole(userRole, "Admin", function() { return handleAddAuctionItem(params.data, userEmail); });
       case "enterBid":
@@ -98,7 +100,7 @@ function getUserRole(email) {
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]).toLowerCase().trim() === email) {
-      return data[i][3]; // Role column (D)
+      return data[i][1]; // Role column (B)
     }
   }
   return null;
@@ -166,9 +168,11 @@ function handleAddIncome(data, userEmail) {
   var txnId = generateId("DON");
   var ts = now();
 
+  var year = data.year || String(new Date().getFullYear());
+
   var row = [
     txnId,
-    data.date,
+    year,
     data.day,
     data.donorType,
     data.familyId || "",
@@ -190,6 +194,7 @@ function handleAddIncome(data, userEmail) {
     var nextItemNo = auctionSheet.getLastRow(); // includes header, so this = item count + 1
     var auctionRow = [
       nextItemNo,
+      year,
       data.description,
       data.donorName,
       "", "", "", "", "", "", "", ""
@@ -212,9 +217,11 @@ function handleAddExpense(data, userEmail) {
   var txnId = generateId("EXP");
   var ts = now();
 
+  var year = data.year || String(new Date().getFullYear());
+
   var row = [
     txnId,
-    data.date,
+    year,
     data.day,
     data.category,
     data.description,
@@ -239,15 +246,35 @@ function handleAddFamily(data, userEmail) {
 
   var row = [
     famId,
-    data.headOfFamily,
+    data.familyName,
     data.phone,
     data.whatsApp || "",
     data.address
   ];
   sheet.appendRow(row);
-  writeAudit("CREATE", "Families", famId + " " + data.headOfFamily, userEmail);
+  writeAudit("CREATE", "Families", famId + " " + data.familyName, userEmail);
 
   return jsonResponse({ success: true, data: { familyId: famId } });
+}
+
+function handleBulkAddFamilies(data, userEmail) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.FAMILIES);
+  var families = data.families || [];
+  var count = 0;
+  for (var i = 0; i < families.length; i++) {
+    var f = families[i];
+    var row = [
+      f.familyId || generateId("FAM"),
+      f.familyName || "",
+      f.phone || "",
+      f.whatsApp || "",
+      f.address || ""
+    ];
+    sheet.appendRow(row);
+    count++;
+  }
+  writeAudit("BULK_CREATE", "Families", count + " families added", userEmail);
+  return jsonResponse({ success: true, data: { count: count } });
 }
 
 // ============================================================
@@ -257,12 +284,14 @@ function handleAddFamily(data, userEmail) {
 function handleAddAuctionItem(data, userEmail) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.AUCTION);
   var nextItemNo = sheet.getLastRow(); // header row = 1, so lastRow = current item count + 1
+  var year = data.year || String(new Date().getFullYear());
 
   var row = [
     nextItemNo,
+    year,
     data.itemName,
     data.donatedBy || "",
-    "", "", "", "", "", "", "", "", ""
+    "", "", "", "", "", "", "", ""
   ];
   sheet.appendRow(row);
   writeAudit("CREATE", "Auction", "Manual add #" + nextItemNo + " \"" + data.itemName + "\"", userEmail);
@@ -279,36 +308,40 @@ function handleEnterBid(data, userEmail) {
   var sheet = ss.getSheetByName(SHEETS.AUCTION);
   var rowIndex = data.rowIndex + 2; // 0-based data row → 1-based sheet row (header + 1)
 
-  // Read current row
-  var range = sheet.getRange(rowIndex, 1, 1, 11);
+  // Auction columns (0-indexed):
+  // A=ItemNo(0), B=Year(1), C=ItemDescription(2), D=DonatedBy(3),
+  // E=WinnerFamilyID(4), F=WinnerName(5), G=BidAmount(6),
+  // H=EnteredBy1(7), I=ConfirmedBy2(8), J=Timestamp1(9), K=Timestamp2(10), L=Status(11)
+
+  var range = sheet.getRange(rowIndex, 1, 1, 12);
   var values = range.getValues()[0];
 
-  var enteredBy1 = String(values[6]).trim();  // Column G: EnteredBy1
-  var confirmedBy2 = String(values[7]).trim(); // Column H: ConfirmedBy2
+  var enteredBy1 = String(values[7]).trim();   // Column H: EnteredBy1
+  var confirmedBy2 = String(values[8]).trim(); // Column I: ConfirmedBy2
   var ts = now();
 
   if (!enteredBy1) {
     // First entry — enter bid
-    values[3] = data.familyId || "";     // WinnerFamilyID
-    values[4] = data.winnerName;         // WinnerName
-    values[5] = data.amount;             // BidAmount
-    values[6] = userEmail;               // EnteredBy1
-    values[8] = ts;                      // Timestamp1
-    values[10] = "Pending";              // Status
+    values[4] = data.familyId || "";     // WinnerFamilyID
+    values[5] = data.winnerName;         // WinnerName
+    values[6] = data.amount;             // BidAmount
+    values[7] = userEmail;               // EnteredBy1
+    values[9] = ts;                      // Timestamp1
+    values[11] = "Pending";              // Status
 
     range.setValues([values]);
-    writeAudit("BID", "Auction", "#" + values[0] + " \"" + values[1] + "\" ₹" + data.amount + " by " + data.winnerName, userEmail);
+    writeAudit("BID", "Auction", "#" + values[0] + " \"" + values[2] + "\" ₹" + data.amount + " by " + data.winnerName, userEmail);
 
     return jsonResponse({ success: true, data: { status: "Pending" } });
 
   } else if (enteredBy1.toLowerCase() !== userEmail.toLowerCase() && !confirmedBy2) {
     // Second person — confirm
-    values[7] = userEmail;               // ConfirmedBy2
-    values[9] = ts;                      // Timestamp2
-    values[10] = "Confirmed";            // Status
+    values[8] = userEmail;               // ConfirmedBy2
+    values[10] = ts;                     // Timestamp2
+    values[11] = "Confirmed";            // Status
 
     range.setValues([values]);
-    writeAudit("CONFIRM", "Auction", "#" + values[0] + " \"" + values[1] + "\" ₹" + values[5] + " to " + values[4], userEmail);
+    writeAudit("CONFIRM", "Auction", "#" + values[0] + " \"" + values[2] + "\" ₹" + values[6] + " to " + values[5], userEmail);
 
     return jsonResponse({ success: true, data: { status: "Confirmed" } });
 
@@ -409,6 +442,6 @@ function testSetup() {
   var rows = accessSheet.getDataRange().getValues();
   Logger.log("AccessControl has " + (rows.length - 1) + " users:");
   for (var j = 1; j < rows.length; j++) {
-    Logger.log("  " + rows[j][0] + " → " + rows[j][3]);
+    Logger.log("  " + rows[j][0] + " → " + rows[j][1]);
   }
 }
