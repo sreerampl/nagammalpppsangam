@@ -1001,9 +1001,12 @@ function LoadingScreen() {
 function LoginScreen({ onDemoLogin, lang, setLang }) {
   useEffect(() => {
     if (IS_DEMO) return;
+    let rendered = false;
     const tryRender = () => {
+      if (rendered) return;
       const el = document.getElementById("g-signin-btn");
       if (el && window.google && window.google.accounts) {
+        el.innerHTML = "";
         window.google.accounts.id.renderButton(el, {
           theme: "outline",
           size: "large",
@@ -1011,6 +1014,8 @@ function LoginScreen({ onDemoLogin, lang, setLang }) {
           text: "signin_with",
           shape: "rectangular",
         });
+        rendered = true;
+        clearInterval(interval);
       }
     };
     tryRender();
