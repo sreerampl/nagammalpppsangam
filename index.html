@@ -801,7 +801,7 @@ function App() {
   // ============================================================
 
   if (loading) return <LangContext.Provider value={lang}><LoadingScreen /></LangContext.Provider>;
-  if (!user) return <LangContext.Provider value={lang}><LoginScreen lang={lang} setLang={setLang} onDemoLogin={() => {
+  if (!user) return <LangContext.Provider value={lang}><LoginScreen lang={lang} setLang={setLang} googleBtnRef={googleBtnRef} renderGoogleBtn={renderGoogleBtn} onDemoLogin={() => {
     setUser({ email: "admin@example.com", name: "Demo Admin", picture: "", token: null });
     setRole("Admin");
     const mock = createMockData();
@@ -1013,7 +1013,7 @@ function LoadingScreen() {
   );
 }
 
-function LoginScreen({ onDemoLogin, lang, setLang }) {
+function LoginScreen({ onDemoLogin, lang, setLang, googleBtnRef, renderGoogleBtn }) {
   return (
     <div style={styles.loginScreen}>
       <div style={styles.loginCard}>
