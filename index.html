@@ -1002,6 +1002,7 @@ function LoginScreen({ onDemoLogin, lang, setLang }) {
   useEffect(() => {
     if (IS_DEMO) return;
     let rendered = false;
+    let interval;
     const tryRender = () => {
       if (rendered) return;
       const el = document.getElementById("g-signin-btn");
@@ -1015,11 +1016,11 @@ function LoginScreen({ onDemoLogin, lang, setLang }) {
           shape: "rectangular",
         });
         rendered = true;
-        clearInterval(interval);
+        if (interval) clearInterval(interval);
       }
     };
     tryRender();
-    const interval = setInterval(tryRender, 500);
+    interval = setInterval(tryRender, 500);
     setTimeout(() => clearInterval(interval), 10000);
     return () => clearInterval(interval);
   }, []);
