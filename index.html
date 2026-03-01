@@ -1159,6 +1159,7 @@ function App() {
         <AuctionItemForm
           onSubmit={addAuctionItem}
           onClose={() => setShowForm(null)}
+          currentYear={currentYear}
         />
       )}
 
@@ -2056,11 +2057,9 @@ function FamiliesView({ families, isAdmin, canEdit, onAdd, showToast, lang: prop
 
 function DonationForm({ families, onSubmit, onClose }) {
   const lang = useLang();
-  const thisYear = new Date().getFullYear();
   const [saving, setSaving] = useState(false);
   const today = todayISO();
   const [form, setForm] = useState({
-    year: String(thisYear),
     date: today,
     day: "1",
     donorType: "Family",
@@ -2070,31 +2069,14 @@ function DonationForm({ families, onSubmit, onClose }) {
     amount: "",
     description: "",
   });
+  // Auto-derive year from date
+  const formYear = form.date ? form.date.split("-")[0] : String(new Date().getFullYear());
 
-  const set = (k, v) => {
-    const next = { ...form, [k]: v };
-    // Auto-calculate day when date changes
-    if (k === "date" && v) {
-      const d = new Date(v);
-      const day1 = new Date(v);
-      day1.setDate(d.getDate()); // same day = day 1 unless overridden
-      // Use first date set as day1 baseline - auto-calc day from date offset
-      // Day calc: day number = 1 + offset from first selected date
-      // For simplicity, keep day as separately editable but suggest based on date
-    }
-    setForm(next);
-  };
+  const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
   return (
     <Modal title={t("recordDonation", lang)} onClose={onClose}>
       <div style={styles.formGrid}>
-        <label style={styles.label}>{t("year", lang)}
-          <select value={form.year} onChange={(e) => set("year", e.target.value)} style={styles.input}>
-            {Array.from({ length: 5 }, (_, i) => thisYear - 2 + i).map((y) => (
-              <option key={y} value={String(y)}>{y}</option>
-            ))}
-          </select>
-        </label>
         <label style={styles.label}>{t("date", lang)}
           <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
         </label>
@@ -2150,7 +2132,7 @@ function DonationForm({ families, onSubmit, onClose }) {
         onClick={() => {
           if (saving) return;
           const isAuctionObj = form.category === "Objects for Auction";
-          if (form.donorName && (isAuctionObj || form.amount)) { setSaving(true); onSubmit({ ...form, amount: isAuctionObj ? "0" : form.amount }); }
+          if (form.donorName && (isAuctionObj || form.amount)) { setSaving(true); onSubmit({ ...form, year: formYear, amount: isAuctionObj ? "0" : form.amount }); }
         }}
         style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: saving ? 0.6 : 1 }}
         disabled={saving || !form.donorName || (form.category !== "Objects for Auction" && !form.amount)}
@@ -2163,11 +2145,9 @@ function DonationForm({ families, onSubmit, onClose }) {
 
 function ExpenseForm({ onSubmit, onClose }) {
   const lang = useLang();
-  const thisYear = new Date().getFullYear();
   const [saving, setSaving] = useState(false);
   const today = todayISO();
   const [form, setForm] = useState({
-    year: String(thisYear),
     date: today,
     day: "1",
     category: EXPENSE_CATEGORIES[0],
@@ -2175,19 +2155,13 @@ function ExpenseForm({ onSubmit, onClose }) {
     amount: "",
     vendor: "",
   });
+  const formYear = form.date ? form.date.split("-")[0] : String(new Date().getFullYear());
 
-  const set = (k, v) => setForm({ ...form, [k]: v });
+  const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
   return (
     <Modal title={t("recordExpense", lang)} onClose={onClose}>
       <div style={styles.formGrid}>
-        <label style={styles.label}>{t("year", lang)}
-          <select value={form.year} onChange={(e) => set("year", e.target.value)} style={styles.input}>
-            {Array.from({ length: 5 }, (_, i) => thisYear - 2 + i).map((y) => (
-              <option key={y} value={String(y)}>{y}</option>
-            ))}
-          </select>
-        </label>
         <label style={styles.label}>{t("date", lang)}
           <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
         </label>
@@ -2214,7 +2188,7 @@ function ExpenseForm({ onSubmit, onClose }) {
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && form.description && form.amount) { setSaving(true); onSubmit(form); } }}
+        onClick={() => { if (!saving && form.description && form.amount) { setSaving(true); onSubmit({ ...form, year: formYear }); } }}
         style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: saving ? 0.6 : 1 }}
         disabled={saving || !form.description || !form.amount}
       >
@@ -2281,23 +2255,15 @@ function Modal({ title, onClose, children }) {
 // AUCTION ITEM FORM (Admin only)
 // ============================================================
 
-function AuctionItemForm({ onSubmit, onClose }) {
+function AuctionItemForm({ onSubmit, onClose, currentYear }) {
   const lang = useLang();
-  const thisYear = new Date().getFullYear();
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ year: String(thisYear), itemName: "", donatedBy: "" });
-  const set = (k, v) => setForm({ ...form, [k]: v });
+  const [form, setForm] = useState({ itemName: "", donatedBy: "" });
+  const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
   return (
     <Modal title={t("addAuctionItem", lang)} onClose={onClose}>
       <div style={styles.formGrid}>
-        <label style={styles.label}>{t("year", lang)}
-          <select value={form.year} onChange={(e) => set("year", e.target.value)} style={styles.input}>
-            {Array.from({ length: 5 }, (_, i) => thisYear - 2 + i).map((y) => (
-              <option key={y} value={String(y)}>{y}</option>
-            ))}
-          </select>
-        </label>
         <label style={styles.label}>{t("itemName", lang)} *
           <input value={form.itemName} onChange={(e) => set("itemName", e.target.value)} style={styles.input} placeholder={t("itemNamePlaceholder", lang)} />
         </label>
@@ -2306,7 +2272,7 @@ function AuctionItemForm({ onSubmit, onClose }) {
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && form.itemName) { setSaving(true); onSubmit(form); } }}
+        onClick={() => { if (!saving && form.itemName) { setSaving(true); onSubmit({ ...form, year: String(currentYear) }); } }}
         style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: saving ? 0.6 : 1 }}
         disabled={saving || !form.itemName}
       >
