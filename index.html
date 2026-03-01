@@ -267,6 +267,7 @@ const T = {
   catOther: { en: "Other", ta: "மற்றவை" },
   catTemple: { en: "Temple", ta: "கோவில்" },
   catSupplies: { en: "Supplies", ta: "பொருட்கள்" },
+  catPulliVari: { en: "Pulli vari", ta: "புள்ளி வரி" },
   catDecorations: { en: "Decorations", ta: "அலங்காரம்" },
   catTransport: { en: "Transport", ta: "போக்குவரத்து" },
 };
@@ -276,20 +277,20 @@ const t = (key, lang) => T[key]?.[lang] || T[key]?.en || key;
 
 // Category translation maps
 const DONATION_CAT_KEYS = ["catFood", "catTempleExpenses", "catMembership", "catPrayerObjects", "catAuctionObjects", "catGroceries", "catVegetables", "catOther"];
-const EXPENSE_CAT_KEYS = ["catFood", "catTemple", "catVegetables", "catGroceries", "catSupplies", "catDecorations", "catTransport", "catOther"];
+const EXPENSE_CAT_KEYS = ["catFood", "catTemple", "catVegetables", "catGroceries", "catSupplies", "catPulliVari", "catDecorations", "catTransport", "catOther"];
 
 // English category values (stored in data/sheets)
 const DONATION_CATEGORIES_EN = ["Food", "Temple Expenses", "Membership", "Prayer Objects", "Objects for Auction", "Groceries", "Vegetables", "Other"];
-const EXPENSE_CATEGORIES_EN = ["Food", "Temple", "Vegetables", "Groceries", "Supplies", "Decorations", "Transport", "Other"];
+const EXPENSE_CATEGORIES_EN = ["Food", "Temple", "Vegetables", "Groceries", "Supplies", "Pulli vari", "Decorations", "Transport", "Other"];
 
 // Map English category value → i18n key
 const catKeyMap = {
   "Food": "catFood", "Temple Expenses": "catTempleExpenses", "Membership": "catMembership",
   "Prayer Objects": "catPrayerObjects", "Objects for Auction": "catAuctionObjects", "Groceries": "catGroceries", "Vegetables": "catVegetables",
-  "Other": "catOther", "Temple": "catTemple", "Supplies": "catSupplies",
+  "Other": "catOther", "Temple": "catTemple", "Supplies": "catSupplies", "Pulli vari": "catPulliVari",
   "Decorations": "catDecorations", "Transport": "catTransport",
 };
-const tCat = (catVal, lang) => t(catKeyMap[catVal] || "catOther", lang);
+const tCat = (catVal, lang) => catKeyMap[catVal] ? t(catKeyMap[catVal], lang) : catVal;
 
 // --- Google Config ---
 // Replace these with your actual values
@@ -453,6 +454,11 @@ const IS_DEMO = GOOGLE_CLIENT_ID.includes("YOUR_") || APPS_SCRIPT_URL.includes("
 
 function createMockData() {
   return {
+    master: {
+      "Income Category": ["Food", "Groceries", "Membership", "Objects for Auction", "Other", "Prayer Objects", "Pulli vari", "Temple Expenses", "Vegetables"],
+      "Expense Category": ["Decorations", "Food", "Groceries", "Other", "Supplies", "Temple", "Transport", "Vegetables"],
+      "Donor Type": ["Family", "External"]
+    },
     families: [
       { FamilyID: "F1", FamilyName: "M.Meenachi", Phone: "87545 38295", WhatsApp: "87545 38295", Address: "Plot No. 85, 2nd Floor, AVS Main Road, Annai Nagar, Korattur, Chennai - 600 076" },
       { FamilyID: "F2", FamilyName: "R.S.Ravi", Phone: "99413 07696", WhatsApp: "99413 07696", Address: "No. 15, Door.No 16, Chakravathi Nagar, Ayanavaram, Chennai - 600 023" },
@@ -560,6 +566,7 @@ function App() {
   const [lang, setLang] = useState("en"); // "en" or "ta"
 
   // Data state
+  const [master, setMaster] = useState({});
   const [families, setFamilies] = useState([]);
   const [donations, setDonations] = useState([]);
   const [expenses, setExpenses] = useState([]);
@@ -591,6 +598,11 @@ function App() {
   const audit = (action, module, details) =>
     logAudit(action, module, details, user?.email, IS_DEMO, setAuditLog);
 
+  // --- Derived from Master sheet (fallback to hardcoded) ---
+  const INCOME_CATS = (master["Income Category"] && master["Income Category"].length > 0) ? master["Income Category"] : DONATION_CATEGORIES;
+  const EXPENSE_CATS = (master["Expense Category"] && master["Expense Category"].length > 0) ? master["Expense Category"] : EXPENSE_CATEGORIES;
+  const DONOR_TYPES = (master["Donor Type"] && master["Donor Type"].length > 0) ? master["Donor Type"] : ["Family", "External"];
+
   // --- Toast ---
   const showToast = useCallback((msg, type = "success") => {
     setToast({ msg, type });
@@ -619,6 +631,7 @@ function App() {
       // Refresh data
       try {
         const result = await backendRef.current.post("getData");
+        if (result.master) setMaster(result.master);
         if (result.families) setFamilies(result.families);
         if (result.income) setDonations(result.income);
         if (result.expenses) setExpenses(result.expenses);
@@ -674,6 +687,7 @@ function App() {
       });
       setRole("Admin");
       const mock = createMockData();
+      setMaster(mock.master);
       setFamilies(mock.families);
       setDonations(mock.donations);
       setExpenses(mock.expenses);
@@ -763,6 +777,7 @@ function App() {
       setLoading(true);
       const api = backendRef.current;
       const result = await api.loadAll();
+      setMaster(result.master || {});
       setFamilies(result.families || []);
       setDonations(result.income || []);
       setExpenses(result.expenses || []);
@@ -961,6 +976,7 @@ function App() {
     setUser({ email: "admin@example.com", name: "Demo Admin", picture: "", token: null });
     setRole("Admin");
     const mock = createMockData();
+    setMaster(mock.master);
     setFamilies(mock.families);
     setDonations(mock.donations);
     setExpenses(mock.expenses);
@@ -1141,12 +1157,15 @@ function App() {
           families={families}
           onSubmit={addDonation}
           onClose={() => setShowForm(null)}
+          categories={INCOME_CATS}
+          donorTypes={DONOR_TYPES}
         />
       )}
       {showForm === "expense" && (
         <ExpenseForm
           onSubmit={addExpense}
           onClose={() => setShowForm(null)}
+          categories={EXPENSE_CATS}
         />
       )}
       {showForm === "family" && (
@@ -1479,7 +1498,7 @@ function DonationsView({ donations, families, canEdit, onAdd, showToast, lang: p
 
       {/* Filter Pills */}
       <div style={styles.filterRow}>
-        {["All", ...DONATION_CATEGORIES].map((cat) => (
+        {["All", ...INCOME_CATS].map((cat) => (
           <button
             key={cat}
             onClick={() => setFilter(cat)}
@@ -1559,7 +1578,7 @@ function ExpensesView({ expenses, canEdit, onAdd, showToast, lang: propLang }) {
       </div>
 
       <div style={styles.filterRow}>
-        {["All", ...EXPENSE_CATEGORIES].map((cat) => (
+        {["All", ...EXPENSE_CATS].map((cat) => (
           <button
             key={cat}
             onClick={() => setFilter(cat)}
@@ -1795,7 +1814,7 @@ function AuctionView({ auction, families, canEdit, isAdmin, userEmail, onBid, on
                 <div style={styles.inlineBidForm}>
                   {/* Bidder type toggle */}
                   <div style={{ display: "flex", gap: 6 }}>
-                    {["Family", "External"].map((tp) => (
+                    {DONOR_TYPES.map((tp) => (
                       <button
                         key={tp}
                         onClick={() => setBidForm({ ...bidForm, bidderType: tp, familyId: "", winnerName: "" })}
@@ -2055,17 +2074,19 @@ function FamiliesView({ families, isAdmin, canEdit, onAdd, showToast, lang: prop
 // FORMS (Modals)
 // ============================================================
 
-function DonationForm({ families, onSubmit, onClose }) {
+function DonationForm({ families, onSubmit, onClose, categories, donorTypes }) {
   const lang = useLang();
   const [saving, setSaving] = useState(false);
   const today = todayISO();
+  const cats = categories && categories.length > 0 ? categories : DONATION_CATEGORIES;
+  const dtypes = donorTypes && donorTypes.length > 0 ? donorTypes : ["Family", "External"];
   const [form, setForm] = useState({
     date: today,
     day: "1",
-    donorType: "Family",
+    donorType: dtypes[0],
     familyId: "",
     donorName: "",
-    category: DONATION_CATEGORIES[0],
+    category: cats[0],
     amount: "",
     description: "",
   });
@@ -2089,8 +2110,7 @@ function DonationForm({ families, onSubmit, onClose }) {
         </label>
         <label style={styles.label}>{t("donorType", lang)}
           <select value={form.donorType} onChange={(e) => set("donorType", e.target.value)} style={styles.input}>
-            <option value="Family">{t("family", lang)}</option>
-            <option value="External">{t("external", lang)}</option>
+            {dtypes.map((tp) => <option key={tp} value={tp}>{tp === "Family" ? t("family", lang) : tp === "External" ? t("external", lang) : tp}</option>)}
           </select>
         </label>
         {form.donorType === "Family" && (
@@ -2116,7 +2136,7 @@ function DonationForm({ families, onSubmit, onClose }) {
         </label>
         <label style={styles.label}>{t("category", lang)}
           <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
-            {DONATION_CATEGORIES.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
+            {cats.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
           </select>
         </label>
         {form.category !== "Objects for Auction" && (
@@ -2143,14 +2163,15 @@ function DonationForm({ families, onSubmit, onClose }) {
   );
 }
 
-function ExpenseForm({ onSubmit, onClose }) {
+function ExpenseForm({ onSubmit, onClose, categories }) {
   const lang = useLang();
   const [saving, setSaving] = useState(false);
   const today = todayISO();
+  const cats = categories && categories.length > 0 ? categories : EXPENSE_CATEGORIES;
   const [form, setForm] = useState({
     date: today,
     day: "1",
-    category: EXPENSE_CATEGORIES[0],
+    category: cats[0],
     description: "",
     amount: "",
     vendor: "",
@@ -2174,7 +2195,7 @@ function ExpenseForm({ onSubmit, onClose }) {
         </label>
         <label style={styles.label}>{t("category", lang)}
           <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
-            {EXPENSE_CATEGORIES.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
+            {cats.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
           </select>
         </label>
         <label style={styles.label}>{t("description", lang)}

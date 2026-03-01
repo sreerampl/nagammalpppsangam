@@ -14,6 +14,7 @@
 
 // Sheet names — must match exactly
 var SHEETS = {
+  MASTER: "Master",
   FAMILIES: "Families",
   INCOME: "Income",
   EXPENSES: "Expenses",
@@ -150,6 +151,7 @@ function handleLoadAll(userEmail, userRole) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
   var result = {
+    master: readMaster(ss),
     families: readSheet(ss, SHEETS.FAMILIES),
     income: readSheet(ss, SHEETS.INCOME),
     expenses: readSheet(ss, SHEETS.EXPENSES),
@@ -167,6 +169,26 @@ function handleLoadAll(userEmail, userRole) {
   writeAudit("LOGIN", "Auth", userEmail + " loaded data", userEmail);
 
   return jsonResponse({ success: true, data: result });
+}
+
+function readMaster(ss) {
+  var sheet = ss.getSheetByName(SHEETS.MASTER);
+  if (!sheet) return {};
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) return {};
+  var headers = data[0];
+  var result = {};
+  for (var col = 0; col < headers.length; col++) {
+    var key = String(headers[col]).trim();
+    if (!key) continue;
+    var values = [];
+    for (var row = 1; row < data.length; row++) {
+      var val = String(data[row][col] || "").trim();
+      if (val) values.push(val);
+    }
+    result[key] = values;
+  }
+  return result;
 }
 
 function readSheet(ss, sheetName) {
