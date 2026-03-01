@@ -2579,10 +2579,11 @@ function MembershipReport({ families, donations }) {
   const lang = useLang();
   const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
 
-  // Find membership donations per family
+  // Find membership donations per family (case-insensitive match)
   const membershipByFamily = {};
   (donations || []).forEach((d) => {
-    if (d.Category === "Membership" && d.FamilyID) {
+    const cat = String(d.Category || "").trim().toLowerCase();
+    if (cat === "membership" && d.FamilyID) {
       if (!membershipByFamily[d.FamilyID]) membershipByFamily[d.FamilyID] = 0;
       membershipByFamily[d.FamilyID] += Number(d.Amount) || 0;
     }
@@ -2599,8 +2600,12 @@ function MembershipReport({ families, donations }) {
   const notPaidCount = rows.length - paidCount;
   const totalCollected = rows.reduce((s, r) => s + r.paid, 0);
 
-  // Sort: not paid first, then paid
-  rows.sort((a, b) => (a.paid > 0 ? 1 : 0) - (b.paid > 0 ? 1 : 0) || a.name.localeCompare(b.name));
+  // Sort by FamilyID numerically (F1, F2, ... F10, F11)
+  rows.sort((a, b) => {
+    const numA = parseInt(String(a.id).replace(/\D/g, "")) || 0;
+    const numB = parseInt(String(b.id).replace(/\D/g, "")) || 0;
+    return numA - numB;
+  });
 
   return (
     <div>
