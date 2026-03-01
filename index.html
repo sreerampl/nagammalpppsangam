@@ -38,7 +38,6 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useCallback, useRef, createContext, useContext } = React;
 
-
 // ============================================================
 // FAMILY PRAYER EVENT — FINANCIAL TRACKER
 // ============================================================
@@ -241,7 +240,6 @@ const T = {
   },
   signOut: { en: "Sign out", ta: "வெளியேறு" },
 
-
   // Toast messages
   toastIncome: { en: "Income recorded!", ta: "வரவு பதிவாகியது!" },
   toastExpense: { en: "Expense recorded!", ta: "செலவு பதிவாகியது!" },
@@ -350,16 +348,6 @@ const calcDay = (dateStr, day1Date) => {
 };
 
 // --- Audit Log ---
-const logAudit = async (action, module, details, email, setAuditLog) => {
-  const entry = {
-    Timestamp: now(),
-    User: email || "unknown",
-    Action: action,
-    Module: module,
-    Details: details,
-  };
-  return entry;
-};
 
 // --- CSV Export Utility ---
 function exportToCSV(filename, headers, rows) {
@@ -453,9 +441,6 @@ class AppBackend {
     return this.post("loadAll");
   }
 
-  async checkAccess() {
-    return this.post("checkAccess");
-  }
 }
 
 // ============================================================
@@ -483,6 +468,7 @@ function App() {
   const [activeTab, setActiveTab] = useState("dashboard");
   const [showForm, setShowForm] = useState(null);
   const [toast, setToast] = useState(null);
+  const [busy, setBusy] = useState(false);
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [offlineCount, setOfflineCount] = useState(getOfflineQueue().length);
@@ -497,10 +483,6 @@ function App() {
     window.addEventListener("offline", onOffline);
     return () => { window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); };
   }, []);
-
-  // Audit helper
-  const audit = (action, module, details) =>
-    logAudit(action, module, details, user?.email, setAuditLog);
 
   // --- Derived from Master sheet (fallback to hardcoded) ---
   const INCOME_CATS = (master["Income Category"] && master["Income Category"].length > 0) ? master["Income Category"] : INCOME_CATEGORIES;
@@ -534,7 +516,7 @@ function App() {
     if (synced > 0) {
       // Refresh data
       try {
-        const result = await backendRef.current.post("getData");
+        const result = await backendRef.current.post("loadAll");
         if (result.master) setMaster(result.master);
         if (result.families) setFamilies(result.families);
         if (result.income) setIncome(result.income);
@@ -556,27 +538,6 @@ function App() {
   }, [isOnline, syncOfflineQueue, offlineCount]);
 
   // Offline-aware submit: tries backend, falls back to offline queue
-  const submitOrQueue = useCallback(async (action, data, successMsg) => {
-    if (!isOnline) {
-      addToOfflineQueue({ action, ...data });
-      setOfflineCount(getOfflineQueue().length);
-      showToast(t("toastOfflineSaved", lang), "info");
-      return "offline";
-    }
-    try {
-      await backendRef.current.post(action, data);
-      return "success";
-    } catch (e) {
-      // Network error — queue offline
-      if (e.message && (e.message.includes("fetch") || e.message.includes("network") || e.message.includes("Failed"))) {
-        addToOfflineQueue({ action, ...data });
-        setOfflineCount(getOfflineQueue().length);
-        showToast(t("toastOfflineSaved", lang), "info");
-        return "offline";
-      }
-      throw e;
-    }
-  }, [isOnline, lang, showToast]);
 
   // --- Google Sign-In ---
   const googleReadyRef = useRef(false);
@@ -657,7 +618,6 @@ function App() {
       const api = backendRef.current;
       const result = await api.loadAll();
       setMaster(result.master || {});
-      console.log("📋 Master data received:", JSON.stringify(result.master));
       setFamilies(result.families || []);
       setIncome(result.income || []);
       setExpenses(result.expenses || []);
@@ -674,7 +634,6 @@ function App() {
   };
 
   const logout = () => {
-    audit("LOGOUT", "Auth", `${user?.name || user?.email} logged out`);
     setUser(null);
     setRole(null);
     setActiveTab("dashboard");
@@ -682,30 +641,62 @@ function App() {
 
   // --- Data operations ---
   const addIncome = async (income) => {
-    const row = {
-      TxnID: generateId("DON"),
-      Year: income.year || String(new Date().getFullYear()),
-      Day: income.day,
-      Date: income.date || todayISO(),
-      DonorType: income.donorType,
-      FamilyID: income.familyId || "",
-      DonorName: income.donorName,
-      Category: income.category,
-      Amount: income.amount,
-      Description: income.description || "",
-      EnteredBy: user.email,
-      Timestamp: now(),
-    };
-    await backendRef.current.post("addIncome", income);
-    setIncome((prev) => [...prev, row]);
-
-    // Auto-add to auction if category is "Objects for Auction"
-    if (income.category === "Objects for Auction" && income.description) {
-      const auctionRow = {
-        ItemNo: String(auction.length + 1),
+    setBusy(true);
+    try {
+      const row = {
+        TxnID: generateId("DON"),
         Year: income.year || String(new Date().getFullYear()),
-        ItemDescription: income.description,
-        DonatedBy: income.donorName,
+        Day: income.day,
+        Date: income.date || todayISO(),
+        DonorType: income.donorType,
+        FamilyID: income.familyId || "",
+        DonorName: income.donorName,
+        Category: income.category,
+        Amount: income.amount,
+        Description: income.description || "",
+        EnteredBy: user.email,
+        Timestamp: now(),
+      };
+      await backendRef.current.post("addIncome", income);
+      setIncome((prev) => [...prev, row]);
+
+      // Auto-add to auction if category is "Objects for Auction"
+      if (income.category === "Objects for Auction" && income.description) {
+        const auctionRow = {
+          ItemNo: String(auction.length + 1),
+          Year: income.year || String(new Date().getFullYear()),
+          ItemDescription: income.description,
+          DonatedBy: income.donorName,
+          WinnerFamilyID: "",
+          WinnerName: "",
+          BidAmount: "",
+          EnteredBy1: "",
+          ConfirmedBy2: "",
+          Timestamp1: "",
+          Timestamp2: "",
+          Status: "",
+        };
+        // Backend already handles auction auto-add
+        setAuction((prev) => [...prev, auctionRow]);
+      }
+
+      showToast(t("toastIncome", lang));
+      setShowForm(null);
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addAuctionItem = async (item) => {
+    setBusy(true);
+    try {
+      const row = {
+        ItemNo: String(auction.length + 1),
+        Year: item.year || String(new Date().getFullYear()),
+        ItemDescription: item.itemName,
+        DonatedBy: item.donatedBy || "",
         WinnerFamilyID: "",
         WinnerName: "",
         BidAmount: "",
@@ -715,139 +706,152 @@ function App() {
         Timestamp2: "",
         Status: "",
       };
-      // Backend already handles auction auto-add
-      setAuction((prev) => [...prev, auctionRow]);
+      await backendRef.current.post("addAuctionItem", item);
+      setAuction((prev) => [...prev, row]);
+      showToast(t("toastItemAdded", lang));
+      setShowForm(null);
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
     }
-
-    showToast(t("toastIncome", lang));
-    audit("CREATE", "Income", `${row.TxnID} ₹${row.Amount} ${row.Category} by ${row.DonorName}`);
-    if (income.category === "Objects for Auction" && income.description) {
-      audit("CREATE", "Auction", `Auto-added "${income.description}" from income by ${income.donorName}`);
-    }
-    setShowForm(null);
-  };
-
-  const addAuctionItem = async (item) => {
-    const row = {
-      ItemNo: String(auction.length + 1),
-      Year: item.year || String(new Date().getFullYear()),
-      ItemDescription: item.itemName,
-      DonatedBy: item.donatedBy || "",
-      WinnerFamilyID: "",
-      WinnerName: "",
-      BidAmount: "",
-      EnteredBy1: "",
-      ConfirmedBy2: "",
-      Timestamp1: "",
-      Timestamp2: "",
-      Status: "",
-    };
-    await backendRef.current.post("addAuctionItem", item);
-    setAuction((prev) => [...prev, row]);
-    showToast(t("toastItemAdded", lang));
-    audit("CREATE", "Auction", `Manual add #${row.ItemNo} "${item.itemName}"${item.donatedBy ? ` by ${item.donatedBy}` : ""}`);
-    setShowForm(null);
   };
 
   const addExpense = async (expense) => {
-    const row = {
-      TxnID: generateId("EXP"),
-      Year: expense.year || String(new Date().getFullYear()),
-      Day: expense.day,
-      Date: expense.date || todayISO(),
-      Category: expense.category,
-      Description: expense.description,
-      Amount: expense.amount,
-      Vendor: expense.vendor || "",
-      EnteredBy: user.email,
-      Timestamp: now(),
-    };
-    await backendRef.current.post("addExpense", expense);
-    setExpenses((prev) => [...prev, row]);
-    showToast(t("toastExpense", lang));
-    audit("CREATE", "Expenses", `${row.TxnID} ₹${row.Amount} ${row.Category} - ${row.Description}`);
-    setShowForm(null);
+    setBusy(true);
+    try {
+      const row = {
+        TxnID: generateId("EXP"),
+        Year: expense.year || String(new Date().getFullYear()),
+        Day: expense.day,
+        Date: expense.date || todayISO(),
+        Category: expense.category,
+        Description: expense.description,
+        Amount: expense.amount,
+        Vendor: expense.vendor || "",
+        EnteredBy: user.email,
+        Timestamp: now(),
+      };
+      await backendRef.current.post("addExpense", expense);
+      setExpenses((prev) => [...prev, row]);
+      showToast(t("toastExpense", lang));
+      setShowForm(null);
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const addFamily = async (family) => {
-    const row = {
-      FamilyID: generateId("FAM"),
-      FamilyName: family.familyName,
-      Phone: family.phone,
-      WhatsApp: family.whatsApp || "",
-      Address: family.address,
-    };
-    await backendRef.current.post("addFamily", family);
-    setFamilies((prev) => [...prev, row]);
-    showToast(t("toastFamily", lang));
-    audit("CREATE", "Families", `${row.FamilyID} ${row.FamilyName}`);
-    setShowForm(null);
+    setBusy(true);
+    try {
+      const row = {
+        FamilyID: generateId("FAM"),
+        FamilyName: family.familyName,
+        Phone: family.phone,
+        WhatsApp: family.whatsApp || "",
+        Address: family.address,
+      };
+      await backendRef.current.post("addFamily", family);
+      setFamilies((prev) => [...prev, row]);
+      showToast(t("toastFamily", lang));
+      setShowForm(null);
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   // ---- EDIT / DELETE INCOME (Admin only) ----
   const editIncome = async (txnId, income) => {
-    await backendRef.current.post("editIncome", { ...income, txnId });
-    setIncome((prev) =>
-      prev.map((d) =>
-        d.TxnID === txnId
-          ? {
-              ...d,
-              Year: income.year || d.Year,
-              Day: income.day,
-              Date: income.date || d.Date,
-              DonorType: income.donorType,
-              FamilyID: income.familyId || "",
-              DonorName: income.donorName,
-              Category: income.category,
-              Amount: income.amount,
-              Description: income.description || "",
-              Timestamp: now(),
-            }
-          : d
-      )
-    );
-    showToast(t("updated", lang));
-    audit("EDIT", "Income", `${txnId} edited`);
-    setShowForm(null);
+    setBusy(true);
+    try {
+      await backendRef.current.post("editIncome", { ...income, txnId });
+      setIncome((prev) =>
+        prev.map((d) =>
+          d.TxnID === txnId
+            ? {
+                ...d,
+                Year: income.year || d.Year,
+                Day: income.day,
+                Date: income.date || d.Date,
+                DonorType: income.donorType,
+                FamilyID: income.familyId || "",
+                DonorName: income.donorName,
+                Category: income.category,
+                Amount: income.amount,
+                Description: income.description || "",
+                Timestamp: now(),
+              }
+            : d
+        )
+      );
+      showToast(t("updated", lang));
+      setShowForm(null);
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const deleteIncome = async (txnId) => {
-    await backendRef.current.post("deleteIncome", { txnId });
-    setIncome((prev) => prev.filter((d) => d.TxnID !== txnId));
-    showToast(t("deleted", lang));
-    audit("DELETE", "Income", `${txnId} deleted`);
+    setBusy(true);
+    try {
+      await backendRef.current.post("deleteIncome", { txnId });
+      setIncome((prev) => prev.filter((d) => d.TxnID !== txnId));
+      showToast(t("deleted", lang));
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   // ---- EDIT / DELETE EXPENSES (Admin only) ----
   const editExpense = async (txnId, expense) => {
-    await backendRef.current.post("editExpense", { ...expense, txnId });
-    setExpenses((prev) =>
-      prev.map((e) =>
-        e.TxnID === txnId
-          ? {
-              ...e,
-              Year: expense.year || e.Year,
-              Day: expense.day,
-              Date: expense.date || e.Date,
-              Category: expense.category,
-              Description: expense.description,
-              Amount: expense.amount,
-              Vendor: expense.vendor || "",
-              Timestamp: now(),
-            }
-          : e
-      )
-    );
-    showToast(t("updated", lang));
-    audit("EDIT", "Expenses", `${txnId} edited`);
-    setShowForm(null);
+    setBusy(true);
+    try {
+      await backendRef.current.post("editExpense", { ...expense, txnId });
+      setExpenses((prev) =>
+        prev.map((e) =>
+          e.TxnID === txnId
+            ? {
+                ...e,
+                Year: expense.year || e.Year,
+                Day: expense.day,
+                Date: expense.date || e.Date,
+                Category: expense.category,
+                Description: expense.description,
+                Amount: expense.amount,
+                Vendor: expense.vendor || "",
+                Timestamp: now(),
+              }
+            : e
+        )
+      );
+      showToast(t("updated", lang));
+      setShowForm(null);
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const deleteExpense = async (txnId) => {
-    await backendRef.current.post("deleteExpense", { txnId });
-    setExpenses((prev) => prev.filter((e) => e.TxnID !== txnId));
-    showToast(t("deleted", lang));
-    audit("DELETE", "Expenses", `${txnId} deleted`);
+    setBusy(true);
+    try {
+      await backendRef.current.post("deleteExpense", { txnId });
+      setExpenses((prev) => prev.filter((e) => e.TxnID !== txnId));
+      showToast(t("deleted", lang));
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
   };
 
   const enterAuctionBid = async (itemIndex, bid) => {
@@ -870,15 +874,20 @@ function App() {
       showToast(t("toastBidSelfError", lang), "error");
       return;
     }
-    updated[itemIndex] = item;
-    await backendRef.current.post("enterBid", { ...bid, rowIndex: itemIndex });
-    setAuction(updated);
-    if (item.Status === "Confirmed") {
-      showToast(t("toastBidConfirm", lang));
-      audit("CONFIRM", "Auction", `#${item.ItemNo} "${item.ItemDescription}" ₹${item.BidAmount} to ${item.WinnerName}`);
-    } else {
-      showToast(t("toastBidSubmit", lang));
-      audit("BID", "Auction", `#${item.ItemNo} "${item.ItemDescription}" ₹${bid.amount} by ${bid.winnerName}`);
+    setBusy(true);
+    try {
+      updated[itemIndex] = item;
+      await backendRef.current.post("enterBid", { ...bid, rowIndex: itemIndex });
+      setAuction(updated);
+      if (item.Status === "Confirmed") {
+        showToast(t("toastBidConfirm", lang));
+      } else {
+        showToast(t("toastBidSubmit", lang));
+      }
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -950,6 +959,16 @@ function App() {
 
       {/* Live Date/Time Bar */}
       <LiveClock lang={lang} />
+
+      {/* Busy overlay */}
+      {busy && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <div style={{ background: "#fff", borderRadius: 12, padding: "24px 32px", textAlign: "center", boxShadow: "0 4px 24px rgba(0,0,0,0.2)" }}>
+            <div style={{ fontSize: 28, marginBottom: 8 }}>⏳</div>
+            <div style={{ fontWeight: 600, color: "#292524" }}>Processing...</div>
+          </div>
+        </div>
+      )}
 
       {/* Toast */}
       {toast && (
@@ -1120,7 +1139,6 @@ function App() {
           </button>
         ))}
       </nav>
-
 
     </div>
     </LangContext.Provider>
@@ -2251,7 +2269,6 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes }) {
           if (saving) return;
           const isAuctionObj = form.category === "Objects for Auction";
           if (form.donorName && (isAuctionObj || form.amount)) { 
-            console.log("💾 Income submit:", JSON.stringify({...form, year: formYear}));
             setSaving(true); onSubmit({ ...form, year: formYear, amount: isAuctionObj ? "0" : form.amount }); 
           }
         }}
@@ -2676,8 +2693,6 @@ function MembershipReport({ families, income }) {
       membershipByFamily[fid] += Number(d.Amount) || 0;
     }
   });
-  console.log("🔍 Membership paid lookup:", JSON.stringify(membershipByFamily));
-  console.log("🔍 All income categories:", [...new Set((income||[]).map(d => d.Category))]);
 
   const rows = (families || []).map((f) => {
     const fid = String(f.FamilyID || "").trim();
@@ -3693,18 +3708,7 @@ const styles = {
     background: "#b45309",
     margin: "20px auto",
   },
-  googleBtn: {
-    background: "#292524",
-    color: "#fff",
-    border: "none",
-    padding: "12px 28px",
-    borderRadius: 8,
-    fontSize: 14,
-    fontWeight: 600,
-    cursor: "pointer",
-    fontFamily: "'Outfit', sans-serif",
-    marginTop: 16,
-  },
+
   loginFooter: {
     fontSize: 11,
     color: "#a8a29e",
