@@ -2166,7 +2166,10 @@ function DonationForm({ families, onSubmit, onClose, categories, donorTypes }) {
         onClick={() => {
           if (saving) return;
           const isAuctionObj = form.category === "Objects for Auction";
-          if (form.donorName && (isAuctionObj || form.amount)) { setSaving(true); onSubmit({ ...form, year: formYear, amount: isAuctionObj ? "0" : form.amount }); }
+          if (form.donorName && (isAuctionObj || form.amount)) { 
+            console.log("💾 Donation submit:", JSON.stringify({...form, year: formYear}));
+            setSaving(true); onSubmit({ ...form, year: formYear, amount: isAuctionObj ? "0" : form.amount }); 
+          }
         }}
         style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: saving ? 0.6 : 1 }}
         disabled={saving || !form.donorName || (form.category !== "Objects for Auction" && !form.amount)}
