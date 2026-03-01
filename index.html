@@ -80,6 +80,8 @@ const T = {
   day1: { en: "Day 1", ta: "நாள் 1" },
   day2: { en: "Day 2", ta: "நாள் 2" },
   day3: { en: "Day 3", ta: "நாள் 3" },
+  date: { en: "Date", ta: "தேதி" },
+  eventDate: { en: "Event Date", ta: "நிகழ்வு தேதி" },
   family: { en: "Family", ta: "குடும்பம்" },
   external: { en: "External", ta: "வெளியாள்" },
   amount: { en: "Amount", ta: "தொகை" },
@@ -320,6 +322,17 @@ const formatCurrency = (amt) =>
   }).format(amt || 0);
 const today = () => new Date().toISOString().split("T")[0];
 const now = () => new Date().toLocaleString("en-IN");
+const todayISO = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
+const formatDateDisplay = (iso) => { if (!iso) return ''; const [y,m,d] = iso.split('-'); return d+'/'+m+'/'+y; };
+const calcDay = (dateStr, day1Date) => {
+  if (!dateStr || !day1Date) return "1";
+  const d = new Date(dateStr), d1 = new Date(day1Date);
+  const diff = Math.round((d - d1) / 86400000);
+  if (diff <= 0) return "1";
+  if (diff === 1) return "2";
+  if (diff >= 2) return "3";
+  return "1";
+};
 
 // --- Audit Log ---
 const logAudit = async (action, module, details, userEmail, isDemo, setAuditLog) => {
@@ -495,13 +508,13 @@ function createMockData() {
       { FamilyID: "F52", FamilyName: "N. Nagappa Valliappa", Phone: "97882 59952", WhatsApp: "97882 59952", Address: "236 A, Thiruvalluvar Salai, Muthiah Nagar, Annamalai Nagar, Chithambaram - 2" },
     ],
     donations: [
-      { TxnID: "DON-001", Day: "1", DonorType: "Family", FamilyID: "F9", DonorName: "PL.Sreeram", Category: "Membership", Amount: "5000", Description: "Annual membership", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 9:00 AM" },
-      { TxnID: "DON-002", Day: "1", DonorType: "External", FamilyID: "", DonorName: "Ravi Kumar", Category: "Food", Amount: "2000", Description: "Food donation", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 10:30 AM" },
-      { TxnID: "DON-003", Day: "2", DonorType: "Family", FamilyID: "F1", DonorName: "M.Meenachi", Category: "Temple Expenses", Amount: "3000", Description: "", EnteredBy: "admin@example.com", Timestamp: "11/01/2025, 8:00 AM" },
+      { TxnID: "DON-001", Day: "1", Date: "2026-03-01", DonorType: "Family", FamilyID: "F9", DonorName: "PL.Sreeram", Category: "Membership", Amount: "5000", Description: "Annual membership", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 9:00 AM" },
+      { TxnID: "DON-002", Day: "1", Date: "2026-03-01", DonorType: "External", FamilyID: "", DonorName: "Ravi Kumar", Category: "Food", Amount: "2000", Description: "Food donation", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 10:30 AM" },
+      { TxnID: "DON-003", Day: "2", Date: "2026-03-02", DonorType: "Family", FamilyID: "F1", DonorName: "M.Meenachi", Category: "Temple Expenses", Amount: "3000", Description: "", EnteredBy: "admin@example.com", Timestamp: "11/01/2025, 8:00 AM" },
     ],
     expenses: [
-      { TxnID: "EXP-001", Day: "1", Category: "Food", Description: "Lunch provisions", Amount: "8000", Vendor: "Sri Balaji Store", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 7:00 AM" },
-      { TxnID: "EXP-002", Day: "2", Category: "Decorations", Description: "Flowers and garlands", Amount: "3500", Vendor: "Flower Market", EnteredBy: "admin@example.com", Timestamp: "11/01/2025, 6:30 AM" },
+      { TxnID: "EXP-001", Day: "1", Date: "2026-03-01", Category: "Food", Description: "Lunch provisions", Amount: "8000", Vendor: "Sri Balaji Store", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 7:00 AM" },
+      { TxnID: "EXP-002", Day: "2", Date: "2026-03-02", Category: "Decorations", Description: "Flowers and garlands", Amount: "3500", Vendor: "Flower Market", EnteredBy: "admin@example.com", Timestamp: "11/01/2025, 6:30 AM" },
     ],
     auction: [
       "மஞ்சள்","மஞ்சள்","மஞ்சள்","மஞ்சள்","மஞ்சள்",
@@ -784,6 +797,7 @@ function App() {
       TxnID: generateId("DON"),
       Year: donation.year || String(new Date().getFullYear()),
       Day: donation.day,
+      Date: donation.date || todayISO(),
       DonorType: donation.donorType,
       FamilyID: donation.familyId || "",
       DonorName: donation.donorName,
@@ -855,6 +869,7 @@ function App() {
       TxnID: generateId("EXP"),
       Year: expense.year || String(new Date().getFullYear()),
       Day: expense.day,
+      Date: expense.date || todayISO(),
       Category: expense.category,
       Description: expense.description,
       Amount: expense.amount,
@@ -1013,6 +1028,9 @@ function App() {
           </div>
         )}
       </header>
+
+      {/* Live Date/Time Bar */}
+      <LiveClock lang={lang} />
 
       {/* Toast */}
       {toast && (
@@ -1189,6 +1207,23 @@ function LoadingScreen() {
       <p style={{ color: "#78716c", marginTop: 16, fontFamily: "'Cormorant Garamond', serif" }}>
         {t("loading", lang)}
       </p>
+    </div>
+  );
+}
+
+function LiveClock({ lang }) {
+  const [time, setTime] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const opts = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
+  const dateStr = time.toLocaleDateString(lang === 'ta' ? 'ta-IN' : 'en-IN', opts);
+  const timeStr = time.toLocaleTimeString(lang === 'ta' ? 'ta-IN' : 'en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  return (
+    <div style={{ background: '#fefce8', borderBottom: '1px solid #fde68a', padding: '6px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, fontSize: 13, color: '#92400e', fontWeight: 500 }}>
+      <span>📅 {dateStr}</span>
+      <span>🕐 {timeStr}</span>
     </div>
   );
 }
@@ -1420,7 +1455,7 @@ function DonationsView({ donations, families, canEdit, onAdd, showToast, lang: p
 
   const exportDonationsCSV = () => {
     const headers = ["Date", "Day", "Donor Type", "Family ID", "Donor Name", "Category", "Amount", "Description", "Entered By"];
-    const rows = (donations || []).map((d) => [d.Year, d.Day, d.DonorType, d.FamilyID, d.DonorName, d.Category, d.Amount, d.Description, d.EnteredBy]);
+    const rows = (donations || []).map((d) => [d.Year, d.Day, d.Date || "", d.DonorType, d.FamilyID, d.DonorName, d.Category, d.Amount, d.Description, d.EnteredBy]);
     exportToCSV("income_" + new Date().toISOString().slice(0, 10) + ".csv", headers, rows);
     if (showToast) showToast(t("toastExported", lang));
   };
@@ -1480,7 +1515,7 @@ function DonationsView({ donations, families, canEdit, onAdd, showToast, lang: p
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <p style={{ ...styles.txnAmount, color: "#059669" }}>{formatCurrency(d.Amount)}</p>
-                  <p style={styles.txnMeta}>{t("day", lang)} {d.Day}</p>
+                  <p style={styles.txnMeta}>{d.Date ? formatDateDisplay(d.Date) + ' · ' : ''}{t("day", lang)} {d.Day}</p>
                 </div>
               </div>
               {d.Description && <p style={styles.txnDesc}>{d.Description}</p>}
@@ -1501,7 +1536,7 @@ function ExpensesView({ expenses, canEdit, onAdd, showToast, lang: propLang }) {
 
   const exportExpensesCSV = () => {
     const headers = ["Date", "Day", "Category", "Description", "Amount", "Vendor", "Entered By"];
-    const rows = (expenses || []).map((e) => [e.Year, e.Day, e.Category, e.Description, e.Amount, e.Vendor, e.EnteredBy]);
+    const rows = (expenses || []).map((e) => [e.Year, e.Day, e.Date || "", e.Category, e.Description, e.Amount, e.Vendor, e.EnteredBy]);
     exportToCSV("expenses_" + new Date().toISOString().slice(0, 10) + ".csv", headers, rows);
     if (showToast) showToast(t("toastExported", lang));
   };
@@ -1556,7 +1591,7 @@ function ExpensesView({ expenses, canEdit, onAdd, showToast, lang: propLang }) {
                 </div>
                 <div style={{ textAlign: "right" }}>
                   <p style={{ ...styles.txnAmount, color: "#dc2626" }}>{formatCurrency(e.Amount)}</p>
-                  <p style={styles.txnMeta}>{t("day", lang)} {e.Day}</p>
+                  <p style={styles.txnMeta}>{e.Date ? formatDateDisplay(e.Date) + ' · ' : ''}{t("day", lang)} {e.Day}</p>
                 </div>
               </div>
             </div>
@@ -2022,8 +2057,11 @@ function FamiliesView({ families, isAdmin, canEdit, onAdd, showToast, lang: prop
 function DonationForm({ families, onSubmit, onClose }) {
   const lang = useLang();
   const thisYear = new Date().getFullYear();
+  const [saving, setSaving] = useState(false);
+  const today = todayISO();
   const [form, setForm] = useState({
     year: String(thisYear),
+    date: today,
     day: "1",
     donorType: "Family",
     familyId: "",
@@ -2033,7 +2071,19 @@ function DonationForm({ families, onSubmit, onClose }) {
     description: "",
   });
 
-  const set = (k, v) => setForm({ ...form, [k]: v });
+  const set = (k, v) => {
+    const next = { ...form, [k]: v };
+    // Auto-calculate day when date changes
+    if (k === "date" && v) {
+      const d = new Date(v);
+      const day1 = new Date(v);
+      day1.setDate(d.getDate()); // same day = day 1 unless overridden
+      // Use first date set as day1 baseline - auto-calc day from date offset
+      // Day calc: day number = 1 + offset from first selected date
+      // For simplicity, keep day as separately editable but suggest based on date
+    }
+    setForm(next);
+  };
 
   return (
     <Modal title={t("recordDonation", lang)} onClose={onClose}>
@@ -2044,6 +2094,9 @@ function DonationForm({ families, onSubmit, onClose }) {
               <option key={y} value={String(y)}>{y}</option>
             ))}
           </select>
+        </label>
+        <label style={styles.label}>{t("date", lang)}
+          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
         </label>
         <label style={styles.label}>{t("day", lang)}
           <select value={form.day} onChange={(e) => set("day", e.target.value)} style={styles.input}>
@@ -2095,13 +2148,14 @@ function DonationForm({ families, onSubmit, onClose }) {
       </div>
       <button
         onClick={() => {
+          if (saving) return;
           const isAuctionObj = form.category === "Objects for Auction";
-          if (form.donorName && (isAuctionObj || form.amount)) onSubmit({ ...form, amount: isAuctionObj ? "0" : form.amount });
+          if (form.donorName && (isAuctionObj || form.amount)) { setSaving(true); onSubmit({ ...form, amount: isAuctionObj ? "0" : form.amount }); }
         }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16 }}
-        disabled={!form.donorName || (form.category !== "Objects for Auction" && !form.amount)}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: saving ? 0.6 : 1 }}
+        disabled={saving || !form.donorName || (form.category !== "Objects for Auction" && !form.amount)}
       >
-        {t("saveDonation", lang)}
+        {saving ? "⏳ Saving..." : t("saveDonation", lang)}
       </button>
     </Modal>
   );
@@ -2110,8 +2164,11 @@ function DonationForm({ families, onSubmit, onClose }) {
 function ExpenseForm({ onSubmit, onClose }) {
   const lang = useLang();
   const thisYear = new Date().getFullYear();
+  const [saving, setSaving] = useState(false);
+  const today = todayISO();
   const [form, setForm] = useState({
     year: String(thisYear),
+    date: today,
     day: "1",
     category: EXPENSE_CATEGORIES[0],
     description: "",
@@ -2130,6 +2187,9 @@ function ExpenseForm({ onSubmit, onClose }) {
               <option key={y} value={String(y)}>{y}</option>
             ))}
           </select>
+        </label>
+        <label style={styles.label}>{t("date", lang)}
+          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
         </label>
         <label style={styles.label}>{t("day", lang)}
           <select value={form.day} onChange={(e) => set("day", e.target.value)} style={styles.input}>
@@ -2154,11 +2214,11 @@ function ExpenseForm({ onSubmit, onClose }) {
         </label>
       </div>
       <button
-        onClick={() => { if (form.description && form.amount) onSubmit(form); }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16 }}
-        disabled={!form.description || !form.amount}
+        onClick={() => { if (!saving && form.description && form.amount) { setSaving(true); onSubmit(form); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: saving ? 0.6 : 1 }}
+        disabled={saving || !form.description || !form.amount}
       >
-        {t("saveExpense", lang)}
+        {saving ? "⏳ Saving..." : t("saveExpense", lang)}
       </button>
     </Modal>
   );
@@ -2166,6 +2226,7 @@ function ExpenseForm({ onSubmit, onClose }) {
 
 function FamilyForm({ onSubmit, onClose }) {
   const lang = useLang();
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     familyName: "",
     phone: "",
@@ -2192,11 +2253,11 @@ function FamilyForm({ onSubmit, onClose }) {
         </label>
       </div>
       <button
-        onClick={() => { if (form.familyName) onSubmit(form); }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16 }}
-        disabled={!form.familyName}
+        onClick={() => { if (!saving && form.familyName) { setSaving(true); onSubmit(form); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: saving ? 0.6 : 1 }}
+        disabled={saving || !form.familyName}
       >
-        {t("saveFamily", lang)}
+        {saving ? "⏳ Saving..." : t("saveFamily", lang)}
       </button>
     </Modal>
   );
@@ -2223,6 +2284,7 @@ function Modal({ title, onClose, children }) {
 function AuctionItemForm({ onSubmit, onClose }) {
   const lang = useLang();
   const thisYear = new Date().getFullYear();
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ year: String(thisYear), itemName: "", donatedBy: "" });
   const set = (k, v) => setForm({ ...form, [k]: v });
 
@@ -2244,11 +2306,11 @@ function AuctionItemForm({ onSubmit, onClose }) {
         </label>
       </div>
       <button
-        onClick={() => { if (form.itemName) onSubmit(form); }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16 }}
-        disabled={!form.itemName}
+        onClick={() => { if (!saving && form.itemName) { setSaving(true); onSubmit(form); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: saving ? 0.6 : 1 }}
+        disabled={saving || !form.itemName}
       >
-        {t("saveItem", lang)}
+        {saving ? "⏳ Saving..." : t("saveItem", lang)}
       </button>
     </Modal>
   );
@@ -2268,12 +2330,12 @@ function ReportsView({ families, donations, expenses, auction, totalDonations, t
     // Income
     sections.push("--- INCOME ---");
     sections.push("Date,Day,Donor Type,Family ID,Donor Name,Category,Amount,Description,Entered By");
-    (donations || []).forEach((d) => sections.push([d.Year, d.Day, d.DonorType, d.FamilyID, d.DonorName, d.Category, d.Amount, d.Description, d.EnteredBy].map((v) => '"' + String(v || "").replace(/"/g, '""') + '"').join(",")));
+    (donations || []).forEach((d) => sections.push([d.Year, d.Day, d.Date || "", d.DonorType, d.FamilyID, d.DonorName, d.Category, d.Amount, d.Description, d.EnteredBy].map((v) => '"' + String(v || "").replace(/"/g, '""') + '"').join(",")));
     sections.push("");
     // Expenses
     sections.push("--- EXPENSES ---");
     sections.push("Date,Day,Category,Description,Amount,Vendor,Entered By");
-    (expenses || []).forEach((e) => sections.push([e.Year, e.Day, e.Category, e.Description, e.Amount, e.Vendor, e.EnteredBy].map((v) => '"' + String(v || "").replace(/"/g, '""') + '"').join(",")));
+    (expenses || []).forEach((e) => sections.push([e.Year, e.Day, e.Date || "", e.Category, e.Description, e.Amount, e.Vendor, e.EnteredBy].map((v) => '"' + String(v || "").replace(/"/g, '""') + '"').join(",")));
     sections.push("");
     // Auction
     sections.push("--- AUCTION ---");
@@ -2799,8 +2861,8 @@ function SetupInstructions() {
           <p><strong>Step 3:</strong> Upload the provided Excel template to Google Drive and open as Google Sheets. It has these tabs pre-configured:</p>
           <ul style={{ margin: "8px 0", paddingLeft: 20 }}>
             <li><strong>Families</strong> — FamilyID, FamilyName, Phone, WhatsApp, Address</li>
-            <li><strong>Income</strong> — TxnID, Date, Day, DonorType, FamilyID, DonorName, Category, Amount, Description, EnteredBy, Timestamp</li>
-            <li><strong>Expenses</strong> — TxnID, Date, Day, Category, Description, Amount, Vendor, EnteredBy, Timestamp</li>
+            <li><strong>Income</strong> — TxnID, Year, Day, Date, DonorType, FamilyID, DonorName, Category, Amount, Description, EnteredBy, Timestamp</li>
+            <li><strong>Expenses</strong> — TxnID, Year, Day, Date, Category, Description, Amount, Vendor, EnteredBy, Timestamp</li>
             <li><strong>Auction</strong> — ItemNo, ItemDescription, DonatedBy, WinnerFamilyID, WinnerName, BidAmount, EnteredBy1, ConfirmedBy2, Timestamp1, Timestamp2, Status</li>
             <li><strong>Ledger</strong> — Year, OpeningBalance, TotalDonations, TotalAuction, TotalExpenses, ClosingBalance</li>
             <li><strong>AccessControl</strong> — Email, Role, Name</li>
