@@ -93,7 +93,7 @@ const T = {
 
   // Dashboard
   dashboard: { en: "Dashboard", ta: "முகப்புப் பலகை" },
-  totalDonations: { en: "Total Income", ta: "மொத்த வரவு" },
+  totalIncome: { en: "Total Income", ta: "மொத்த வரவு" },
   auctionIncome: { en: "Auction Income", ta: "ஏல வருமானம்" },
   totalExpenses: { en: "Total Expenses", ta: "மொத்த செலவு" },
   netBalance: { en: "Net Balance", ta: "நிகர இருப்பு" },
@@ -110,12 +110,12 @@ const T = {
   confirmed: { en: "confirmed", ta: "உறுதிசெய்யப்பட்டது" },
 
   // Income
-  donations: { en: "Income", ta: "வரவு" },
-  recordDonation: { en: "Record Income", ta: "வரவு பதிவு" },
+  income: { en: "Income", ta: "வரவு" },
+  recordIncome: { en: "Record Income", ta: "வரவு பதிவு" },
   donorType: { en: "Donor Type", ta: "நன்கொடையாளர் வகை" },
   donorName: { en: "Donor Name", ta: "நன்கொடையாளர் பெயர்" },
-  saveDonation: { en: "Save", ta: "சேமி" },
-  noDonations: { en: "No income recorded yet.", ta: "வரவு எதுவும் பதிவாகவில்லை." },
+  saveIncome: { en: "Save", ta: "சேமி" },
+  noIncome: { en: "No income recorded yet.", ta: "வரவு எதுவும் பதிவாகவில்லை." },
   nameOfDonor: { en: "Name of donor", ta: "நன்கொடையாளர் பெயர்" },
   descOptional: { en: "Description (optional)", ta: "விவரம் (விரும்பினால்)" },
   notes: { en: "Notes...", ta: "குறிப்புகள்..." },
@@ -175,6 +175,17 @@ const T = {
   auctionBalance: { en: "🔨 Auction Balance", ta: "🔨 ஏல இருப்பு" },
   yearOnYear: { en: "📊 Year on Year", ta: "📊 ஆண்டு ஒப்பீடு" },
   membershipReport: { en: "💳 Membership", ta: "💳 உறுப்பினர்" },
+  edit: { en: "Edit", ta: "திருத்து" },
+  deleteBtn: { en: "Delete", ta: "நீக்கு" },
+  confirmDeleteTitle: { en: "Confirm Delete", ta: "நீக்க உறுதிப்படுத்தவும்" },
+  confirmDeleteMsg: { en: "Are you sure you want to delete this entry?", ta: "இந்த பதிவை நீக்க விரும்புகிறீர்களா?" },
+  cancel: { en: "Cancel", ta: "ரத்து" },
+  editIncome: { en: "Edit Income", ta: "நன்கொடையைத் திருத்து" },
+  editExpense: { en: "Edit Expense", ta: "செலவை திருத்து" },
+  updateIncome: { en: "Update Income", ta: "நன்கொடையை புதுப்பி" },
+  updateExpense: { en: "Update Expense", ta: "செலவை புதுப்பி" },
+  deleted: { en: "Deleted successfully", ta: "வெற்றிகரமாக நீக்கப்பட்டது" },
+  updated: { en: "Updated successfully", ta: "வெற்றிகரமாக புதுப்பிக்கப்பட்டது" },
   familyBalance: { en: "👨‍👩‍👧 Family Balance", ta: "👨‍👩‍👧 குடும்ப இருப்பு" },
   paid: { en: "Paid", ta: "செலுத்தியது" },
   notPaid: { en: "Not Paid", ta: "செலுத்தவில்லை" },
@@ -239,7 +250,7 @@ const T = {
   },
 
   // Toast messages
-  toastDonation: { en: "Income recorded!", ta: "வரவு பதிவாகியது!" },
+  toastIncome: { en: "Income recorded!", ta: "வரவு பதிவாகியது!" },
   toastExpense: { en: "Expense recorded!", ta: "செலவு பதிவாகியது!" },
   toastFamily: { en: "Family added!", ta: "குடும்பம் சேர்க்கப்பட்டது!" },
   toastBidSubmit: { en: "Bid submitted! Awaiting confirmation.", ta: "ஏலம் சமர்ப்பிக்கப்பட்டது! உறுதிக்காக காத்திருக்கிறது." },
@@ -265,7 +276,7 @@ const T = {
   removePhoto: { en: "Remove Photo", ta: "படம் நீக்கு" },
   viewPhoto: { en: "View Photo", ta: "படம் பார்" },
 
-  // Donation categories
+  // Income categories
   catFood: { en: "Food", ta: "உணவு" },
   catTempleExpenses: { en: "Temple Expenses", ta: "கோவில் செலவுகள்" },
   catMembership: { en: "Membership", ta: "உறுப்பினர் கட்டணம்" },
@@ -286,11 +297,11 @@ const T = {
 const t = (key, lang) => T[key]?.[lang] || T[key]?.en || key;
 
 // Category translation maps
-const DONATION_CAT_KEYS = ["catFood", "catTempleExpenses", "catMembership", "catPrayerObjects", "catAuctionObjects", "catGroceries", "catVegetables", "catOther"];
+const INCOME_CAT_KEYS = ["catFood", "catTempleExpenses", "catMembership", "catPrayerObjects", "catAuctionObjects", "catGroceries", "catVegetables", "catOther"];
 const EXPENSE_CAT_KEYS = ["catFood", "catTemple", "catVegetables", "catGroceries", "catSupplies", "catPulliVari", "catDecorations", "catTransport", "catOther"];
 
 // English category values (stored in data/sheets)
-const DONATION_CATEGORIES_EN = ["Food", "Temple Expenses", "Membership", "Prayer Objects", "Objects for Auction", "Groceries", "Vegetables", "Other"];
+const INCOME_CATEGORIES_EN = ["Food", "Temple Expenses", "Membership", "Prayer Objects", "Objects for Auction", "Groceries", "Vegetables", "Other"];
 const EXPENSE_CATEGORIES_EN = ["Food", "Temple", "Vegetables", "Groceries", "Supplies", "Pulli vari", "Decorations", "Transport", "Other"];
 
 // Map English category value → i18n key
@@ -310,7 +321,7 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwKWrmcwupHeX94
 // Sheet names
 const SHEETS = {
   FAMILIES: "Families",
-  DONATIONS: "Income",
+  INCOME: "Income",
   EXPENSES: "Expenses",
   AUCTION: "Auction",
   LEDGER: "Ledger",
@@ -319,7 +330,7 @@ const SHEETS = {
 };
 
 // Categories (English values — stored in sheets)
-const DONATION_CATEGORIES = DONATION_CATEGORIES_EN;
+const INCOME_CATEGORIES = INCOME_CATEGORIES_EN;
 const EXPENSE_CATEGORIES = EXPENSE_CATEGORIES_EN;
 
 // --- Utility: Generate IDs ---
@@ -346,10 +357,10 @@ const calcDay = (dateStr, day1Date) => {
 };
 
 // --- Audit Log ---
-const logAudit = async (action, module, details, userEmail, isDemo, setAuditLog) => {
+const logAudit = async (action, module, details, email, isDemo, setAuditLog) => {
   const entry = {
     Timestamp: now(),
-    User: userEmail || "unknown",
+    User: email || "unknown",
     Action: action,
     Module: module,
     Details: details,
@@ -427,15 +438,15 @@ function compressImage(file, maxWidth = 800, quality = 0.6) {
 
 // --- Apps Script Backend Helper ---
 class AppBackend {
-  constructor(userEmail) {
-    this.userEmail = userEmail;
+  constructor(email) {
+    this.email = email;
     this.url = APPS_SCRIPT_URL;
   }
 
   async post(action, data = {}) {
     const res = await fetch(this.url, {
       method: "POST",
-      body: JSON.stringify({ action, data, userEmail: this.userEmail }),
+      body: JSON.stringify({ action, data, email: this.email }),
     });
     const text = await res.text();
     let result;
@@ -523,9 +534,9 @@ function createMockData() {
       { FamilyID: "F51", FamilyName: "N.Nataraja Chockalingam", Phone: "80561 77621", WhatsApp: "80561 77621", Address: "Old No.4 New No.7, Flat DG-1, badani complex, kuppiah street, west mambalam, Chennai - 33" },
       { FamilyID: "F52", FamilyName: "N. Nagappa Valliappa", Phone: "97882 59952", WhatsApp: "97882 59952", Address: "236 A, Thiruvalluvar Salai, Muthiah Nagar, Annamalai Nagar, Chithambaram - 2" },
     ],
-    donations: [
+    income: [
       { TxnID: "DON-001", Day: "1", Date: "2026-03-01", DonorType: "Family", FamilyID: "F9", DonorName: "PL.Sreeram", Category: "Membership", Amount: "5000", Description: "Annual membership", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 9:00 AM" },
-      { TxnID: "DON-002", Day: "1", Date: "2026-03-01", DonorType: "External", FamilyID: "", DonorName: "Ravi Kumar", Category: "Food", Amount: "2000", Description: "Food donation", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 10:30 AM" },
+      { TxnID: "DON-002", Day: "1", Date: "2026-03-01", DonorType: "External", FamilyID: "", DonorName: "Ravi Kumar", Category: "Food", Amount: "2000", Description: "Food income", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 10:30 AM" },
       { TxnID: "DON-003", Day: "2", Date: "2026-03-02", DonorType: "Family", FamilyID: "F1", DonorName: "M.Meenachi", Category: "Temple Expenses", Amount: "3000", Description: "", EnteredBy: "admin@example.com", Timestamp: "11/01/2025, 8:00 AM" },
     ],
     expenses: [
@@ -578,7 +589,7 @@ function App() {
   // Data state
   const [master, setMaster] = useState({});
   const [families, setFamilies] = useState([]);
-  const [donations, setDonations] = useState([]);
+  const [income, setIncome] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [auction, setAuction] = useState([]);
   const [accessList, setAccessList] = useState([]);
@@ -609,7 +620,7 @@ function App() {
     logAudit(action, module, details, user?.email, IS_DEMO, setAuditLog);
 
   // --- Derived from Master sheet (fallback to hardcoded) ---
-  const INCOME_CATS = (master["Income Category"] && master["Income Category"].length > 0) ? master["Income Category"] : DONATION_CATEGORIES;
+  const INCOME_CATS = (master["Income Category"] && master["Income Category"].length > 0) ? master["Income Category"] : INCOME_CATEGORIES;
   const EXPENSE_CATS = (master["Expense Category"] && master["Expense Category"].length > 0) ? master["Expense Category"] : EXPENSE_CATEGORIES;
   const DONOR_TYPES = (master["Donor Type"] && master["Donor Type"].length > 0) ? master["Donor Type"] : ["Family", "External"];
 
@@ -643,7 +654,7 @@ function App() {
         const result = await backendRef.current.post("getData");
         if (result.master) setMaster(result.master);
         if (result.families) setFamilies(result.families);
-        if (result.income) setDonations(result.income);
+        if (result.income) setIncome(result.income);
         if (result.expenses) setExpenses(result.expenses);
         if (result.auction) setAuction(result.auction);
         if (result.ledger) setLedger(result.ledger);
@@ -699,7 +710,7 @@ function App() {
       const mock = createMockData();
       setMaster(mock.master);
       setFamilies(mock.families);
-      setDonations(mock.donations);
+      setIncome(mock.income);
       setExpenses(mock.expenses);
       setAuction(mock.auction);
       setAccessList(mock.access);
@@ -790,7 +801,7 @@ function App() {
       setMaster(result.master || {});
       console.log("📋 Master data received:", JSON.stringify(result.master));
       setFamilies(result.families || []);
-      setDonations(result.income || []);
+      setIncome(result.income || []);
       setExpenses(result.expenses || []);
       setAuction(result.auction || []);
       setAccessList(result.access || []);
@@ -818,33 +829,33 @@ function App() {
   };
 
   // --- Data operations (local for demo, Apps Script for real) ---
-  const addDonation = async (donation) => {
+  const addIncome = async (income) => {
     const row = {
       TxnID: generateId("DON"),
-      Year: donation.year || String(new Date().getFullYear()),
-      Day: donation.day,
-      Date: donation.date || todayISO(),
-      DonorType: donation.donorType,
-      FamilyID: donation.familyId || "",
-      DonorName: donation.donorName,
-      Category: donation.category,
-      Amount: donation.amount,
-      Description: donation.description || "",
+      Year: income.year || String(new Date().getFullYear()),
+      Day: income.day,
+      Date: income.date || todayISO(),
+      DonorType: income.donorType,
+      FamilyID: income.familyId || "",
+      DonorName: income.donorName,
+      Category: income.category,
+      Amount: income.amount,
+      Description: income.description || "",
       EnteredBy: user.email,
       Timestamp: now(),
     };
     if (!IS_DEMO) {
-      await backendRef.current.post("addIncome", donation);
+      await backendRef.current.post("addIncome", income);
     }
-    setDonations((prev) => [...prev, row]);
+    setIncome((prev) => [...prev, row]);
 
     // Auto-add to auction if category is "Objects for Auction"
-    if (donation.category === "Objects for Auction" && donation.description) {
+    if (income.category === "Objects for Auction" && income.description) {
       const auctionRow = {
         ItemNo: String(auction.length + 1),
-        Year: donation.year || String(new Date().getFullYear()),
-        ItemDescription: donation.description,
-        DonatedBy: donation.donorName,
+        Year: income.year || String(new Date().getFullYear()),
+        ItemDescription: income.description,
+        DonatedBy: income.donorName,
         WinnerFamilyID: "",
         WinnerName: "",
         BidAmount: "",
@@ -858,10 +869,10 @@ function App() {
       setAuction((prev) => [...prev, auctionRow]);
     }
 
-    showToast(t("toastDonation", lang));
+    showToast(t("toastIncome", lang));
     audit("CREATE", "Income", `${row.TxnID} ₹${row.Amount} ${row.Category} by ${row.DonorName}`);
-    if (donation.category === "Objects for Auction" && donation.description) {
-      audit("CREATE", "Auction", `Auto-added "${donation.description}" from income by ${donation.donorName}`);
+    if (income.category === "Objects for Auction" && income.description) {
+      audit("CREATE", "Auction", `Auto-added "${income.description}" from income by ${income.donorName}`);
     }
     setShowForm(null);
   };
@@ -929,6 +940,80 @@ function App() {
     setShowForm(null);
   };
 
+  // ---- EDIT / DELETE INCOME (Admin only) ----
+  const editIncome = async (txnId, income) => {
+    if (!IS_DEMO) {
+      await backendRef.current.post("editIncome", { ...income, txnId });
+    }
+    setIncome((prev) =>
+      prev.map((d) =>
+        d.TxnID === txnId
+          ? {
+              ...d,
+              Year: income.year || d.Year,
+              Day: income.day,
+              Date: income.date || d.Date,
+              DonorType: income.donorType,
+              FamilyID: income.familyId || "",
+              DonorName: income.donorName,
+              Category: income.category,
+              Amount: income.amount,
+              Description: income.description || "",
+              Timestamp: now(),
+            }
+          : d
+      )
+    );
+    showToast(t("updated", lang));
+    audit("EDIT", "Income", `${txnId} edited`);
+    setShowForm(null);
+  };
+
+  const deleteIncome = async (txnId) => {
+    if (!IS_DEMO) {
+      await backendRef.current.post("deleteIncome", { txnId });
+    }
+    setIncome((prev) => prev.filter((d) => d.TxnID !== txnId));
+    showToast(t("deleted", lang));
+    audit("DELETE", "Income", `${txnId} deleted`);
+  };
+
+  // ---- EDIT / DELETE EXPENSES (Admin only) ----
+  const editExpense = async (txnId, expense) => {
+    if (!IS_DEMO) {
+      await backendRef.current.post("editExpense", { ...expense, txnId });
+    }
+    setExpenses((prev) =>
+      prev.map((e) =>
+        e.TxnID === txnId
+          ? {
+              ...e,
+              Year: expense.year || e.Year,
+              Day: expense.day,
+              Date: expense.date || e.Date,
+              Category: expense.category,
+              Description: expense.description,
+              Amount: expense.amount,
+              Vendor: expense.vendor || "",
+              Timestamp: now(),
+            }
+          : e
+      )
+    );
+    showToast(t("updated", lang));
+    audit("EDIT", "Expenses", `${txnId} edited`);
+    setShowForm(null);
+  };
+
+  const deleteExpense = async (txnId) => {
+    if (!IS_DEMO) {
+      await backendRef.current.post("deleteExpense", { txnId });
+    }
+    setExpenses((prev) => prev.filter((e) => e.TxnID !== txnId));
+    showToast(t("deleted", lang));
+    audit("DELETE", "Expenses", `${txnId} deleted`);
+  };
+
   const enterAuctionBid = async (itemIndex, bid) => {
     const updated = [...auction];
     const item = { ...updated[itemIndex] };
@@ -965,15 +1050,15 @@ function App() {
 
   // --- Computed values (filtered by selected year) ---
   const yearStr = String(currentYear);
-  const yearDonations = donations.filter((d) => String(d.Year) === yearStr);
+  const yearIncome = income.filter((d) => String(d.Year) === yearStr);
   const yearExpenses = expenses.filter((e) => String(e.Year) === yearStr);
   const yearAuction = auction.filter((a) => String(a.Year) === yearStr);
-  const totalDonations = yearDonations.reduce((s, d) => s + Number(d.Amount || 0), 0);
+  const totalIncome = yearIncome.reduce((s, d) => s + Number(d.Amount || 0), 0);
   const totalExpenses = yearExpenses.reduce((s, e) => s + Number(e.Amount || 0), 0);
   const totalAuction = yearAuction
     .filter((a) => a.Status === "Confirmed")
     .reduce((s, a) => s + Number(a.BidAmount || 0), 0);
-  const balance = totalDonations + totalAuction - totalExpenses;
+  const balance = totalIncome + totalAuction - totalExpenses;
 
   const canEdit = role === "Admin" || role === "Editor";
   const isAdmin = role === "Admin";
@@ -989,7 +1074,7 @@ function App() {
     const mock = createMockData();
     setMaster(mock.master);
     setFamilies(mock.families);
-    setDonations(mock.donations);
+    setIncome(mock.income);
     setExpenses(mock.expenses);
     setAuction(mock.auction);
     setAccessList(mock.access);
@@ -1088,32 +1173,39 @@ function App() {
       <main style={styles.main}>
         {activeTab === "dashboard" && (
           <Dashboard
-            totalDonations={totalDonations}
+            totalIncome={totalIncome}
             totalExpenses={totalExpenses}
             totalAuction={totalAuction}
             balance={balance}
-            donations={yearDonations}
+            income={yearIncome}
             expenses={yearExpenses}
             auction={yearAuction}
             families={families}
           />
         )}
-        {activeTab === "donations" && (
-          <DonationsView
-            donations={yearDonations}
+        {activeTab === "income" && (
+          <IncomeView
+            income={yearIncome}
             families={families}
             canEdit={canEdit}
-            onAdd={() => setShowForm("donation")}
+            isAdmin={isAdmin}
+            onAdd={() => setShowForm("income")}
+            onEdit={editIncome}
+            onDelete={deleteIncome}
             showToast={showToast}
             lang={lang}
             categories={INCOME_CATS}
+            donorTypes={DONOR_TYPES}
           />
         )}
         {activeTab === "expenses" && (
           <ExpensesView
             expenses={yearExpenses}
             canEdit={canEdit}
+            isAdmin={isAdmin}
             onAdd={() => setShowForm("expense")}
+            onEdit={editExpense}
+            onDelete={deleteExpense}
             showToast={showToast}
             lang={lang}
             categories={EXPENSE_CATS}
@@ -1125,7 +1217,7 @@ function App() {
             families={families}
             canEdit={canEdit}
             isAdmin={isAdmin}
-            userEmail={user.email}
+            email={user.email}
             onBid={enterAuctionBid}
             onAddItem={() => setShowForm("auctionItem")}
             showToast={showToast}
@@ -1147,10 +1239,10 @@ function App() {
         {activeTab === "reports" && (
           <ReportsView
             families={families}
-            donations={yearDonations}
+            income={yearIncome}
             expenses={yearExpenses}
             auction={yearAuction}
-            totalDonations={totalDonations}
+            totalIncome={totalIncome}
             totalExpenses={totalExpenses}
             totalAuction={totalAuction}
             balance={balance}
@@ -1166,10 +1258,10 @@ function App() {
       </main>
 
       {/* Forms (Modal) */}
-      {showForm === "donation" && (
-        <DonationForm
+      {showForm === "income" && (
+        <IncomeForm
           families={families}
-          onSubmit={addDonation}
+          onSubmit={addIncome}
           onClose={() => setShowForm(null)}
           categories={INCOME_CATS}
           donorTypes={DONOR_TYPES}
@@ -1200,7 +1292,7 @@ function App() {
       <nav style={styles.nav}>
         {[
           { id: "dashboard", icon: "📊", label: t("navHome", lang) },
-          { id: "donations", icon: "💰", label: t("navDonate", lang) },
+          { id: "income", icon: "💰", label: t("navDonate", lang) },
           { id: "expenses", icon: "💸", label: t("navExpense", lang) },
           { id: "auction", icon: "🔨", label: t("navAuction", lang) },
           { id: "families", icon: "👨‍👩‍👧‍👦", label: t("navFamily", lang) },
@@ -1326,7 +1418,7 @@ function NoAccessScreen({ email, onLogout, error }) {
     try {
       const res = await fetch(APPS_SCRIPT_URL, {
         method: "POST",
-        body: JSON.stringify({ action: "debugAccess", userEmail: email }),
+        body: JSON.stringify({ action: "debugAccess", email: email }),
       });
       const data = await res.json();
       setDebugInfo(JSON.stringify(data, null, 2));
@@ -1361,7 +1453,7 @@ function NoAccessScreen({ email, onLogout, error }) {
 // DASHBOARD
 // ============================================================
 
-function Dashboard({ totalDonations, totalExpenses, totalAuction, balance, donations, expenses, auction, families }) {
+function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, expenses, auction, families }) {
   const lang = useLang();
   const confirmedAuctions = auction.filter((a) => a.Status === "Confirmed").length;
   const pendingAuctions = auction.filter((a) => a.Status === "Pending").length;
@@ -1373,9 +1465,9 @@ function Dashboard({ totalDonations, totalExpenses, totalAuction, balance, donat
       {/* Summary Cards */}
       <div style={styles.cardGrid}>
         <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #065f46, #059669)" }}>
-          <p style={styles.cardLabel}>{t("totalDonations", lang)}</p>
-          <p style={styles.cardValue}>{formatCurrency(totalDonations)}</p>
-          <p style={styles.cardCount}>{donations.length} {t("entries", lang)}</p>
+          <p style={styles.cardLabel}>{t("totalIncome", lang)}</p>
+          <p style={styles.cardValue}>{formatCurrency(totalIncome)}</p>
+          <p style={styles.cardCount}>{income.length} {t("entries", lang)}</p>
         </div>
         <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #92400e, #b45309)" }}>
           <p style={styles.cardLabel}>{t("auctionIncome", lang)}</p>
@@ -1419,7 +1511,7 @@ function Dashboard({ totalDonations, totalExpenses, totalAuction, balance, donat
       <h3 style={styles.sectionTitle}>{t("daySummary", lang)}</h3>
       <div style={styles.dayGrid}>
         {[1, 2, 3].map((day) => {
-          const dayDon = donations.filter((d) => d.Day === String(day));
+          const dayDon = income.filter((d) => d.Day === String(day));
           const dayExp = expenses.filter((e) => e.Day === String(day));
           const dayDonTotal = dayDon.reduce((s, d) => s + Number(d.Amount || 0), 0);
           const dayExpTotal = dayExp.reduce((s, e) => s + Number(e.Amount || 0), 0);
@@ -1448,7 +1540,7 @@ function Dashboard({ totalDonations, totalExpenses, totalAuction, balance, donat
       {/* Recent Transactions */}
       <h3 style={styles.sectionTitle}>{t("recentTxns", lang)}</h3>
       <div style={styles.recentList}>
-        {[...donations.map((d) => ({ ...d, _type: "donation" })),
+        {[...income.map((d) => ({ ...d, _type: "income" })),
         ...expenses.map((e) => ({ ...e, _type: "expense" }))]
           .sort((a, b) => b.Timestamp?.localeCompare(a.Timestamp))
           .slice(0, 5)
@@ -1456,22 +1548,22 @@ function Dashboard({ totalDonations, totalExpenses, totalAuction, balance, donat
             <div key={i} style={styles.recentItem}>
               <div style={{
                 ...styles.recentIcon,
-                background: txn._type === "donation" ? "#d1fae5" : "#fee2e2",
-                color: txn._type === "donation" ? "#059669" : "#dc2626",
+                background: txn._type === "income" ? "#d1fae5" : "#fee2e2",
+                color: txn._type === "income" ? "#059669" : "#dc2626",
               }}>
-                {txn._type === "donation" ? "↓" : "↑"}
+                {txn._type === "income" ? "↓" : "↑"}
               </div>
               <div style={{ flex: 1 }}>
                 <p style={styles.recentName}>
-                  {txn._type === "donation" ? txn.DonorName : txn.Description}
+                  {txn._type === "income" ? txn.DonorName : txn.Description}
                 </p>
                 <p style={styles.recentMeta}>{tCat(txn.Category, lang)} · {t("day", lang)} {txn.Day}</p>
               </div>
               <p style={{
                 ...styles.recentAmount,
-                color: txn._type === "donation" ? "#059669" : "#dc2626",
+                color: txn._type === "income" ? "#059669" : "#dc2626",
               }}>
-                {txn._type === "donation" ? "+" : "-"}{formatCurrency(txn.Amount)}
+                {txn._type === "income" ? "+" : "-"}{formatCurrency(txn.Amount)}
               </p>
             </div>
           ))}
@@ -1481,28 +1573,30 @@ function Dashboard({ totalDonations, totalExpenses, totalAuction, balance, donat
 }
 
 // ============================================================
-// DONATIONS VIEW
+// INCOME VIEW
 // ============================================================
 
-function DonationsView({ donations, families, canEdit, onAdd, showToast, lang: propLang, categories }) {
+function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelete, showToast, lang: propLang, categories, donorTypes }) {
   const lang = useLang();
+  const [editingItem, setEditingItem] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
-  const exportDonationsCSV = () => {
+  const exportIncomeCSV = () => {
     const headers = ["Date", "Day", "Donor Type", "Family ID", "Donor Name", "Category", "Amount", "Description", "Entered By"];
-    const rows = (donations || []).map((d) => [d.Year, d.Day, d.Date || "", d.DonorType, d.FamilyID, d.DonorName, d.Category, d.Amount, d.Description, d.EnteredBy]);
+    const rows = (income || []).map((d) => [d.Year, d.Day, d.Date || "", d.DonorType, d.FamilyID, d.DonorName, d.Category, d.Amount, d.Description, d.EnteredBy]);
     exportToCSV("income_" + new Date().toISOString().slice(0, 10) + ".csv", headers, rows);
     if (showToast) showToast(t("toastExported", lang));
   };
   const [filter, setFilter] = useState("All");
-  const filtered = filter === "All" ? donations : donations.filter((d) => d.Category === filter);
+  const filtered = filter === "All" ? income : income.filter((d) => d.Category === filter);
 
   return (
     <div style={styles.page}>
       <div style={styles.pageHeader}>
-        <h2 style={styles.pageTitle}>{t("donations", lang)}</h2>
+        <h2 style={styles.pageTitle}>{t("income", lang)}</h2>
         <div style={{ display: "flex", gap: 8 }}>
-          {donations.length > 0 && (
-            <button onClick={exportDonationsCSV} style={{ ...styles.addBtn, background: "#f5f5f4", color: "#57534e", fontSize: 12 }}>{t("exportCSV", lang)}</button>
+          {income.length > 0 && (
+            <button onClick={exportIncomeCSV} style={{ ...styles.addBtn, background: "#f5f5f4", color: "#57534e", fontSize: 12 }}>{t("exportCSV", lang)}</button>
           )}
           {canEdit && (
             <button onClick={onAdd} style={styles.addBtn}>{t("add", lang)}</button>
@@ -1536,7 +1630,7 @@ function DonationsView({ donations, families, canEdit, onAdd, showToast, lang: p
       {/* List */}
       <div style={styles.txnList}>
         {filtered.length === 0 ? (
-          <p style={styles.empty}>{t("noDonations", lang)}</p>
+          <p style={styles.empty}>{t("noIncome", lang)}</p>
         ) : (
           filtered.map((d, i) => (
             <div key={i} style={styles.txnCard}>
@@ -1553,10 +1647,39 @@ function DonationsView({ donations, families, canEdit, onAdd, showToast, lang: p
                 </div>
               </div>
               {d.Description && <p style={styles.txnDesc}>{d.Description}</p>}
+              {isAdmin && (
+                <div style={{ display: "flex", gap: 8, marginTop: 8, justifyContent: "flex-end" }}>
+                  <button onClick={() => setEditingItem(d)} style={{ ...styles.addBtn, background: "#2563eb", fontSize: 11, padding: "4px 12px" }}>✏️ {t("edit", lang)}</button>
+                  <button onClick={() => setDeleteConfirm(d.TxnID)} style={{ ...styles.addBtn, background: "#dc2626", fontSize: 11, padding: "4px 12px" }}>🗑️ {t("deleteBtn", lang)}</button>
+                </div>
+              )}
             </div>
           ))
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <Modal title={t("confirmDeleteTitle", lang)} onClose={() => setDeleteConfirm(null)}>
+          <p style={{ marginBottom: 16, fontSize: 15 }}>{t("confirmDeleteMsg", lang)}</p>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button onClick={() => setDeleteConfirm(null)} style={{ ...styles.btnPrimary, flex: 1, background: "#a8a29e" }}>{t("cancel", lang)}</button>
+            <button onClick={() => { onDelete(deleteConfirm); setDeleteConfirm(null); }} style={{ ...styles.btnPrimary, flex: 1, background: "#dc2626" }}>🗑️ {t("deleteBtn", lang)}</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Edit Income Modal */}
+      {editingItem && (
+        <EditIncomeForm
+          item={editingItem}
+          families={families}
+          categories={categories}
+          donorTypes={donorTypes}
+          onSubmit={(formData) => { onEdit(editingItem.TxnID, formData); setEditingItem(null); }}
+          onClose={() => setEditingItem(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1565,8 +1688,10 @@ function DonationsView({ donations, families, canEdit, onAdd, showToast, lang: p
 // EXPENSES VIEW
 // ============================================================
 
-function ExpensesView({ expenses, canEdit, onAdd, showToast, lang: propLang, categories }) {
+function ExpensesView({ expenses, canEdit, isAdmin, onAdd, onEdit, onDelete, showToast, lang: propLang, categories }) {
   const lang = useLang();
+  const [editingItem, setEditingItem] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const exportExpensesCSV = () => {
     const headers = ["Date", "Day", "Category", "Description", "Amount", "Vendor", "Entered By"];
@@ -1628,10 +1753,37 @@ function ExpensesView({ expenses, canEdit, onAdd, showToast, lang: propLang, cat
                   <p style={styles.txnMeta}>{e.Date ? formatDateDisplay(e.Date) + ' · ' : ''}{t("day", lang)} {e.Day}</p>
                 </div>
               </div>
+              {isAdmin && (
+                <div style={{ display: "flex", gap: 8, marginTop: 8, justifyContent: "flex-end" }}>
+                  <button onClick={() => setEditingItem(e)} style={{ ...styles.addBtn, background: "#2563eb", fontSize: 11, padding: "4px 12px" }}>✏️ {t("edit", lang)}</button>
+                  <button onClick={() => setDeleteConfirm(e.TxnID)} style={{ ...styles.addBtn, background: "#dc2626", fontSize: 11, padding: "4px 12px" }}>🗑️ {t("deleteBtn", lang)}</button>
+                </div>
+              )}
             </div>
           ))
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm && (
+        <Modal title={t("confirmDeleteTitle", lang)} onClose={() => setDeleteConfirm(null)}>
+          <p style={{ marginBottom: 16, fontSize: 15 }}>{t("confirmDeleteMsg", lang)}</p>
+          <div style={{ display: "flex", gap: 12 }}>
+            <button onClick={() => setDeleteConfirm(null)} style={{ ...styles.btnPrimary, flex: 1, background: "#a8a29e" }}>{t("cancel", lang)}</button>
+            <button onClick={() => { onDelete(deleteConfirm); setDeleteConfirm(null); }} style={{ ...styles.btnPrimary, flex: 1, background: "#dc2626" }}>🗑️ {t("deleteBtn", lang)}</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Edit Expense Modal */}
+      {editingItem && (
+        <EditExpenseForm
+          item={editingItem}
+          categories={categories}
+          onSubmit={(formData) => { onEdit(editingItem.TxnID, formData); setEditingItem(null); }}
+          onClose={() => setEditingItem(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1640,7 +1792,7 @@ function ExpensesView({ expenses, canEdit, onAdd, showToast, lang: propLang, cat
 // AUCTION VIEW
 // ============================================================
 
-function AuctionView({ auction, families, canEdit, isAdmin, userEmail, onBid, onAddItem, showToast, lang: propLang, backend, donorTypes }) {
+function AuctionView({ auction, families, canEdit, isAdmin, email, onBid, onAddItem, showToast, lang: propLang, backend, donorTypes }) {
   const lang = useLang();
   const [selectedItem, setSelectedItem] = useState(null);
   const [bidForm, setBidForm] = useState({ bidderType: "Family", familyId: "", winnerName: "", amount: "" });
@@ -1740,7 +1892,7 @@ function AuctionView({ auction, families, canEdit, isAdmin, userEmail, onBid, on
           const isPending = item.Status === "Pending";
           const isConfirmed = item.Status === "Confirmed";
           const isUnsold = !item.Status;
-          const canConfirm = isPending && item.EnteredBy1 !== userEmail && canEdit;
+          const canConfirm = isPending && item.EnteredBy1 !== email && canEdit;
 
           return (
             <div key={i} style={{
@@ -1817,7 +1969,7 @@ function AuctionView({ auction, families, canEdit, isAdmin, userEmail, onBid, on
                   {t("confirmBid", lang)}
                 </button>
               )}
-              {isPending && item.EnteredBy1 === userEmail && (
+              {isPending && item.EnteredBy1 === email && (
                 <p style={{ ...styles.txnMeta, color: "#b45309", fontStyle: "italic" }}>
                   {t("waitingConfirm", lang)}
                 </p>
@@ -2088,11 +2240,144 @@ function FamiliesView({ families, isAdmin, canEdit, onAdd, showToast, lang: prop
 // FORMS (Modals)
 // ============================================================
 
-function DonationForm({ families, onSubmit, onClose, categories, donorTypes }) {
+// ============================================================
+// EDIT INCOME FORM (Admin only - pre-filled)
+// ============================================================
+function EditIncomeForm({ item, families, categories, donorTypes, onSubmit, onClose }) {
+  const lang = useLang();
+  const [saving, setSaving] = useState(false);
+  const cats = categories && categories.length > 0 ? categories : INCOME_CATEGORIES;
+  const dtypes = donorTypes && donorTypes.length > 0 ? donorTypes : ["Family", "External"];
+  const [form, setForm] = useState({
+    date: item.Date || todayISO(),
+    day: item.Day || "1",
+    donorType: item.DonorType || dtypes[0],
+    familyId: item.FamilyID || "",
+    donorName: item.DonorName || "",
+    category: item.Category || cats[0],
+    amount: String(item.Amount || ""),
+    description: item.Description || "",
+  });
+  const formYear = form.date ? form.date.split("-")[0] : String(new Date().getFullYear());
+  const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
+
+  return (
+    <Modal title={t("editIncome", lang)} onClose={onClose}>
+      <div style={styles.formGrid}>
+        <label style={styles.label}>{t("date", lang)}
+          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
+        </label>
+        <label style={styles.label}>{t("day", lang)}
+          <select value={form.day} onChange={(e) => set("day", e.target.value)} style={styles.input}>
+            <option value="1">{t("day1", lang)}</option>
+            <option value="2">{t("day2", lang)}</option>
+            <option value="3">{t("day3", lang)}</option>
+          </select>
+        </label>
+        <label style={styles.label}>{t("donorType", lang)}
+          <select value={form.donorType} onChange={(e) => set("donorType", e.target.value)} style={styles.input}>
+            {dtypes.map((tp) => <option key={tp} value={tp}>{tp === "Family" ? t("family", lang) : tp === "External" ? t("external", lang) : tp}</option>)}
+          </select>
+        </label>
+        {form.donorType === "Family" && (
+          <label style={styles.label}>{t("family", lang)}
+            <select value={form.familyId} onChange={(e) => { const fam = families.find((f) => f.FamilyID === e.target.value); set("familyId", e.target.value); if (fam) set("donorName", fam.FamilyName); }} style={styles.input}>
+              <option value="">{t("select", lang)}</option>
+              {families.map((f) => (<option key={f.FamilyID} value={f.FamilyID}>{f.FamilyName} ({f.FamilyID})</option>))}
+            </select>
+          </label>
+        )}
+        <label style={styles.label}>{t("donorName", lang)}
+          <input value={form.donorName} onChange={(e) => set("donorName", e.target.value)} style={styles.input} />
+        </label>
+        <label style={styles.label}>{t("category", lang)}
+          <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
+            {cats.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
+          </select>
+        </label>
+        <label style={styles.label}>{t("amount", lang)} (₹)
+          <input type="number" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} />
+        </label>
+        <label style={styles.label}>{t("descOptional", lang)}
+          <input value={form.description} onChange={(e) => set("description", e.target.value)} style={styles.input} />
+        </label>
+      </div>
+      <button
+        onClick={() => { if (!saving && form.donorName && form.amount) { setSaving(true); onSubmit({ ...form, year: formYear }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: saving ? 0.6 : 1 }}
+        disabled={saving || !form.donorName || !form.amount}
+      >
+        {saving ? "⏳ Updating..." : t("updateIncome", lang)}
+      </button>
+    </Modal>
+  );
+}
+
+// ============================================================
+// EDIT EXPENSE FORM (Admin only - pre-filled)
+// ============================================================
+function EditExpenseForm({ item, categories, onSubmit, onClose }) {
+  const lang = useLang();
+  const [saving, setSaving] = useState(false);
+  const cats = categories && categories.length > 0 ? categories : EXPENSE_CATEGORIES;
+  const [form, setForm] = useState({
+    date: item.Date || todayISO(),
+    day: item.Day || "1",
+    category: item.Category || cats[0],
+    description: item.Description || "",
+    amount: String(item.Amount || ""),
+    vendor: item.Vendor || "",
+  });
+  const formYear = form.date ? form.date.split("-")[0] : String(new Date().getFullYear());
+  const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
+
+  return (
+    <Modal title={t("editExpense", lang)} onClose={onClose}>
+      <div style={styles.formGrid}>
+        <label style={styles.label}>{t("date", lang)}
+          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
+        </label>
+        <label style={styles.label}>{t("day", lang)}
+          <select value={form.day} onChange={(e) => set("day", e.target.value)} style={styles.input}>
+            <option value="1">{t("day1", lang)}</option>
+            <option value="2">{t("day2", lang)}</option>
+            <option value="3">{t("day3", lang)}</option>
+          </select>
+        </label>
+        <label style={styles.label}>{t("category", lang)}
+          <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
+            {cats.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
+          </select>
+        </label>
+        <label style={styles.label}>{t("description", lang)}
+          <input value={form.description} onChange={(e) => set("description", e.target.value)} style={styles.input} />
+        </label>
+        <label style={styles.label}>{t("amount", lang)} (₹)
+          <input type="number" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} />
+        </label>
+        <label style={styles.label}>{lang === "ta" ? "கடை" : "Vendor"}
+          <input value={form.vendor} onChange={(e) => set("vendor", e.target.value)} style={styles.input} placeholder={t("shopName", lang)} />
+        </label>
+      </div>
+      <button
+        onClick={() => { if (!saving && form.description && form.amount) { setSaving(true); onSubmit({ ...form, year: formYear }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: saving ? 0.6 : 1 }}
+        disabled={saving || !form.description || !form.amount}
+      >
+        {saving ? "⏳ Updating..." : t("updateExpense", lang)}
+      </button>
+    </Modal>
+  );
+}
+
+// ============================================================
+// INCOME FORM
+// ============================================================
+function IncomeForm({ families, onSubmit, onClose, categories, donorTypes }) {
   const lang = useLang();
   const [saving, setSaving] = useState(false);
   const today = todayISO();
-  const cats = categories && categories.length > 0 ? categories : DONATION_CATEGORIES;
+  const cats = categories && categories.length > 0 ? categories : INCOME_CATEGORIES;
   const dtypes = donorTypes && donorTypes.length > 0 ? donorTypes : ["Family", "External"];
   const [form, setForm] = useState({
     date: today,
@@ -2110,7 +2395,7 @@ function DonationForm({ families, onSubmit, onClose, categories, donorTypes }) {
   const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
   return (
-    <Modal title={t("recordDonation", lang)} onClose={onClose}>
+    <Modal title={t("recordIncome", lang)} onClose={onClose}>
       <div style={styles.formGrid}>
         <label style={styles.label}>{t("date", lang)}
           <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
@@ -2167,14 +2452,14 @@ function DonationForm({ families, onSubmit, onClose, categories, donorTypes }) {
           if (saving) return;
           const isAuctionObj = form.category === "Objects for Auction";
           if (form.donorName && (isAuctionObj || form.amount)) { 
-            console.log("💾 Donation submit:", JSON.stringify({...form, year: formYear}));
+            console.log("💾 Income submit:", JSON.stringify({...form, year: formYear}));
             setSaving(true); onSubmit({ ...form, year: formYear, amount: isAuctionObj ? "0" : form.amount }); 
           }
         }}
         style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: saving ? 0.6 : 1 }}
         disabled={saving || !form.donorName || (form.category !== "Objects for Auction" && !form.amount)}
       >
-        {saving ? "⏳ Saving..." : t("saveDonation", lang)}
+        {saving ? "⏳ Saving..." : t("saveIncome", lang)}
       </button>
     </Modal>
   );
@@ -2324,7 +2609,7 @@ function AuctionItemForm({ onSubmit, onClose, currentYear }) {
 // REPORTS VIEW
 // ============================================================
 
-function ReportsView({ families, donations, expenses, auction, totalDonations, totalExpenses, totalAuction, balance, ledger, currentYear, showToast, lang: propLang }) {
+function ReportsView({ families, income, expenses, auction, totalIncome, totalExpenses, totalAuction, balance, ledger, currentYear, showToast, lang: propLang }) {
   const lang = useLang();
   const [activeReport, setActiveReport] = useState("membership");
 
@@ -2334,7 +2619,7 @@ function ReportsView({ families, donations, expenses, auction, totalDonations, t
     // Income
     sections.push("--- INCOME ---");
     sections.push("Date,Day,Donor Type,Family ID,Donor Name,Category,Amount,Description,Entered By");
-    (donations || []).forEach((d) => sections.push([d.Year, d.Day, d.Date || "", d.DonorType, d.FamilyID, d.DonorName, d.Category, d.Amount, d.Description, d.EnteredBy].map((v) => '"' + String(v || "").replace(/"/g, '""') + '"').join(",")));
+    (income || []).forEach((d) => sections.push([d.Year, d.Day, d.Date || "", d.DonorType, d.FamilyID, d.DonorName, d.Category, d.Amount, d.Description, d.EnteredBy].map((v) => '"' + String(v || "").replace(/"/g, '""') + '"').join(",")));
     sections.push("");
     // Expenses
     sections.push("--- EXPENSES ---");
@@ -2348,7 +2633,7 @@ function ReportsView({ families, donations, expenses, auction, totalDonations, t
     sections.push("");
     // Summary
     sections.push("--- SUMMARY ---");
-    sections.push("Total Income," + totalDonations);
+    sections.push("Total Income," + totalIncome);
     sections.push("Total Auction," + totalAuction);
     sections.push("Total Expenses," + totalExpenses);
     sections.push("Net Balance," + balance);
@@ -2393,15 +2678,15 @@ function ReportsView({ families, donations, expenses, auction, totalDonations, t
         ))}
       </div>
 
-      {activeReport === "membership" && <MembershipReport families={families} donations={donations} />}
+      {activeReport === "membership" && <MembershipReport families={families} income={income} />}
       {activeReport === "address" && <AddressReport families={families} />}
       {activeReport === "auction_balance" && (
         <AuctionBalanceSheet
           auction={auction}
           families={families}
-          donations={donations}
+          income={income}
           expenses={expenses}
-          totalDonations={totalDonations}
+          totalIncome={totalIncome}
           totalExpenses={totalExpenses}
           totalAuction={totalAuction}
           balance={balance}
@@ -2411,7 +2696,7 @@ function ReportsView({ families, donations, expenses, auction, totalDonations, t
         <YearOnYearReport
           ledger={ledger}
           currentYear={currentYear}
-          totalDonations={totalDonations}
+          totalIncome={totalIncome}
           totalExpenses={totalExpenses}
           totalAuction={totalAuction}
           balance={balance}
@@ -2422,7 +2707,7 @@ function ReportsView({ families, donations, expenses, auction, totalDonations, t
 }
 
 // --- Year on Year Report ---
-function YearOnYearReport({ ledger, currentYear, totalDonations, totalExpenses, totalAuction, balance }) {
+function YearOnYearReport({ ledger, currentYear, totalIncome, totalExpenses, totalAuction, balance }) {
   const lang = useLang();
   const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
 
@@ -2432,7 +2717,7 @@ function YearOnYearReport({ ledger, currentYear, totalDonations, totalExpenses, 
     .map((r) => ({
       year: String(r.Year),
       opening: Number(r.OpeningBalance) || 0,
-      donations: Number(r.TotalDonations) || 0,
+      income: Number(r.TotalIncome) || 0,
       auction: Number(r.TotalAuction) || 0,
       expenses: Number(r.TotalExpenses) || 0,
       closing: Number(r.ClosingBalance) || 0,
@@ -2444,10 +2729,10 @@ function YearOnYearReport({ ledger, currentYear, totalDonations, totalExpenses, 
   const currentRow = {
     year: String(currentYear),
     opening: currentLedger ? Number(currentLedger.OpeningBalance) || 0 : 0,
-    donations: totalDonations,
+    income: totalIncome,
     auction: totalAuction,
     expenses: totalExpenses,
-    closing: (currentLedger ? Number(currentLedger.OpeningBalance) || 0 : 0) + totalDonations + totalAuction - totalExpenses,
+    closing: (currentLedger ? Number(currentLedger.OpeningBalance) || 0 : 0) + totalIncome + totalAuction - totalExpenses,
     isLive: true,
   };
 
@@ -2461,7 +2746,7 @@ function YearOnYearReport({ ledger, currentYear, totalDonations, totalExpenses, 
   const withGrowth = allRows.map((row, i) => {
     if (i === 0) return { ...row, donGrowth: null, expGrowth: null };
     const prev = allRows[i - 1];
-    const donGrowth = prev.donations > 0 ? ((row.donations - prev.donations) / prev.donations * 100) : null;
+    const donGrowth = prev.income > 0 ? ((row.income - prev.income) / prev.income * 100) : null;
     const expGrowth = prev.expenses > 0 ? ((row.expenses - prev.expenses) / prev.expenses * 100) : null;
     return { ...row, donGrowth, expGrowth };
   });
@@ -2485,8 +2770,8 @@ function YearOnYearReport({ ledger, currentYear, totalDonations, totalExpenses, 
       {allRows.length >= 2 && (() => {
         const latest = allRows[allRows.length - 1];
         const prev = allRows[allRows.length - 2];
-        const totalLatest = latest.donations + latest.auction;
-        const totalPrev = prev.donations + prev.auction;
+        const totalLatest = latest.income + latest.auction;
+        const totalPrev = prev.income + prev.auction;
         const incomeChange = totalPrev > 0 ? ((totalLatest - totalPrev) / totalPrev * 100) : 0;
         return (
           <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
@@ -2508,7 +2793,7 @@ function YearOnYearReport({ ledger, currentYear, totalDonations, totalExpenses, 
 
       {/* Visual Bar Chart */}
       {allRows.length >= 2 && (() => {
-        const maxVal = Math.max(...allRows.map((r) => Math.max(r.donations + r.auction, r.expenses, r.closing)));
+        const maxVal = Math.max(...allRows.map((r) => Math.max(r.income + r.auction, r.expenses, r.closing)));
         const barH = (val) => maxVal > 0 ? Math.max(4, (val / maxVal) * 120) : 4;
         return (
           <div style={{ marginBottom: 20, padding: 16, background: "#fafaf9", borderRadius: 12 }}>
@@ -2516,7 +2801,7 @@ function YearOnYearReport({ ledger, currentYear, totalDonations, totalExpenses, 
               {allRows.map((row) => (
                 <div key={row.year} style={{ flex: 1, maxWidth: 80, textAlign: "center" }}>
                   <div style={{ display: "flex", justifyContent: "center", gap: 3, alignItems: "flex-end", height: 130 }}>
-                    <div style={{ width: 14, height: barH(row.donations + row.auction), background: "#059669", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} title={t("totalIncome", lang) + ": " + fmt(row.donations + row.auction)} />
+                    <div style={{ width: 14, height: barH(row.income + row.auction), background: "#059669", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} title={t("totalIncome", lang) + ": " + fmt(row.income + row.auction)} />
                     <div style={{ width: 14, height: barH(row.expenses), background: "#dc2626", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} title={t("totalExpenses", lang) + ": " + fmt(row.expenses)} />
                     <div style={{ width: 14, height: barH(Math.abs(row.closing)), background: row.closing >= 0 ? "#2563eb" : "#f59e0b", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} title={t("closingBalance", lang) + ": " + fmt(row.closing)} />
                   </div>
@@ -2542,7 +2827,7 @@ function YearOnYearReport({ ledger, currentYear, totalDonations, totalExpenses, 
             <tr>
               <th style={{ ...styles.th, width: "12%" }}>{t("year", lang)}</th>
               <th style={{ ...styles.th, width: "16%", textAlign: "right" }}>{t("openingBalance", lang)}</th>
-              <th style={{ ...styles.th, width: "18%", textAlign: "right" }}>{t("donations", lang)}</th>
+              <th style={{ ...styles.th, width: "18%", textAlign: "right" }}>{t("income", lang)}</th>
               <th style={{ ...styles.th, width: "16%", textAlign: "right" }}>{t("auctionTitle", lang)}</th>
               <th style={{ ...styles.th, width: "18%", textAlign: "right" }}>{t("expenses", lang)}</th>
               <th style={{ ...styles.th, width: "20%", textAlign: "right" }}>{t("closingBalance", lang)}</th>
@@ -2557,7 +2842,7 @@ function YearOnYearReport({ ledger, currentYear, totalDonations, totalExpenses, 
                 </td>
                 <td style={{ ...styles.td, textAlign: "right", fontFamily: "monospace" }}>{fmt(row.opening)}</td>
                 <td style={{ ...styles.td, textAlign: "right" }}>
-                  <span style={{ fontFamily: "monospace" }}>{fmt(row.donations)}</span>
+                  <span style={{ fontFamily: "monospace" }}>{fmt(row.income)}</span>
                   {row.donGrowth !== null && <span style={{ display: "block", marginTop: 2 }}>{growthBadge(row.donGrowth)}</span>}
                 </td>
                 <td style={{ ...styles.td, textAlign: "right", fontFamily: "monospace" }}>{fmt(row.auction)}</td>
@@ -2578,13 +2863,13 @@ function YearOnYearReport({ ledger, currentYear, totalDonations, totalExpenses, 
 }
 
 // --- Membership Report ---
-function MembershipReport({ families, donations }) {
+function MembershipReport({ families, income }) {
   const lang = useLang();
   const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
 
-  // Find membership donations per family (case-insensitive category, trimmed IDs)
+  // Find membership income per family (case-insensitive category, trimmed IDs)
   const membershipByFamily = {};
-  (donations || []).forEach((d) => {
+  (income || []).forEach((d) => {
     const cat = String(d.Category || "").trim().toLowerCase();
     const fid = String(d.FamilyID || "").trim();
     if (cat === "membership" && fid) {
@@ -2593,7 +2878,7 @@ function MembershipReport({ families, donations }) {
     }
   });
   console.log("🔍 Membership paid lookup:", JSON.stringify(membershipByFamily));
-  console.log("🔍 All donation categories:", [...new Set((donations||[]).map(d => d.Category))]);
+  console.log("🔍 All income categories:", [...new Set((income||[]).map(d => d.Category))]);
 
   const rows = (families || []).map((f) => {
     const fid = String(f.FamilyID || "").trim();
@@ -2728,7 +3013,7 @@ function AddressReport({ families }) {
 }
 
 // --- Auction Balance Sheet ---
-function AuctionBalanceSheet({ auction, families, donations, expenses, totalDonations, totalExpenses, totalAuction, balance }) {
+function AuctionBalanceSheet({ auction, families, income, expenses, totalIncome, totalExpenses, totalAuction, balance }) {
   const lang = useLang();
   const confirmedItems = auction.filter((a) => a.Status === "Confirmed");
   const pendingItems = auction.filter((a) => a.Status === "Pending");
@@ -2766,8 +3051,8 @@ function AuctionBalanceSheet({ auction, families, donations, expenses, totalDona
             <span style={styles.bsSectionTitle}>{t("income", lang)}</span>
           </div>
           <div style={styles.bsRow}>
-            <span>{t("donations", lang)}</span>
-            <span style={styles.bsAmount}>{formatCurrency(totalDonations)}</span>
+            <span>{t("income", lang)}</span>
+            <span style={styles.bsAmount}>{formatCurrency(totalIncome)}</span>
           </div>
           <div style={styles.bsRow}>
             <span>{t("auctionConfirmed", lang)}</span>
@@ -2782,7 +3067,7 @@ function AuctionBalanceSheet({ auction, families, donations, expenses, totalDona
           <div style={styles.bsTotalRow}>
             <span>{t("totalIncome", lang)}</span>
             <span style={{ ...styles.bsAmount, fontWeight: 800 }}>
-              {formatCurrency(totalDonations + totalAuction)}
+              {formatCurrency(totalIncome + totalAuction)}
             </span>
           </div>
         </div>
@@ -2963,7 +3248,7 @@ function SetupInstructions() {
             <li><strong>Income</strong> — TxnID, Year, Day, Date, DonorType, FamilyID, DonorName, Category, Amount, Description, EnteredBy, Timestamp</li>
             <li><strong>Expenses</strong> — TxnID, Year, Day, Date, Category, Description, Amount, Vendor, EnteredBy, Timestamp</li>
             <li><strong>Auction</strong> — ItemNo, ItemDescription, DonatedBy, WinnerFamilyID, WinnerName, BidAmount, EnteredBy1, ConfirmedBy2, Timestamp1, Timestamp2, Status</li>
-            <li><strong>Ledger</strong> — Year, OpeningBalance, TotalDonations, TotalAuction, TotalExpenses, ClosingBalance</li>
+            <li><strong>Ledger</strong> — Year, OpeningBalance, TotalIncome, TotalAuction, TotalExpenses, ClosingBalance</li>
             <li><strong>AccessControl</strong> — Email, Role, Name</li>
             <li><strong>AuditLog</strong> — Timestamp, User, Action, Module, Details</li>
           </ul>

@@ -46,21 +46,21 @@ function handleRequest(e) {
     }
 
     var action = params.action || "";
-    var userEmail = (params.userEmail || "").toLowerCase().trim();
+    var email = (params.email || "").toLowerCase().trim();
 
     // Validate user
-    var userRole = getUserRole(userEmail);
+    var userRole = getUserRole(email);
 
     // Public actions (no role needed)
     if (action === "checkAccess") {
-      return jsonResponse({ success: true, role: userRole, email: userEmail });
+      return jsonResponse({ success: true, role: userRole, email: email });
     }
 
     // All other actions need at least Viewer role
     if (!userRole) {
       // For loadAll, still return role info so frontend can show proper message
       if (action === "loadAll") {
-        return jsonResponse({ success: true, data: { role: null, email: userEmail, debug: "Email not found in AccessControl sheet" } });
+        return jsonResponse({ success: true, data: { role: null, email: email, debug: "Email not found in AccessControl sheet" } });
       }
       return jsonResponse({ success: false, error: "Access denied. Email not in AccessControl." });
     }
@@ -69,7 +69,7 @@ function handleRequest(e) {
     switch (action) {
       // --- READ (Viewer+) ---
       case "loadAll":
-        return handleLoadAll(userEmail, userRole);
+        return handleLoadAll(email, userRole);
 
       // --- DEBUG (temporary) ---
       case "debugAccess":
@@ -79,23 +79,33 @@ function handleRequest(e) {
         for (var d = 0; d < debugData.length; d++) {
           debugInfo.push(debugData[d].map(function(c) { return String(c).trim(); }));
         }
-        return jsonResponse({ success: true, data: { rows: debugInfo, searchEmail: userEmail, foundRole: userRole } });
+        return jsonResponse({ success: true, data: { rows: debugInfo, searchEmail: email, foundRole: userRole } });
 
       // --- WRITE (Editor+) ---
       case "addIncome":
-        return requireRole(userRole, "Editor", function() { return handleAddIncome(params.data, userEmail); });
+        return requireRole(userRole, "Editor", function() { return handleAddIncome(params.data, email); });
       case "addExpense":
-        return requireRole(userRole, "Editor", function() { return handleAddExpense(params.data, userEmail); });
+        return requireRole(userRole, "Editor", function() { return handleAddExpense(params.data, email); });
       case "addFamily":
-        return requireRole(userRole, "Editor", function() { return handleAddFamily(params.data, userEmail); });
+        return requireRole(userRole, "Editor", function() { return handleAddFamily(params.data, email); });
       case "bulkAddFamilies":
-        return requireRole(userRole, "Admin", function() { return handleBulkAddFamilies(params.data, userEmail); });
+        return requireRole(userRole, "Admin", function() { return handleBulkAddFamilies(params.data, email); });
       case "addAuctionItem":
-        return requireRole(userRole, "Admin", function() { return handleAddAuctionItem(params.data, userEmail); });
+        return requireRole(userRole, "Admin", function() { return handleAddAuctionItem(params.data, email); });
       case "enterBid":
-        return requireRole(userRole, "Editor", function() { return handleEnterBid(params.data, userEmail); });
+        return requireRole(userRole, "Editor", function() { return handleEnterBid(params.data, email); });
       case "uploadAuctionPhoto":
-        return requireRole(userRole, "Editor", function() { return handleUploadAuctionPhoto(params.data, userEmail); });
+        return requireRole(userRole, "Editor", function() { return handleUploadAuctionPhoto(params.data, email); });
+
+      // --- ADMIN: Edit/Delete Income & Expenses ---
+      case "editIncome":
+        return requireRole(userRole, "Admin", function() { return handleEditIncome(params.data, email); });
+      case "deleteIncome":
+        return requireRole(userRole, "Admin", function() { return handleDeleteIncome(params.data, email); });
+      case "editExpense":
+        return requireRole(userRole, "Admin", function() { return handleEditExpense(params.data, email); });
+      case "deleteExpense":
+        return requireRole(userRole, "Admin", function() { return handleDeleteExpense(params.data, email); });
 
       default:
         return jsonResponse({ success: false, error: "Unknown action: " + action });
@@ -147,7 +157,7 @@ function requireRole(currentRole, minimumRole, handler) {
 // LOAD ALL DATA
 // ============================================================
 
-function handleLoadAll(userEmail, userRole) {
+function handleLoadAll(email, userRole) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
 
   var result = {
@@ -166,7 +176,7 @@ function handleLoadAll(userEmail, userRole) {
     result.auditLog = readSheet(ss, SHEETS.AUDIT);
   }
 
-  writeAudit("LOGIN", "Auth", userEmail + " loaded data", userEmail);
+  writeAudit("LOGIN", "Auth", email + " loaded data", email);
 
   return jsonResponse({ success: true, data: result });
 }
@@ -209,10 +219,10 @@ function readSheet(ss, sheetName) {
 }
 
 // ============================================================
-// INCOME (Donations)
+// INCOME
 // ============================================================
 
-function handleAddIncome(data, userEmail) {
+function handleAddIncome(data, email) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEETS.INCOME);
   var txnId = generateId("DON");
@@ -231,11 +241,11 @@ function handleAddIncome(data, userEmail) {
     data.category,
     data.amount || 0,
     data.description || "",
-    userEmail,
+    email,
     ts
   ];
   sheet.appendRow(row);
-  writeAudit("CREATE", "Income", txnId + " ₹" + data.amount + " " + data.category + " by " + data.donorName, userEmail);
+  writeAudit("CREATE", "Income", txnId + " ₹" + data.amount + " " + data.category + " by " + data.donorName, email);
 
   var result = { txnId: txnId };
 
@@ -251,7 +261,7 @@ function handleAddIncome(data, userEmail) {
       "", "", "", "", "", "", "", ""
     ];
     auctionSheet.appendRow(auctionRow);
-    writeAudit("CREATE", "Auction", "Auto-added \"" + data.description + "\" from income by " + data.donorName, userEmail);
+    writeAudit("CREATE", "Auction", "Auto-added \"" + data.description + "\" from income by " + data.donorName, email);
     result.auctionItemAdded = true;
     result.auctionItemNo = nextItemNo;
   }
@@ -263,7 +273,7 @@ function handleAddIncome(data, userEmail) {
 // EXPENSES
 // ============================================================
 
-function handleAddExpense(data, userEmail) {
+function handleAddExpense(data, email) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.EXPENSES);
   var txnId = generateId("EXP");
   var ts = now();
@@ -279,20 +289,122 @@ function handleAddExpense(data, userEmail) {
     data.description,
     data.amount,
     data.vendor || "",
-    userEmail,
+    email,
     ts
   ];
   sheet.appendRow(row);
-  writeAudit("CREATE", "Expenses", txnId + " ₹" + data.amount + " " + data.category + " - " + data.description, userEmail);
+  writeAudit("CREATE", "Expenses", txnId + " ₹" + data.amount + " " + data.category + " - " + data.description, email);
 
   return jsonResponse({ success: true, data: { txnId: txnId } });
+}
+
+// ============================================================
+// EDIT / DELETE INCOME (Admin only)
+// ============================================================
+
+function handleEditIncome(data, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.INCOME);
+  var allData = sheet.getDataRange().getValues();
+  var txnId = data.txnId;
+
+  for (var i = 1; i < allData.length; i++) {
+    if (String(allData[i][0]).trim() === txnId) {
+      var rowNum = i + 1;
+      var year = data.year || String(allData[i][1]);
+      var row = [
+        txnId,
+        year,
+        data.day,
+        data.date || "",
+        data.donorType,
+        data.familyId || "",
+        data.donorName,
+        data.category,
+        data.amount || 0,
+        data.description || "",
+        String(allData[i][10]),  // keep original EnteredBy
+        now()                    // update timestamp
+      ];
+      sheet.getRange(rowNum, 1, 1, row.length).setValues([row]);
+      writeAudit("EDIT", "Income", txnId + " edited by admin", email);
+      return jsonResponse({ success: true, data: { txnId: txnId } });
+    }
+  }
+  return jsonResponse({ success: false, error: "Transaction not found: " + txnId });
+}
+
+function handleDeleteIncome(data, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.INCOME);
+  var allData = sheet.getDataRange().getValues();
+  var txnId = data.txnId;
+
+  for (var i = 1; i < allData.length; i++) {
+    if (String(allData[i][0]).trim() === txnId) {
+      sheet.deleteRow(i + 1);
+      writeAudit("DELETE", "Income", txnId + " deleted by admin", email);
+      return jsonResponse({ success: true, data: { txnId: txnId } });
+    }
+  }
+  return jsonResponse({ success: false, error: "Transaction not found: " + txnId });
+}
+
+// ============================================================
+// EDIT / DELETE EXPENSES (Admin only)
+// ============================================================
+
+function handleEditExpense(data, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.EXPENSES);
+  var allData = sheet.getDataRange().getValues();
+  var txnId = data.txnId;
+
+  for (var i = 1; i < allData.length; i++) {
+    if (String(allData[i][0]).trim() === txnId) {
+      var rowNum = i + 1;
+      var year = data.year || String(allData[i][1]);
+      var row = [
+        txnId,
+        year,
+        data.day,
+        data.date || "",
+        data.category,
+        data.description,
+        data.amount,
+        data.vendor || "",
+        String(allData[i][8]),  // keep original EnteredBy
+        now()                   // update timestamp
+      ];
+      sheet.getRange(rowNum, 1, 1, row.length).setValues([row]);
+      writeAudit("EDIT", "Expenses", txnId + " edited by admin", email);
+      return jsonResponse({ success: true, data: { txnId: txnId } });
+    }
+  }
+  return jsonResponse({ success: false, error: "Transaction not found: " + txnId });
+}
+
+function handleDeleteExpense(data, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.EXPENSES);
+  var allData = sheet.getDataRange().getValues();
+  var txnId = data.txnId;
+
+  for (var i = 1; i < allData.length; i++) {
+    if (String(allData[i][0]).trim() === txnId) {
+      sheet.deleteRow(i + 1);
+      writeAudit("DELETE", "Expenses", txnId + " deleted by admin", email);
+      return jsonResponse({ success: true, data: { txnId: txnId } });
+    }
+  }
+  return jsonResponse({ success: false, error: "Transaction not found: " + txnId });
 }
 
 // ============================================================
 // FAMILIES
 // ============================================================
 
-function handleAddFamily(data, userEmail) {
+function handleAddFamily(data, email) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.FAMILIES);
   var famId = generateId("FAM");
 
@@ -304,12 +416,12 @@ function handleAddFamily(data, userEmail) {
     data.address
   ];
   sheet.appendRow(row);
-  writeAudit("CREATE", "Families", famId + " " + data.familyName, userEmail);
+  writeAudit("CREATE", "Families", famId + " " + data.familyName, email);
 
   return jsonResponse({ success: true, data: { familyId: famId } });
 }
 
-function handleBulkAddFamilies(data, userEmail) {
+function handleBulkAddFamilies(data, email) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.FAMILIES);
   var families = data.families || [];
   var count = 0;
@@ -325,7 +437,7 @@ function handleBulkAddFamilies(data, userEmail) {
     sheet.appendRow(row);
     count++;
   }
-  writeAudit("BULK_CREATE", "Families", count + " families added", userEmail);
+  writeAudit("BULK_CREATE", "Families", count + " families added", email);
   return jsonResponse({ success: true, data: { count: count } });
 }
 
@@ -333,7 +445,7 @@ function handleBulkAddFamilies(data, userEmail) {
 // AUCTION — Add Item (Admin only)
 // ============================================================
 
-function handleAddAuctionItem(data, userEmail) {
+function handleAddAuctionItem(data, email) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.AUCTION);
   var nextItemNo = sheet.getLastRow(); // header row = 1, so lastRow = current item count + 1
   var year = data.year || String(new Date().getFullYear());
@@ -346,7 +458,7 @@ function handleAddAuctionItem(data, userEmail) {
     "", "", "", "", "", "", "", ""
   ];
   sheet.appendRow(row);
-  writeAudit("CREATE", "Auction", "Manual add #" + nextItemNo + " \"" + data.itemName + "\"", userEmail);
+  writeAudit("CREATE", "Auction", "Manual add #" + nextItemNo + " \"" + data.itemName + "\"", email);
 
   return jsonResponse({ success: true, data: { itemNo: nextItemNo } });
 }
@@ -355,7 +467,7 @@ function handleAddAuctionItem(data, userEmail) {
 // AUCTION — Enter/Confirm Bid
 // ============================================================
 
-function handleEnterBid(data, userEmail) {
+function handleEnterBid(data, email) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEETS.AUCTION);
   var rowIndex = data.rowIndex + 2; // 0-based data row → 1-based sheet row (header + 1)
@@ -377,27 +489,27 @@ function handleEnterBid(data, userEmail) {
     values[4] = data.familyId || "";     // WinnerFamilyID
     values[5] = data.winnerName;         // WinnerName
     values[6] = data.amount;             // BidAmount
-    values[7] = userEmail;               // EnteredBy1
+    values[7] = email;               // EnteredBy1
     values[9] = ts;                      // Timestamp1
     values[11] = "Pending";              // Status
 
     range.setValues([values]);
-    writeAudit("BID", "Auction", "#" + values[0] + " \"" + values[2] + "\" ₹" + data.amount + " by " + data.winnerName, userEmail);
+    writeAudit("BID", "Auction", "#" + values[0] + " \"" + values[2] + "\" ₹" + data.amount + " by " + data.winnerName, email);
 
     return jsonResponse({ success: true, data: { status: "Pending" } });
 
-  } else if (enteredBy1.toLowerCase() !== userEmail.toLowerCase() && !confirmedBy2) {
+  } else if (enteredBy1.toLowerCase() !== email.toLowerCase() && !confirmedBy2) {
     // Second person — confirm
-    values[8] = userEmail;               // ConfirmedBy2
+    values[8] = email;               // ConfirmedBy2
     values[10] = ts;                     // Timestamp2
     values[11] = "Confirmed";            // Status
 
     range.setValues([values]);
-    writeAudit("CONFIRM", "Auction", "#" + values[0] + " \"" + values[2] + "\" ₹" + values[6] + " to " + values[5], userEmail);
+    writeAudit("CONFIRM", "Auction", "#" + values[0] + " \"" + values[2] + "\" ₹" + values[6] + " to " + values[5], email);
 
     return jsonResponse({ success: true, data: { status: "Confirmed" } });
 
-  } else if (enteredBy1.toLowerCase() === userEmail.toLowerCase()) {
+  } else if (enteredBy1.toLowerCase() === email.toLowerCase()) {
     return jsonResponse({ success: false, error: "Cannot confirm your own entry." });
 
   } else {
@@ -413,7 +525,7 @@ function handleEnterBid(data, userEmail) {
 // AUCTION — Upload Photo
 // ============================================================
 
-function handleUploadAuctionPhoto(data, userEmail) {
+function handleUploadAuctionPhoto(data, email) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sheet = ss.getSheetByName(SHEETS.AUCTION);
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
@@ -431,7 +543,7 @@ function handleUploadAuctionPhoto(data, userEmail) {
   for (var i = 1; i < allData.length; i++) {
     if (String(allData[i][0]) === String(data.itemNo)) {
       sheet.getRange(i + 1, photoCol + 1).setValue(data.photo);
-      writeAudit("UPDATE", "Auction", "Photo uploaded for item #" + data.itemNo, userEmail);
+      writeAudit("UPDATE", "Auction", "Photo uploaded for item #" + data.itemNo, email);
       return jsonResponse({ success: true, data: { itemNo: data.itemNo } });
     }
   }
@@ -439,11 +551,11 @@ function handleUploadAuctionPhoto(data, userEmail) {
   return jsonResponse({ success: false, error: "Item #" + data.itemNo + " not found" });
 }
 
-function writeAudit(action, module, details, userEmail) {
+function writeAudit(action, module, details, email) {
   try {
     var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.AUDIT);
     if (sheet) {
-      sheet.appendRow([now(), userEmail, action, module, details]);
+      sheet.appendRow([now(), email, action, module, details]);
     }
   } catch (e) {
     // Silently fail — audit should never break main operations
