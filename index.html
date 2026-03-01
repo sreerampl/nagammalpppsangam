@@ -208,6 +208,7 @@ const T = {
   pleaseConfigureEvent: { en: "Please ask an Admin to configure the event dates for this year.", ta: "இந்த ஆண்டுக்கான நிகழ்வு தேதிகளை உள்ளமைக்க நிர்வாகியிடம் கேளுங்கள்." },
   seedAuctionItems: { en: "Also create 48 standard auction items", ta: "48 நிலையான ஏல பொருட்களையும் உருவாக்கு" },
   auctionSeeded: { en: "auction items created!", ta: "ஏல பொருட்கள் உருவாக்கப்பட்டன!" },
+  invalidEventDate: { en: "Date must be one of the 3 event days", ta: "தேதி 3 நிகழ்வு நாட்களில் ஒன்றாக இருக்க வேண்டும்" },
   currentYearLive: { en: "(Live)", ta: "(நேரடி)" },
   growth: { en: "Growth", ta: "வளர்ச்சி" },
   familyAddressDir: { en: "Family Address Directory", ta: "குடும்ப முகவரி அடைவு" },
@@ -345,13 +346,13 @@ const now = () => new Date().toLocaleString("en-IN");
 const todayISO = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
 const formatDateDisplay = (iso) => { if (!iso) return ''; const [y,m,d] = iso.split('-'); return d+'/'+m+'/'+y; };
 const calcDay = (dateStr, day1Date) => {
-  if (!dateStr || !day1Date) return "1";
+  if (!dateStr || !day1Date) return null;
   const d = new Date(dateStr), d1 = new Date(day1Date);
   const diff = Math.round((d - d1) / 86400000);
-  if (diff <= 0) return "1";
+  if (diff === 0) return "1";
   if (diff === 1) return "2";
-  if (diff >= 2) return "3";
-  return "1";
+  if (diff === 2) return "3";
+  return null; // Invalid — not an event day
 };
 
 // --- Audit Log ---
@@ -2142,6 +2143,24 @@ function FamiliesView({ families, isAdmin, canEdit, onAdd, showToast, lang: prop
 // DAY BADGE (read-only, auto-calculated from date)
 // ============================================================
 function DayBadge({ day, lang }) {
+  if (!day) {
+    return (
+      <div style={{
+        background: "#dc2626",
+        color: "#fff",
+        borderRadius: 8,
+        padding: "8px 12px",
+        fontWeight: 700,
+        fontSize: 12,
+        textAlign: "center",
+        minWidth: 60,
+        marginBottom: 2,
+        whiteSpace: "nowrap",
+      }}>
+        ✕ {t("invalidEventDate", lang)}
+      </div>
+    );
+  }
   const colors = { "1": "#16a34a", "2": "#2563eb", "3": "#9333ea" };
   const label = day === "1" ? t("day1", lang) : day === "2" ? t("day2", lang) : t("day3", lang);
   return (
@@ -2297,9 +2316,9 @@ function EditIncomeForm({ item, families, categories, donorTypes, onSubmit, onCl
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && form.donorName && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: saving ? 0.6 : 1 }}
-        disabled={saving || !form.donorName || !form.amount}
+        onClick={() => { if (!saving && autoDay && form.donorName && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: (saving || !autoDay) ? 0.6 : 1 }}
+        disabled={saving || !autoDay || !form.donorName || !form.amount}
       >
         {saving ? "⏳ Updating..." : t("updateIncome", lang)}
       </button>
@@ -2350,11 +2369,9 @@ function EditExpenseForm({ item, categories, onSubmit, onClose, day1Date }) {
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && form.description && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: saving ? 0.6 : 1 }}
-        disabled={saving || !form.description || !form.amount}
-      >
-        {saving ? "⏳ Updating..." : t("updateExpense", lang)}
+        onClick={() => { if (!saving && autoDay && form.description && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: (saving || !autoDay) ? 0.6 : 1 }}
+        disabled={saving || !autoDay || !form.description || !form.amount}        {saving ? "⏳ Updating..." : t("updateExpense", lang)}
       </button>
     </Modal>
   );
@@ -2435,14 +2452,14 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
       </div>
       <button
         onClick={() => {
-          if (saving) return;
+          if (saving || !autoDay) return;
           const isAuctionObj = form.category === "Objects for Auction";
           if (form.donorName && (isAuctionObj || form.amount)) { 
             setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear, amount: isAuctionObj ? "0" : form.amount }); 
           }
         }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: saving ? 0.6 : 1 }}
-        disabled={saving || !form.donorName || (form.category !== "Objects for Auction" && !form.amount)}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: (saving || !autoDay) ? 0.6 : 1 }}
+        disabled={saving || !autoDay || !form.donorName || (form.category !== "Objects for Auction" && !form.amount)}
       >
         {saving ? "⏳ Saving..." : t("saveIncome", lang)}
       </button>
@@ -2492,9 +2509,9 @@ function ExpenseForm({ onSubmit, onClose, categories, day1Date }) {
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && form.description && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: saving ? 0.6 : 1 }}
-        disabled={saving || !form.description || !form.amount}
+        onClick={() => { if (!saving && autoDay && form.description && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: (saving || !autoDay) ? 0.6 : 1 }}
+        disabled={saving || !autoDay || !form.description || !form.amount}
       >
         {saving ? "⏳ Saving..." : t("saveExpense", lang)}
       </button>
