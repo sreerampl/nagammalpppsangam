@@ -940,8 +940,12 @@ function App() {
     setBusy(true);
     try {
       const result = await backendRef.current.post("seedAuctionItems", { year });
-      showToast(result.count + " " + t("auctionSeeded", lang));
-      // Reload data to get the new items
+      if (result.skipped) {
+        // Items already exist — skip silently, just reload
+      } else {
+        showToast(result.count + " " + t("auctionSeeded", lang));
+      }
+      // Reload auction data
       const fresh = await backendRef.current.post("loadAll");
       if (fresh.auction) setAuction(fresh.auction);
     } catch (e) {

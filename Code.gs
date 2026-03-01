@@ -648,7 +648,7 @@ function handleSeedAuctionItems(data, email) {
     if (String(existing[i][yearCol]) === year) count++;
   }
   if (count > 0) {
-    return jsonResponse({ success: false, error: "Auction items already exist for " + year + " (" + count + " items). Delete them first to re-seed." });
+    return jsonResponse({ success: true, data: { count: 0, skipped: true, existing: count, year: year } });
   }
 
   // Standard 48 items
