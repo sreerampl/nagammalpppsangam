@@ -2579,28 +2579,34 @@ function MembershipReport({ families, donations }) {
   const lang = useLang();
   const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
 
-  // Find membership donations per family (case-insensitive match)
+  // Find membership donations per family (case-insensitive category, trimmed IDs)
   const membershipByFamily = {};
   (donations || []).forEach((d) => {
     const cat = String(d.Category || "").trim().toLowerCase();
-    if (cat === "membership" && d.FamilyID) {
-      if (!membershipByFamily[d.FamilyID]) membershipByFamily[d.FamilyID] = 0;
-      membershipByFamily[d.FamilyID] += Number(d.Amount) || 0;
+    const fid = String(d.FamilyID || "").trim();
+    if (cat === "membership" && fid) {
+      if (!membershipByFamily[fid]) membershipByFamily[fid] = 0;
+      membershipByFamily[fid] += Number(d.Amount) || 0;
     }
   });
+  console.log("🔍 Membership paid lookup:", JSON.stringify(membershipByFamily));
+  console.log("🔍 All donation categories:", [...new Set((donations||[]).map(d => d.Category))]);
 
-  const rows = (families || []).map((f) => ({
-    id: f.FamilyID,
-    name: f.FamilyName,
-    phone: f.Phone || f.WhatsApp || "",
-    paid: membershipByFamily[f.FamilyID] || 0,
-  }));
+  const rows = (families || []).map((f) => {
+    const fid = String(f.FamilyID || "").trim();
+    return {
+      id: fid,
+      name: f.FamilyName,
+      phone: f.Phone || f.WhatsApp || "",
+      paid: membershipByFamily[fid] || 0,
+    };
+  });
 
   const paidCount = rows.filter((r) => r.paid > 0).length;
   const notPaidCount = rows.length - paidCount;
   const totalCollected = rows.reduce((s, r) => s + r.paid, 0);
 
-  // Sort by FamilyID numerically (F1, F2, ... F10, F11)
+  // Sort by FamilyID numerically (F01, F02, ... F10, F11)
   rows.sort((a, b) => {
     const numA = parseInt(String(a.id).replace(/\D/g, "")) || 0;
     const numB = parseInt(String(b.id).replace(/\D/g, "")) || 0;
