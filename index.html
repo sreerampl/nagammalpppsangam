@@ -174,6 +174,16 @@ const T = {
   addressBook: { en: "📒 Address Book", ta: "📒 முகவரி புத்தகம்" },
   auctionBalance: { en: "🔨 Auction Balance", ta: "🔨 ஏல இருப்பு" },
   yearOnYear: { en: "📊 Year on Year", ta: "📊 ஆண்டு ஒப்பீடு" },
+  membershipReport: { en: "💳 Membership", ta: "💳 உறுப்பினர்" },
+  familyBalance: { en: "👨‍👩‍👧 Family Balance", ta: "👨‍👩‍👧 குடும்ப இருப்பு" },
+  paid: { en: "Paid", ta: "செலுத்தியது" },
+  notPaid: { en: "Not Paid", ta: "செலுத்தவில்லை" },
+  membershipPaid: { en: "Membership Paid", ta: "உறுப்பினர் கட்டணம் செலுத்தியது" },
+  membershipNotPaid: { en: "Not Paid", ta: "செலுத்தவில்லை" },
+  totalGiven: { en: "Total Given", ta: "மொத்த நன்கொடை" },
+  auctionWon: { en: "Auction Won", ta: "ஏலத்தில் வென்றது" },
+  netDue: { en: "Net Due", ta: "நிகர நிலுவை" },
+  noOutstanding: { en: "No Outstanding", ta: "நிலுவை இல்லை" },
   yearOnYearTitle: { en: "Year on Year Comparison", ta: "ஆண்டு வாரியான ஒப்பீடு" },
   year: { en: "Year", ta: "ஆண்டு" },
   openingBalance: { en: "Opening Balance", ta: "தொடக்க இருப்பு" },
@@ -1095,6 +1105,7 @@ function App() {
             onAdd={() => setShowForm("donation")}
             showToast={showToast}
             lang={lang}
+            categories={INCOME_CATS}
           />
         )}
         {activeTab === "expenses" && (
@@ -1104,6 +1115,7 @@ function App() {
             onAdd={() => setShowForm("expense")}
             showToast={showToast}
             lang={lang}
+            categories={EXPENSE_CATS}
           />
         )}
         {activeTab === "auction" && (
@@ -1118,6 +1130,7 @@ function App() {
             showToast={showToast}
             lang={lang}
             backend={backendRef.current}
+            donorTypes={DONOR_TYPES}
           />
         )}
         {activeTab === "families" && (
@@ -1470,7 +1483,7 @@ function Dashboard({ totalDonations, totalExpenses, totalAuction, balance, donat
 // DONATIONS VIEW
 // ============================================================
 
-function DonationsView({ donations, families, canEdit, onAdd, showToast, lang: propLang }) {
+function DonationsView({ donations, families, canEdit, onAdd, showToast, lang: propLang, categories }) {
   const lang = useLang();
 
   const exportDonationsCSV = () => {
@@ -1498,7 +1511,7 @@ function DonationsView({ donations, families, canEdit, onAdd, showToast, lang: p
 
       {/* Filter Pills */}
       <div style={styles.filterRow}>
-        {["All", ...INCOME_CATS].map((cat) => (
+        {["All", ...(categories || [])].map((cat) => (
           <button
             key={cat}
             onClick={() => setFilter(cat)}
@@ -1551,7 +1564,7 @@ function DonationsView({ donations, families, canEdit, onAdd, showToast, lang: p
 // EXPENSES VIEW
 // ============================================================
 
-function ExpensesView({ expenses, canEdit, onAdd, showToast, lang: propLang }) {
+function ExpensesView({ expenses, canEdit, onAdd, showToast, lang: propLang, categories }) {
   const lang = useLang();
 
   const exportExpensesCSV = () => {
@@ -1578,7 +1591,7 @@ function ExpensesView({ expenses, canEdit, onAdd, showToast, lang: propLang }) {
       </div>
 
       <div style={styles.filterRow}>
-        {["All", ...EXPENSE_CATS].map((cat) => (
+        {["All", ...(categories || [])].map((cat) => (
           <button
             key={cat}
             onClick={() => setFilter(cat)}
@@ -1626,7 +1639,7 @@ function ExpensesView({ expenses, canEdit, onAdd, showToast, lang: propLang }) {
 // AUCTION VIEW
 // ============================================================
 
-function AuctionView({ auction, families, canEdit, isAdmin, userEmail, onBid, onAddItem, showToast, lang: propLang, backend }) {
+function AuctionView({ auction, families, canEdit, isAdmin, userEmail, onBid, onAddItem, showToast, lang: propLang, backend, donorTypes }) {
   const lang = useLang();
   const [selectedItem, setSelectedItem] = useState(null);
   const [bidForm, setBidForm] = useState({ bidderType: "Family", familyId: "", winnerName: "", amount: "" });
@@ -1814,7 +1827,7 @@ function AuctionView({ auction, families, canEdit, isAdmin, userEmail, onBid, on
                 <div style={styles.inlineBidForm}>
                   {/* Bidder type toggle */}
                   <div style={{ display: "flex", gap: 6 }}>
-                    {DONOR_TYPES.map((tp) => (
+                    {(donorTypes || ["Family", "External"]).map((tp) => (
                       <button
                         key={tp}
                         onClick={() => setBidForm({ ...bidForm, bidderType: tp, familyId: "", winnerName: "" })}
@@ -2309,7 +2322,7 @@ function AuctionItemForm({ onSubmit, onClose, currentYear }) {
 
 function ReportsView({ families, donations, expenses, auction, totalDonations, totalExpenses, totalAuction, balance, ledger, currentYear, showToast, lang: propLang }) {
   const lang = useLang();
-  const [activeReport, setActiveReport] = useState("address");
+  const [activeReport, setActiveReport] = useState("membership");
 
   const exportAllData = () => {
     // Export a comprehensive multi-section CSV
@@ -2356,6 +2369,7 @@ function ReportsView({ families, donations, expenses, auction, totalDonations, t
       {/* Report selector */}
       <div style={styles.filterRow}>
         {[
+          { id: "membership", label: t("membershipReport", lang) },
           { id: "address", label: t("addressBook", lang) },
           { id: "auction_balance", label: t("auctionBalance", lang) },
           { id: "year_on_year", label: t("yearOnYear", lang) },
@@ -2375,6 +2389,7 @@ function ReportsView({ families, donations, expenses, auction, totalDonations, t
         ))}
       </div>
 
+      {activeReport === "membership" && <MembershipReport families={families} donations={donations} />}
       {activeReport === "address" && <AddressReport families={families} />}
       {activeReport === "auction_balance" && (
         <AuctionBalanceSheet
@@ -2558,6 +2573,88 @@ function YearOnYearReport({ ledger, currentYear, totalDonations, totalExpenses, 
   );
 }
 
+// --- Membership Report ---
+function MembershipReport({ families, donations }) {
+  const lang = useLang();
+  const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
+
+  // Find membership donations per family
+  const membershipByFamily = {};
+  (donations || []).forEach((d) => {
+    if (d.Category === "Membership" && d.FamilyID) {
+      if (!membershipByFamily[d.FamilyID]) membershipByFamily[d.FamilyID] = 0;
+      membershipByFamily[d.FamilyID] += Number(d.Amount) || 0;
+    }
+  });
+
+  const rows = (families || []).map((f) => ({
+    id: f.FamilyID,
+    name: f.FamilyName,
+    phone: f.Phone || f.WhatsApp || "",
+    paid: membershipByFamily[f.FamilyID] || 0,
+  }));
+
+  const paidCount = rows.filter((r) => r.paid > 0).length;
+  const notPaidCount = rows.length - paidCount;
+  const totalCollected = rows.reduce((s, r) => s + r.paid, 0);
+
+  // Sort: not paid first, then paid
+  rows.sort((a, b) => (a.paid > 0 ? 1 : 0) - (b.paid > 0 ? 1 : 0) || a.name.localeCompare(b.name));
+
+  return (
+    <div>
+      <div style={styles.reportHeader}>
+        <h3 style={styles.reportTitle}>{t("membershipReport", lang)}</h3>
+        <p style={styles.reportSubtitle}>
+          ✅ {paidCount} {t("paid", lang)} · ❌ {notPaidCount} {t("notPaid", lang)} · {fmt(totalCollected)} {lang === "ta" ? "வசூல்" : "collected"}
+        </p>
+      </div>
+      {/* Summary cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+        <div style={{ background: "#dcfce7", borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#166534" }}>{paidCount}</div>
+          <div style={{ fontSize: 11, color: "#15803d" }}>✅ {t("paid", lang)}</div>
+        </div>
+        <div style={{ background: "#fef2f2", borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#991b1b" }}>{notPaidCount}</div>
+          <div style={{ fontSize: 11, color: "#dc2626" }}>❌ {t("notPaid", lang)}</div>
+        </div>
+        <div style={{ background: "#eff6ff", borderRadius: 10, padding: "12px 14px", textAlign: "center" }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#1e40af" }}>{fmt(totalCollected)}</div>
+          <div style={{ fontSize: 11, color: "#2563eb" }}>💰 Total</div>
+        </div>
+      </div>
+      {/* Family list */}
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {rows.map((r) => (
+          <div key={r.id} style={{
+            background: r.paid > 0 ? "#f0fdf4" : "#fff",
+            border: r.paid > 0 ? "1px solid #bbf7d0" : "1px solid #fecaca",
+            borderRadius: 10, padding: "10px 14px",
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            borderLeft: r.paid > 0 ? "4px solid #22c55e" : "4px solid #ef4444",
+          }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14, color: "#1c1917" }}>{r.name}</div>
+              <div style={{ fontSize: 11, color: "#78716c" }}>{r.id} {r.phone ? "· " + r.phone : ""}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              {r.paid > 0 ? (
+                <span style={{ background: "#dcfce7", color: "#166534", padding: "4px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
+                  ✅ {fmt(r.paid)}
+                </span>
+              ) : (
+                <span style={{ background: "#fef2f2", color: "#991b1b", padding: "4px 10px", borderRadius: 20, fontSize: 12, fontWeight: 600 }}>
+                  ❌ {t("notPaid", lang)}
+                </span>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 // --- Address Report ---
 function AddressReport({ families }) {
   const lang = useLang();
