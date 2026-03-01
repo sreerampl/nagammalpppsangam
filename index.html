@@ -230,7 +230,6 @@ const T = {
   // Login
   loginTitle: { en: "Family Prayer Event Tracker", ta: "குடும்ப பிரார்த்தனை நிகழ்வு கணக்கு" },
   signInGoogle: { en: "Sign in with Google", ta: "Google மூலம் உள்நுழை" },
-  enterDemo: { en: "🎭 Enter Demo Mode", ta: "🎭 செயல்விளக்கம்" },
   loginFooter: {
     en: "Sign in with your Google account to access the event tracker. Your admin will assign your role.",
     ta: "நிகழ்வு கணக்கை அணுக உங்கள் Google கணக்கில் உள்நுழையவும். நிர்வாகி உங்கள் பங்கை வழங்குவார்."
@@ -242,12 +241,6 @@ const T = {
   },
   signOut: { en: "Sign out", ta: "வெளியேறு" },
 
-  // Demo
-  demoMode: { en: "🎭 Demo Mode — Switch role:", ta: "🎭 செயல்விளக்கம் — பங்கு மாற்று:" },
-  setupInstructions: {
-    en: "Setup Instructions (for real Google Sheets integration)",
-    ta: "அமைப்பு வழிமுறைகள் (Google Sheets இணைப்புக்கு)"
-  },
 
   // Toast messages
   toastIncome: { en: "Income recorded!", ta: "வரவு பதிவாகியது!" },
@@ -357,7 +350,7 @@ const calcDay = (dateStr, day1Date) => {
 };
 
 // --- Audit Log ---
-const logAudit = async (action, module, details, email, isDemo, setAuditLog) => {
+const logAudit = async (action, module, details, email, setAuditLog) => {
   const entry = {
     Timestamp: now(),
     User: email || "unknown",
@@ -365,10 +358,6 @@ const logAudit = async (action, module, details, email, isDemo, setAuditLog) => 
     Module: module,
     Details: details,
   };
-  // In demo mode, log locally. In real mode, backend writes audit on every action automatically.
-  if (isDemo) {
-    setAuditLog((prev) => [entry, ...prev]);
-  }
   return entry;
 };
 
@@ -469,112 +458,6 @@ class AppBackend {
   }
 }
 
-// --- DEMO / MOCK MODE ---
-// When Google credentials aren't configured, the app runs with local state
-const IS_DEMO = GOOGLE_CLIENT_ID.includes("YOUR_") || APPS_SCRIPT_URL.includes("YOUR_");
-
-function createMockData() {
-  return {
-    master: {
-      "Income Category": ["Food", "Groceries", "Membership", "Objects for Auction", "Other", "Prayer Objects", "Pulli vari", "Temple Expenses", "Vegetables"],
-      "Expense Category": ["Decorations", "Food", "Groceries", "Other", "Supplies", "Temple", "Transport", "Vegetables"],
-      "Donor Type": ["Family", "External"]
-    },
-    families: [
-      { FamilyID: "F1", FamilyName: "M.Meenachi", Phone: "87545 38295", WhatsApp: "87545 38295", Address: "Plot No. 85, 2nd Floor, AVS Main Road, Annai Nagar, Korattur, Chennai - 600 076" },
-      { FamilyID: "F2", FamilyName: "R.S.Ravi", Phone: "99413 07696", WhatsApp: "99413 07696", Address: "No. 15, Door.No 16, Chakravathi Nagar, Ayanavaram, Chennai - 600 023" },
-      { FamilyID: "F3", FamilyName: "S.Subramanian", Phone: "94432 23162", WhatsApp: "84891 18853", Address: "206/4, Pacha Road, Near Sai Baba Avenue, Kannankurchi, Salem - 636 008" },
-      { FamilyID: "F4", FamilyName: "S.Karuppiah", Phone: "63817 03436", WhatsApp: "63817 03436", Address: "No. 47. New Star City, Payasapakkam Village, Vadaperumbakkam, Redhills, Chennai - 600 060" },
-      { FamilyID: "F5", FamilyName: "C. Thillai", Phone: "90473 90442", WhatsApp: "", Address: "Sirukoodalpatti - 630 212" },
-      { FamilyID: "F6", FamilyName: "C. Nagappan", Phone: "97909 23986", WhatsApp: "97909 23985", Address: "G-3, Dakshinamurthy Flats, Flat No. 27, 3rd Link Street, Anjaneyapuram, Poonga Nagar, Kakkalur, Thiruvallur - 602 003" },
-      { FamilyID: "F7", FamilyName: "C. Ramanathan", Phone: "99625 52307", WhatsApp: "99625 52307", Address: "Flat No. 13B, A/6, Annai Theresa Street, Ganga Nagar, Kallikuppam, Chennai - 600 053" },
-      { FamilyID: "F8", FamilyName: "PL.Alamelu", Phone: "98840 72407", WhatsApp: "98840 72407", Address: "N.KR.RM.PL House, Sirukoodalpatti - 630 212" },
-      { FamilyID: "F9", FamilyName: "PL.Sreeram", Phone: "98844 72407", WhatsApp: "98844 72407", Address: "Plot No:127, 3rd Street, Astalakshmi Nagar, Varadharajapuram, Chennai - 600 048" },
-      { FamilyID: "F10", FamilyName: "PL.Arunachalam", Phone: "98840 72406", WhatsApp: "99426 48923", Address: "1/10, Pilliyar Kovil street, Kallikuppam, Chennai - 600 053" },
-      { FamilyID: "F11", FamilyName: "Dr.A.Radhakrishnan", Phone: "98842 92329", WhatsApp: "98842 92329", Address: "14-3/49-3 S1 1st Floor, Pinjala Subramanian Street, T.Nagar, Chennai - 600 017" },
-      { FamilyID: "F12", FamilyName: "A.Muthiah", Phone: "065 98526457", WhatsApp: "065 98526457", Address: "Blk 197, Bishan Street 13, #03-585, Singapore - 570197 / 30 A Krishna Nagar, KK Pudur, Coimbatore - 641038" },
-      { FamilyID: "F13", FamilyName: "M. Jagan Nagappan", Phone: "065 91833275", WhatsApp: "065 91833275", Address: "298 Bukit Batok Street 22, #08-30, Singapore - 650298" },
-      { FamilyID: "F14", FamilyName: "N. Nagappan", Phone: "99403 93280", WhatsApp: "99403 93280", Address: "2/10B, Parvathi illam, Sirukoodalpatti - 630 212" },
-      { FamilyID: "F15", FamilyName: "N.Gandhi Ramanathan", Phone: "", WhatsApp: "01 8597391016", Address: "2/10B, Parvathi illam, Sirukoodalpatti - 630 212" },
-      { FamilyID: "F16", FamilyName: "N.Narayanan", Phone: "99529 00308", WhatsApp: "99529 00308", Address: "No. 5401, Crystal Springs II, 4th Floor, Raj paris, madambakkam, Chennai - 600 126" },
-      { FamilyID: "F17", FamilyName: "N.Natarajan", Phone: "89396 52411", WhatsApp: "99627 12770", Address: "2/10B, Parvathi illam, Sirukoodalpatti - 630 212" },
-      { FamilyID: "F18", FamilyName: "R. Mohan", Phone: "91763 95176", WhatsApp: "", Address: "2/166, N.P. Illam, Sirukoodalpatti - 630 212" },
-      { FamilyID: "F19", FamilyName: "M.Ganesh", Phone: "99444 67591", WhatsApp: "", Address: "Sangeetha Hospitals, Medical Division, Kuniyamuthur, Coimbatore - 641 044" },
-      { FamilyID: "F20", FamilyName: "Tmt. Azhagu Ganesan", Phone: "93441 33274", WhatsApp: "", Address: "64/58-2, Anna Nagar, Bhakthapuri Street Backside, Kumbakonam - 612 001" },
-      { FamilyID: "F21", FamilyName: "S.Umiyal", Phone: "96771 01805", WhatsApp: "98845 18815", Address: "08/208, TNHB, 90 Flats, 1st Avenue Park Road, Anna Nagar West Extension, Chennai - 600 101" },
-      { FamilyID: "F22", FamilyName: "S.Kasiram", Phone: "98411 94314", WhatsApp: "98411 94314", Address: "08/208, TNHB, 90 Flats, 1st Avenue Park Road, Anna Nagar West Extension, Chennai - 600 101" },
-      { FamilyID: "F23", FamilyName: "S.Nagappan", Phone: "98845 18815", WhatsApp: "98845 18815", Address: "2D, RLD, Tripti, Rampoorna Nagar Extension, Melayanabakkam, Chelliamma Nagar, Chennai - 600 058" },
-      { FamilyID: "F24", FamilyName: "M. Subbiah", Phone: "99403 14871", WhatsApp: "", Address: "No. 1, Jeyathambal Street, Vijayalakshmipuram, Ambattur, Chennai - 600 053" },
-      { FamilyID: "F25", FamilyName: "M.SP. Manikkam", Phone: "98846 12821", WhatsApp: "98846 12821", Address: "No. 1, Jeyathambal Street, Vijayalakshmipuram, Ambattur, Chennai - 600 053" },
-      { FamilyID: "F26", FamilyName: "M. Swaminathan", Phone: "98400 63594", WhatsApp: "98400 63594", Address: "No. 1/3, Balaji Street, Ram Nagar, Ambattur, Chennai - 600 053" },
-      { FamilyID: "F27", FamilyName: "N.Thenappan", Phone: "99402 72945", WhatsApp: "", Address: "6/12, Maduvappar 2nd Street, Chrompet, Chennai - 600 044" },
-      { FamilyID: "F28", FamilyName: "T.Shanmugan", Phone: "86950 11535", WhatsApp: "86950 11535", Address: "A1, 1st Floor, Sahityam Apartments, 1st Main Road, East Balagi Nagar, Kallikuppam, Ambattur, Chennai - 53" },
-      { FamilyID: "F29", FamilyName: "VR. Ramanathan", Phone: "97882 25791", WhatsApp: "97882 25791", Address: "Quality illam, 11-A, Gandhi Road, Salem - 636 007" },
-      { FamilyID: "F30", FamilyName: "RM. Veerappan", Phone: "99444 62981", WhatsApp: "99444 62981", Address: "Quality illam, 11-A, Gandhi Road, Salem - 636 007" },
-      { FamilyID: "F31", FamilyName: "VR. Karuppiah", Phone: "99444 37212", WhatsApp: "99444 37212", Address: "Quality illam, 11-A, Gandhi Road, Salem - 636 007" },
-      { FamilyID: "F32", FamilyName: "KR. Valli Narayanan", Phone: "97902 30460", WhatsApp: "97902 30460", Address: "Quality illam, 11-A, Gandhi Road, Salem - 636 007" },
-      { FamilyID: "F33", FamilyName: "V.V.SP. Valliammai", Phone: "75984 65096", WhatsApp: "", Address: "201, Sankalp CBI Colony Lakshmanan Road, Perungudi, Chennai - 96" },
-      { FamilyID: "F34", FamilyName: "V.V.SP. Balasubramanian", Phone: "91718 33431", WhatsApp: "95245 91969", Address: "201, Sankalp CBI Colony Lakshmanan Road, Perungudi, Chennai - 96" },
-      { FamilyID: "F35", FamilyName: "RM. Srinivasan", Phone: "94872 77755", WhatsApp: "94872 77755", Address: "Sri Indhu Publications, New No: 100 - Canal Bank Road, East CIT Nagar, Chennai - 600 035" },
-      { FamilyID: "F36", FamilyName: "S. Viswanathan", Phone: "94440 21149", WhatsApp: "94440 21149", Address: "Sri Indhu Publications, New No: 100 - Canal Bank Road, East CIT Nagar, Chennai - 600 035" },
-      { FamilyID: "F37", FamilyName: "S.Ramanathan", Phone: "97908 03804", WhatsApp: "97908 03804", Address: "Sri Indhu Publications, New No: 100 - Canal Bank Road, East CIT Nagar, Chennai - 600 035" },
-      { FamilyID: "F38", FamilyName: "RM. Somasundaram", Phone: "93448 00249", WhatsApp: "93448 00249", Address: "Old No.6/New No.12, Masthan Ali Garden Street, Vadapalani, Chennai - 600 026" },
-      { FamilyID: "F39", FamilyName: "RM. Manickam", Phone: "94440 21661", WhatsApp: "99529 01952", Address: "Sri Indhu Publications, New No: 100 - Canal Bank Road, East CIT Nagar, Chennai - 600 035" },
-      { FamilyID: "F40", FamilyName: "RM. Nagappan", Phone: "73973 12481", WhatsApp: "93846 95571", Address: "Sri Indhu Publications, New No: 100 - Canal Bank Road, East CIT Nagar, Chennai - 600 035" },
-      { FamilyID: "F41", FamilyName: "KR.Venkitachalam", Phone: "97861 37179", WhatsApp: "", Address: "2/817 Karpaka Vinayagar Illam, Thanthai Periyar Nagar, 6th Street, Burma Colony, Karaikudi - 630 002" },
-      { FamilyID: "F42", FamilyName: "AL.Saathammai", Phone: "94428 21081", WhatsApp: "94428 21081", Address: "6-A, Perumal Street, Arisipalayam, Salem - 636 009" },
-      { FamilyID: "F43", FamilyName: "AL.Raja", Phone: "99400 71199", WhatsApp: "99400 71199", Address: "14/11 Jakkammal Kovil Street, Postal Audit Colony, Chinmaya Nagar, Chennai - 600 092" },
-      { FamilyID: "F44", FamilyName: "R.Nagappan", Phone: "061 451732752", WhatsApp: "061 451732752", Address: "Unit 6, 1A Darcbin street, Mile end South Australia 5031" },
-      { FamilyID: "F45", FamilyName: "AL.Ravi", Phone: "96774 81588", WhatsApp: "96774 81588", Address: "616, Chinnamuthan Chetty Street, Kilasevalpatti - 630 205, Sivaganga District" },
-      { FamilyID: "F46", FamilyName: "RM. Nagappan", Phone: "90033 25328", WhatsApp: "90033 25328", Address: "Sri Annapoorani Agencies, 210/2 Anna Nagar, Viralimalai Road, Manapparai - 621 306" },
-      { FamilyID: "F47", FamilyName: "RM.Sivalingam", Phone: "99659 87263", WhatsApp: "72006 32933", Address: "Naga Medical Agencies, No.13, 1st Floor, Rahmaniyapuram, Near Ram Nagar, Thillai Nagar, Trichy - 620 018" },
-      { FamilyID: "F48", FamilyName: "S.Nagappan (Mani)", Phone: "99659 87263", WhatsApp: "72006 32933", Address: "Naga Medical Agencies, No.13, 1st Floor, Rahmaniyapuram, Near Ram Nagar, Thillai Nagar, Trichy - 620 018" },
-      { FamilyID: "F49", FamilyName: "RM.Chokkalingam", Phone: "95853 77794", WhatsApp: "63798 01067", Address: "Maha Mariamman Medicals, Perumal Kovil Street, Punavasipatti, Krishnarayapuram Tk, Karur Dt, Lalapet - 639 105" },
-      { FamilyID: "F50", FamilyName: "N. Alaghamai", Phone: "99442 40204", WhatsApp: "7358307310", Address: "616, Chinnamuthan Chetty Street, Keezhachivalpatti - 630 205, Sivaganga District" },
-      { FamilyID: "F51", FamilyName: "N.Nataraja Chockalingam", Phone: "80561 77621", WhatsApp: "80561 77621", Address: "Old No.4 New No.7, Flat DG-1, badani complex, kuppiah street, west mambalam, Chennai - 33" },
-      { FamilyID: "F52", FamilyName: "N. Nagappa Valliappa", Phone: "97882 59952", WhatsApp: "97882 59952", Address: "236 A, Thiruvalluvar Salai, Muthiah Nagar, Annamalai Nagar, Chithambaram - 2" },
-    ],
-    income: [
-      { TxnID: "DON-001", Day: "1", Date: "2026-03-01", DonorType: "Family", FamilyID: "F9", DonorName: "PL.Sreeram", Category: "Membership", Amount: "5000", Description: "Annual membership", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 9:00 AM" },
-      { TxnID: "DON-002", Day: "1", Date: "2026-03-01", DonorType: "External", FamilyID: "", DonorName: "Ravi Kumar", Category: "Food", Amount: "2000", Description: "Food income", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 10:30 AM" },
-      { TxnID: "DON-003", Day: "2", Date: "2026-03-02", DonorType: "Family", FamilyID: "F1", DonorName: "M.Meenachi", Category: "Temple Expenses", Amount: "3000", Description: "", EnteredBy: "admin@example.com", Timestamp: "11/01/2025, 8:00 AM" },
-    ],
-    expenses: [
-      { TxnID: "EXP-001", Day: "1", Date: "2026-03-01", Category: "Food", Description: "Lunch provisions", Amount: "8000", Vendor: "Sri Balaji Store", EnteredBy: "admin@example.com", Timestamp: "10/01/2025, 7:00 AM" },
-      { TxnID: "EXP-002", Day: "2", Date: "2026-03-02", Category: "Decorations", Description: "Flowers and garlands", Amount: "3500", Vendor: "Flower Market", EnteredBy: "admin@example.com", Timestamp: "11/01/2025, 6:30 AM" },
-    ],
-    auction: [
-      "மஞ்சள்","மஞ்சள்","மஞ்சள்","மஞ்சள்","மஞ்சள்",
-      "உப்பு","உப்பு","உப்பு","உப்பு","உப்பு",
-      "கற்கண்டு","கற்கண்டு","கற்கண்டு","கற்கண்டு","கற்கண்டு",
-      "தேங்காய்","தேங்காய்","தேங்காய்","தேங்காய்","தேங்காய்",
-      "பாக்கு","பாக்கு","பாக்கு","பாக்கு","பாக்கு",
-      "வெல்லம்","வெல்லம்","வெல்லம்","வெல்லம்","வெல்லம்",
-      "சர்க்கரை","சர்க்கரை","சர்க்கரை","சர்க்கரை","சர்க்கரை",
-      "ஜீனி","ஜீனி","ஜீனி","ஜீனி","ஜீனி",
-      "எலுமிச்சம் பழம்","எலுமிச்சம் பழம்","எலுமிச்சம் பழம்","எலுமிச்சம் பழம்","எலுமிச்சம் பழம்",
-      "வாழைப்பழம்","வாழைப்பழம்","வாழைப்பழம்",
-    ].map((name, i) => ({
-      ItemNo: String(i + 1),
-      ItemDescription: name,
-      DonatedBy: "",
-      WinnerFamilyID: i < 3 ? ["F9", "F1", "F35"][i] : "",
-      WinnerName: i < 3 ? ["PL.Sreeram", "M.Meenachi", "RM. Srinivasan"][i] : "",
-      BidAmount: i < 3 ? [15000, 12000, 8000][i] : "",
-      EnteredBy1: i < 3 ? "admin@example.com" : "",
-      ConfirmedBy2: i < 2 ? "editor@example.com" : "",
-      Timestamp1: i < 3 ? "12/01/2025, 2:00 PM" : "",
-      Timestamp2: i < 2 ? "12/01/2025, 2:05 PM" : "",
-      Status: i < 2 ? "Confirmed" : i === 2 ? "Pending" : "",
-    })),
-    access: [
-      { Email: "admin@example.com", Role: "Admin", Name: "Admin User" },
-      { Email: "editor@example.com", Role: "Editor", Name: "Editor User" },
-      { Email: "viewer@example.com", Role: "Viewer", Name: "Viewer User" },
-    ],
-  };
-}
-
 // ============================================================
 // MAIN APP COMPONENT
 // ============================================================
@@ -617,7 +500,7 @@ function App() {
 
   // Audit helper
   const audit = (action, module, details) =>
-    logAudit(action, module, details, user?.email, IS_DEMO, setAuditLog);
+    logAudit(action, module, details, user?.email, setAuditLog);
 
   // --- Derived from Master sheet (fallback to hardcoded) ---
   const INCOME_CATS = (master["Income Category"] && master["Income Category"].length > 0) ? master["Income Category"] : INCOME_CATEGORIES;
@@ -632,7 +515,7 @@ function App() {
 
   // --- Sync offline queue ---
   const syncOfflineQueue = useCallback(async () => {
-    if (!backendRef.current || IS_DEMO) return;
+    if (!backendRef.current) return;
     const queue = getOfflineQueue();
     if (queue.length === 0) return;
     let synced = 0, failed = 0;
@@ -674,7 +557,6 @@ function App() {
 
   // Offline-aware submit: tries backend, falls back to offline queue
   const submitOrQueue = useCallback(async (action, data, successMsg) => {
-    if (IS_DEMO) return false; // demo mode handles its own state
     if (!isOnline) {
       addToOfflineQueue({ action, ...data });
       setOfflineCount(getOfflineQueue().length);
@@ -696,30 +578,7 @@ function App() {
     }
   }, [isOnline, lang, showToast]);
 
-  // --- Demo login ---
-  useEffect(() => {
-    if (IS_DEMO) {
-      // Auto-login as admin in demo mode
-      setUser({
-        email: "admin@example.com",
-        name: "Demo Admin",
-        picture: "",
-        token: null,
-      });
-      setRole("Admin");
-      const mock = createMockData();
-      setMaster(mock.master);
-      setFamilies(mock.families);
-      setIncome(mock.income);
-      setExpenses(mock.expenses);
-      setAuction(mock.auction);
-      setAccessList(mock.access);
-      setAuditLog([{ Timestamp: now(), User: "admin@example.com", Action: "LOGIN", Module: "Auth", Details: "Demo Admin logged in" }]);
-      setLoading(false);
-    }
-  }, []);
-
-  // --- Google Sign-In (real mode) ---
+  // --- Google Sign-In ---
   const googleReadyRef = useRef(false);
   
   const initGoogle = useCallback(() => {
@@ -736,7 +595,6 @@ function App() {
   }, []);
 
   useEffect(() => {
-    if (IS_DEMO) return;
     if (window.google && window.google.accounts) {
       initGoogle();
       return;
@@ -815,12 +673,6 @@ function App() {
     }
   };
 
-  const handleDemoRoleSwitch = (newRole) => {
-    const emailMap = { Admin: "admin@example.com", Editor: "editor@example.com", Viewer: "viewer@example.com" };
-    setRole(newRole);
-    setUser({ email: emailMap[newRole], name: `Demo ${newRole}`, picture: "", token: null });
-  };
-
   const logout = () => {
     audit("LOGOUT", "Auth", `${user?.name || user?.email} logged out`);
     setUser(null);
@@ -828,7 +680,7 @@ function App() {
     setActiveTab("dashboard");
   };
 
-  // --- Data operations (local for demo, Apps Script for real) ---
+  // --- Data operations ---
   const addIncome = async (income) => {
     const row = {
       TxnID: generateId("DON"),
@@ -844,9 +696,7 @@ function App() {
       EnteredBy: user.email,
       Timestamp: now(),
     };
-    if (!IS_DEMO) {
-      await backendRef.current.post("addIncome", income);
-    }
+    await backendRef.current.post("addIncome", income);
     setIncome((prev) => [...prev, row]);
 
     // Auto-add to auction if category is "Objects for Auction"
@@ -892,9 +742,7 @@ function App() {
       Timestamp2: "",
       Status: "",
     };
-    if (!IS_DEMO) {
-      await backendRef.current.post("addAuctionItem", item);
-    }
+    await backendRef.current.post("addAuctionItem", item);
     setAuction((prev) => [...prev, row]);
     showToast(t("toastItemAdded", lang));
     audit("CREATE", "Auction", `Manual add #${row.ItemNo} "${item.itemName}"${item.donatedBy ? ` by ${item.donatedBy}` : ""}`);
@@ -914,9 +762,7 @@ function App() {
       EnteredBy: user.email,
       Timestamp: now(),
     };
-    if (!IS_DEMO) {
-      await backendRef.current.post("addExpense", expense);
-    }
+    await backendRef.current.post("addExpense", expense);
     setExpenses((prev) => [...prev, row]);
     showToast(t("toastExpense", lang));
     audit("CREATE", "Expenses", `${row.TxnID} ₹${row.Amount} ${row.Category} - ${row.Description}`);
@@ -931,9 +777,7 @@ function App() {
       WhatsApp: family.whatsApp || "",
       Address: family.address,
     };
-    if (!IS_DEMO) {
-      await backendRef.current.post("addFamily", family);
-    }
+    await backendRef.current.post("addFamily", family);
     setFamilies((prev) => [...prev, row]);
     showToast(t("toastFamily", lang));
     audit("CREATE", "Families", `${row.FamilyID} ${row.FamilyName}`);
@@ -942,9 +786,7 @@ function App() {
 
   // ---- EDIT / DELETE INCOME (Admin only) ----
   const editIncome = async (txnId, income) => {
-    if (!IS_DEMO) {
-      await backendRef.current.post("editIncome", { ...income, txnId });
-    }
+    await backendRef.current.post("editIncome", { ...income, txnId });
     setIncome((prev) =>
       prev.map((d) =>
         d.TxnID === txnId
@@ -970,9 +812,7 @@ function App() {
   };
 
   const deleteIncome = async (txnId) => {
-    if (!IS_DEMO) {
-      await backendRef.current.post("deleteIncome", { txnId });
-    }
+    await backendRef.current.post("deleteIncome", { txnId });
     setIncome((prev) => prev.filter((d) => d.TxnID !== txnId));
     showToast(t("deleted", lang));
     audit("DELETE", "Income", `${txnId} deleted`);
@@ -980,9 +820,7 @@ function App() {
 
   // ---- EDIT / DELETE EXPENSES (Admin only) ----
   const editExpense = async (txnId, expense) => {
-    if (!IS_DEMO) {
-      await backendRef.current.post("editExpense", { ...expense, txnId });
-    }
+    await backendRef.current.post("editExpense", { ...expense, txnId });
     setExpenses((prev) =>
       prev.map((e) =>
         e.TxnID === txnId
@@ -1006,9 +844,7 @@ function App() {
   };
 
   const deleteExpense = async (txnId) => {
-    if (!IS_DEMO) {
-      await backendRef.current.post("deleteExpense", { txnId });
-    }
+    await backendRef.current.post("deleteExpense", { txnId });
     setExpenses((prev) => prev.filter((e) => e.TxnID !== txnId));
     showToast(t("deleted", lang));
     audit("DELETE", "Expenses", `${txnId} deleted`);
@@ -1035,9 +871,7 @@ function App() {
       return;
     }
     updated[itemIndex] = item;
-    if (!IS_DEMO) {
-      await backendRef.current.post("enterBid", { ...bid, rowIndex: itemIndex });
-    }
+    await backendRef.current.post("enterBid", { ...bid, rowIndex: itemIndex });
     setAuction(updated);
     if (item.Status === "Confirmed") {
       showToast(t("toastBidConfirm", lang));
@@ -1068,17 +902,7 @@ function App() {
   // ============================================================
 
   if (loading) return <LangContext.Provider value={lang}><LoadingScreen /></LangContext.Provider>;
-  if (!user) return <LangContext.Provider value={lang}><LoginScreen lang={lang} setLang={setLang} onDemoLogin={() => {
-    setUser({ email: "admin@example.com", name: "Demo Admin", picture: "", token: null });
-    setRole("Admin");
-    const mock = createMockData();
-    setMaster(mock.master);
-    setFamilies(mock.families);
-    setIncome(mock.income);
-    setExpenses(mock.expenses);
-    setAuction(mock.auction);
-    setAccessList(mock.access);
-  }} /></LangContext.Provider>;
+  if (!user) return <LangContext.Provider value={lang}><LoginScreen lang={lang} setLang={setLang} /></LangContext.Provider>;
   if (!role) return <LangContext.Provider value={lang}><NoAccessScreen email={user.email} onLogout={logout} error={error} /></LangContext.Provider>;
 
   return (
@@ -1121,24 +945,7 @@ function App() {
             <button onClick={logout} style={styles.logoutBtn}>↗</button>
           </div>
         </div>
-        {IS_DEMO && (
-          <div style={styles.demoBanner}>
-            <span>{t("demoMode", lang)} </span>
-            {["Admin", "Editor", "Viewer"].map((r) => (
-              <button
-                key={r}
-                onClick={() => handleDemoRoleSwitch(r)}
-                style={{
-                  ...styles.demoRoleBtn,
-                  background: role === r ? "#fff" : "transparent",
-                  color: role === r ? "#b45309" : "#fff",
-                }}
-              >
-                {r}
-              </button>
-            ))}
-          </div>
-        )}
+
       </header>
 
       {/* Live Date/Time Bar */}
@@ -1314,8 +1121,7 @@ function App() {
         ))}
       </nav>
 
-      {/* Setup Instructions (shown once in demo) */}
-      {IS_DEMO && activeTab === "dashboard" && <SetupInstructions />}
+
     </div>
     </LangContext.Provider>
   );
@@ -1354,9 +1160,8 @@ function LiveClock({ lang }) {
   );
 }
 
-function LoginScreen({ onDemoLogin, lang, setLang }) {
+function LoginScreen({ lang, setLang }) {
   useEffect(() => {
-    if (IS_DEMO) return;
     let rendered = false;
     let interval;
     const tryRender = () => {
@@ -1394,15 +1199,9 @@ function LoginScreen({ onDemoLogin, lang, setLang }) {
         <h1 style={styles.loginTitle}>குடும்ப பிரார்த்தனை</h1>
         <p style={styles.loginSubtitle}>{t("loginTitle", lang)}</p>
         <div style={styles.loginDivider} />
-        {!IS_DEMO ? (
-          <div style={{ marginTop: 24 }}>
+        <div style={{ marginTop: 24 }}>
             <div id="g-signin-btn" style={{ display: "flex", justifyContent: "center", minHeight: 44 }} />
           </div>
-        ) : (
-          <button onClick={onDemoLogin} style={styles.googleBtn}>
-            {t("enterDemo", lang)}
-          </button>
-        )}
         <p style={styles.loginFooter}>
           {t("loginFooter", lang)}
         </p>
@@ -1822,7 +1621,7 @@ function AuctionView({ auction, families, canEdit, isAdmin, email, onBid, onAddI
       try {
         setUploadingPhoto(itemNo);
         const base64 = await compressImage(file, 600, 0.5);
-        if (backend && !IS_DEMO) {
+        if (backend) {
           await backend.post("uploadAuctionPhoto", { itemNo, photo: base64 });
         }
         // Update local state
@@ -3228,45 +3027,6 @@ function AuctionBalanceSheet({ auction, families, income, expenses, totalIncome,
 }
 
 // ============================================================
-// SETUP INSTRUCTIONS
-// ============================================================
-
-function SetupInstructions() {
-  const [open, setOpen] = useState(false);
-  return (
-    <div style={styles.setupBox}>
-      <button onClick={() => setOpen(!open)} style={styles.setupToggle}>
-        {open ? "▾" : "▸"} Setup Instructions (for real Google Sheets integration)
-      </button>
-      {open && (
-        <div style={styles.setupContent}>
-          <p><strong>Step 1:</strong> Go to <em>Google Cloud Console</em> → Create project → Enable <em>Google Sheets API</em> and <em>Google Identity Services</em>.</p>
-          <p><strong>Step 2:</strong> Create OAuth 2.0 credentials (Web application). Add your domain to authorized origins. Copy the <strong>Client ID</strong>.</p>
-          <p><strong>Step 3:</strong> Upload the provided Excel template to Google Drive and open as Google Sheets. It has these tabs pre-configured:</p>
-          <ul style={{ margin: "8px 0", paddingLeft: 20 }}>
-            <li><strong>Families</strong> — FamilyID, FamilyName, Phone, WhatsApp, Address</li>
-            <li><strong>Income</strong> — TxnID, Year, Day, Date, DonorType, FamilyID, DonorName, Category, Amount, Description, EnteredBy, Timestamp</li>
-            <li><strong>Expenses</strong> — TxnID, Year, Day, Date, Category, Description, Amount, Vendor, EnteredBy, Timestamp</li>
-            <li><strong>Auction</strong> — ItemNo, ItemDescription, DonatedBy, WinnerFamilyID, WinnerName, BidAmount, EnteredBy1, ConfirmedBy2, Timestamp1, Timestamp2, Status</li>
-            <li><strong>Ledger</strong> — Year, OpeningBalance, TotalIncome, TotalAuction, TotalExpenses, ClosingBalance</li>
-            <li><strong>AccessControl</strong> — Email, Role, Name</li>
-            <li><strong>AuditLog</strong> — Timestamp, User, Action, Module, Details</li>
-          </ul>
-          <p><strong>Step 4:</strong> In the <strong>AccessControl</strong> sheet, add your Google email with Role = Admin.</p>
-          <p><strong>Step 5:</strong> In the <strong>Auction</strong> sheet, review the 48 pre-filled items. Add or remove as needed.</p>
-          <p><strong>Step 6:</strong> Go to <strong>Extensions → Apps Script</strong>, paste the backend code (Code.gs), and deploy as Web App.</p>
-          <p><strong>Step 7:</strong> Replace the 2 constants at the top of this code: <code>GOOGLE_CLIENT_ID</code> and <code>APPS_SCRIPT_URL</code>.</p>
-          <p style={{ marginTop: 12, color: "#b45309" }}>
-            <strong>💡 Tip:</strong> No API key or Spreadsheet ID needed. The Apps Script backend handles all data access securely.
-            The Google Sheet stays private — only you can see it in Drive.
-          </p>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ============================================================
 // AUDIT LOG VIEW (Admin only)
 // ============================================================
 function AuditLogView({ entries }) {
@@ -3409,25 +3169,6 @@ const styles = {
     alignItems: "center",
     justifyContent: "center",
   },
-  demoBanner: {
-    background: "rgba(180,83,9,0.9)",
-    padding: "6px 16px",
-    fontSize: 11,
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    fontFamily: "'Outfit', sans-serif",
-    flexWrap: "wrap",
-  },
-  demoRoleBtn: {
-    border: "1px solid rgba(255,255,255,0.4)",
-    padding: "2px 10px",
-    borderRadius: 12,
-    fontSize: 10,
-    cursor: "pointer",
-    fontWeight: 600,
-  },
-
   // Toast
   toast: {
     position: "fixed",
@@ -3996,34 +3737,6 @@ const styles = {
     color: "#a8a29e",
     padding: 32,
     fontSize: 14,
-    fontFamily: "'Outfit', sans-serif",
-  },
-
-  // Setup
-  setupBox: {
-    margin: "16px",
-    background: "#fff",
-    border: "1px solid #e7e5e4",
-    borderRadius: 10,
-    overflow: "hidden",
-  },
-  setupToggle: {
-    width: "100%",
-    background: "none",
-    border: "none",
-    padding: "12px 14px",
-    textAlign: "left",
-    fontSize: 13,
-    fontWeight: 600,
-    color: "#57534e",
-    cursor: "pointer",
-    fontFamily: "'Outfit', sans-serif",
-  },
-  setupContent: {
-    padding: "0 14px 14px",
-    fontSize: 12,
-    lineHeight: 1.7,
-    color: "#57534e",
     fontFamily: "'Outfit', sans-serif",
   },
 
