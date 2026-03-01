@@ -788,6 +788,7 @@ function App() {
       const api = backendRef.current;
       const result = await api.loadAll();
       setMaster(result.master || {});
+      console.log("📋 Master data received:", JSON.stringify(result.master));
       setFamilies(result.families || []);
       setDonations(result.income || []);
       setExpenses(result.expenses || []);
