@@ -2371,7 +2371,9 @@ function EditExpenseForm({ item, categories, onSubmit, onClose, day1Date }) {
       <button
         onClick={() => { if (!saving && autoDay && form.description && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
         style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: (saving || !autoDay) ? 0.6 : 1 }}
-        disabled={saving || !autoDay || !form.description || !form.amount}        {saving ? "⏳ Updating..." : t("updateExpense", lang)}
+        disabled={saving || !autoDay || !form.description || !form.amount}
+      >
+        {saving ? "⏳ Updating..." : t("updateExpense", lang)}
       </button>
     </Modal>
   );
