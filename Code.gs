@@ -107,6 +107,12 @@ function handleRequest(e) {
       case "deleteExpense":
         return requireRole(userRole, "Admin", function() { return handleDeleteExpense(params.data, email); });
 
+      case "saveEventConfig":
+        return requireRole(userRole, "Admin", function() { return handleSaveEventConfig(params.data, email); });
+
+      case "seedAuctionItems":
+        return requireRole(userRole, "Admin", function() { return handleSeedAuctionItems(params.data, email); });
+
       default:
         return jsonResponse({ success: false, error: "Unknown action: " + action });
     }
@@ -579,6 +585,104 @@ function jsonResponse(obj) {
   return ContentService
     .createTextOutput(JSON.stringify(obj))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ============================================================
+// SAVE EVENT CONFIG (Ledger year + Day1 date)
+// ============================================================
+
+function handleSaveEventConfig(data, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.LEDGER);
+  if (!sheet) throw new Error("Ledger sheet not found");
+
+  var year = String(data.year);
+  var day1 = String(data.day1);
+
+  var rows = sheet.getDataRange().getValues();
+  var headers = rows[0];
+  var yearCol = headers.indexOf("Year");
+  var day1Col = headers.indexOf("Day1");
+
+  if (yearCol === -1 || day1Col === -1) throw new Error("Ledger sheet missing Year or Day1 columns");
+
+  // Find existing row for this year
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][yearCol]) === year) {
+      // Update existing row
+      sheet.getRange(i + 1, day1Col + 1).setValue(day1);
+      writeAudit("UPDATE", "Ledger", "Updated Day1 for " + year + " to " + day1, email);
+      return jsonResponse({ success: true, data: { year: year, day1: day1 } });
+    }
+  }
+
+  // Create new row
+  var newRow = [];
+  for (var c = 0; c < headers.length; c++) {
+    if (c === yearCol) newRow.push(Number(year));
+    else if (c === day1Col) newRow.push(day1);
+    else newRow.push("");
+  }
+  sheet.appendRow(newRow);
+  writeAudit("CREATE", "Ledger", "Created entry for " + year + " Day1=" + day1, email);
+  return jsonResponse({ success: true, data: { year: year, day1: day1 } });
+}
+
+// ============================================================
+// SEED STANDARD AUCTION ITEMS (48 items per year)
+// ============================================================
+
+function handleSeedAuctionItems(data, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.AUCTION);
+  if (!sheet) throw new Error("Auction sheet not found");
+
+  var year = String(data.year || new Date().getFullYear());
+
+  // Check if items already exist for this year
+  var existing = sheet.getDataRange().getValues();
+  var headers = existing[0];
+  var yearCol = headers.indexOf("Year");
+  var count = 0;
+  for (var i = 1; i < existing.length; i++) {
+    if (String(existing[i][yearCol]) === year) count++;
+  }
+  if (count > 0) {
+    return jsonResponse({ success: false, error: "Auction items already exist for " + year + " (" + count + " items). Delete them first to re-seed." });
+  }
+
+  // Standard 48 items
+  var items = [
+    { name: "\u0BAE\u0B9E\u0BCD\u0B9A\u0BB3\u0BCD", qty: 5 },
+    { name: "\u0B89\u0BAA\u0BCD\u0BAA\u0BC1", qty: 5 },
+    { name: "\u0B95\u0BB1\u0BCD\u0B95\u0BA3\u0BCD\u0B9F\u0BC1", qty: 5 },
+    { name: "\u0BA4\u0BC7\u0B99\u0BCD\u0B95\u0BBE\u0BAF\u0BCD", qty: 5 },
+    { name: "\u0BAA\u0BBE\u0B95\u0BCD\u0B95\u0BC1", qty: 5 },
+    { name: "\u0BB5\u0BC6\u0BB2\u0BCD\u0BB2\u0BAE\u0BCD", qty: 5 },
+    { name: "\u0B9A\u0BB0\u0BCD\u0B95\u0BCD\u0B95\u0BB0\u0BC8", qty: 5 },
+    { name: "\u0B9C\u0BC0\u0BA9\u0BBF", qty: 5 },
+    { name: "\u0B8E\u0BB2\u0BC1\u0BAE\u0BBF\u0B9A\u0BCD\u0B9A\u0BAE\u0BCD \u0BAA\u0BB4\u0BAE\u0BCD", qty: 5 },
+    { name: "\u0BB5\u0BBE\u0BB4\u0BC8\u0BAA\u0BCD\u0BAA\u0BB4\u0BAE\u0BCD", qty: 3 }
+  ];
+
+  var startItemNo = sheet.getLastRow(); // header = row 1
+  var itemNo = startItemNo;
+  var rows = [];
+  for (var j = 0; j < items.length; j++) {
+    for (var k = 0; k < items[j].qty; k++) {
+      // Row: ItemNo, Year, ItemDescription, DonatedBy, WinnerFamilyID, WinnerName, BidAmount, EnteredBy1, Timestamp1, ConfirmedBy2, Timestamp2, Status
+      rows.push([itemNo, year, items[j].name, "", "", "", "", "", "", "", "", ""]);
+      itemNo++;
+    }
+  }
+
+  // Bulk append
+  if (rows.length > 0) {
+    sheet.getRange(startItemNo + 1, 1, rows.length, rows[0].length).setValues(rows);
+  }
+
+  writeAudit("CREATE", "Auction", "Seeded " + rows.length + " standard items for " + year, email);
+  return jsonResponse({ success: true, data: { count: rows.length, year: year } });
 }
 
 // ============================================================

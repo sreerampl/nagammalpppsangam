@@ -199,6 +199,15 @@ const T = {
   openingBalance: { en: "Opening Balance", ta: "தொடக்க இருப்பு" },
   closingBalance: { en: "Closing Balance", ta: "இறுதி இருப்பு" },
   noLedgerData: { en: "No historical data yet. Add year-end summaries in the Ledger sheet.", ta: "வரலாற்றுத் தரவு இல்லை. லெட்ஜர் தாளில் ஆண்டு இறுதிச் சுருக்கங்களைச் சேர்க்கவும்." },
+  eventNotConfigured: { en: "Event not configured for this year", ta: "இந்த ஆண்டுக்கான நிகழ்வு உள்ளமைக்கப்படவில்லை" },
+  configureEvent: { en: "Configure Event", ta: "நிகழ்வை உள்ளமை" },
+  eventSetup: { en: "Event Setup", ta: "நிகழ்வு அமைப்பு" },
+  day1Date: { en: "Day 1 Date (Event Start)", ta: "நாள் 1 தேதி (நிகழ்வு தொடக்கம்)" },
+  saveConfig: { en: "Save Configuration", ta: "உள்ளமைவைச் சேமி" },
+  eventConfigured: { en: "Event configured successfully!", ta: "நிகழ்வு வெற்றிகரமாக உள்ளமைக்கப்பட்டது!" },
+  pleaseConfigureEvent: { en: "Please ask an Admin to configure the event dates for this year.", ta: "இந்த ஆண்டுக்கான நிகழ்வு தேதிகளை உள்ளமைக்க நிர்வாகியிடம் கேளுங்கள்." },
+  seedAuctionItems: { en: "Also create 48 standard auction items", ta: "48 நிலையான ஏல பொருட்களையும் உருவாக்கு" },
+  auctionSeeded: { en: "auction items created!", ta: "ஏல பொருட்கள் உருவாக்கப்பட்டன!" },
   currentYearLive: { en: "(Live)", ta: "(நேரடி)" },
   growth: { en: "Growth", ta: "வளர்ச்சி" },
   familyAddressDir: { en: "Family Address Directory", ta: "குடும்ப முகவரி அடைவு" },
@@ -324,9 +333,7 @@ const SHEETS = {
 const INCOME_CATEGORIES = INCOME_CATEGORIES_EN;
 const EXPENSE_CATEGORIES = EXPENSE_CATEGORIES_EN;
 
-// --- Utility: Generate IDs ---
-const generateId = (prefix) =>
-  `${prefix}-${Date.now().toString(36).toUpperCase()}`;
+// --- Utility: Formatting ---
 const formatCurrency = (amt) =>
   new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -472,6 +479,20 @@ function App() {
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [offlineCount, setOfflineCount] = useState(getOfflineQueue().length);
+
+  // Derive Day1 date from Ledger for current year
+  const currentLedgerEntry = (ledger || []).find((r) => String(r.Year) === String(currentYear));
+  const day1Date = (() => {
+    if (!currentLedgerEntry || !currentLedgerEntry.Day1) return "";
+    const raw = String(currentLedgerEntry.Day1).trim();
+    if (!raw) return "";
+    // Try ISO format first (2026-02-16)
+    if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.split("T")[0];
+    // Parse any date string via Date constructor
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return "";
+    return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  })();
 
   const backendRef = useRef(null);
 
@@ -643,8 +664,9 @@ function App() {
   const addIncome = async (income) => {
     setBusy(true);
     try {
+      const result = await backendRef.current.post("addIncome", income);
       const row = {
-        TxnID: generateId("DON"),
+        TxnID: result.txnId,
         Year: income.year || String(new Date().getFullYear()),
         Day: income.day,
         Date: income.date || todayISO(),
@@ -657,7 +679,6 @@ function App() {
         EnteredBy: user.email,
         Timestamp: now(),
       };
-      await backendRef.current.post("addIncome", income);
       setIncome((prev) => [...prev, row]);
 
       // Auto-add to auction if category is "Objects for Auction"
@@ -720,8 +741,9 @@ function App() {
   const addExpense = async (expense) => {
     setBusy(true);
     try {
+      const result = await backendRef.current.post("addExpense", expense);
       const row = {
-        TxnID: generateId("EXP"),
+        TxnID: result.txnId,
         Year: expense.year || String(new Date().getFullYear()),
         Day: expense.day,
         Date: expense.date || todayISO(),
@@ -732,7 +754,6 @@ function App() {
         EnteredBy: user.email,
         Timestamp: now(),
       };
-      await backendRef.current.post("addExpense", expense);
       setExpenses((prev) => [...prev, row]);
       showToast(t("toastExpense", lang));
       setShowForm(null);
@@ -746,14 +767,14 @@ function App() {
   const addFamily = async (family) => {
     setBusy(true);
     try {
+      const result = await backendRef.current.post("addFamily", family);
       const row = {
-        FamilyID: generateId("FAM"),
+        FamilyID: result.familyId,
         FamilyName: family.familyName,
         Phone: family.phone,
         WhatsApp: family.whatsApp || "",
         Address: family.address,
       };
-      await backendRef.current.post("addFamily", family);
       setFamilies((prev) => [...prev, row]);
       showToast(t("toastFamily", lang));
       setShowForm(null);
@@ -891,6 +912,45 @@ function App() {
     }
   };
 
+  // Save event configuration (Year + Day1 date) to Ledger
+  const saveEventConfig = async (config) => {
+    setBusy(true);
+    try {
+      await backendRef.current.post("saveEventConfig", config);
+      // Update ledger state locally
+      setLedger((prev) => {
+        const exists = prev.findIndex((r) => String(r.Year) === String(config.year));
+        if (exists >= 0) {
+          const updated = [...prev];
+          updated[exists] = { ...updated[exists], Day1: config.day1 };
+          return updated;
+        }
+        return [...prev, { Year: config.year, Day1: config.day1 }];
+      });
+      showToast(t("eventConfigured", lang));
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Seed standard 48 auction items for a year
+  const seedAuctionItems = async (year) => {
+    setBusy(true);
+    try {
+      const result = await backendRef.current.post("seedAuctionItems", { year });
+      showToast(result.count + " " + t("auctionSeeded", lang));
+      // Reload data to get the new items
+      const fresh = await backendRef.current.post("loadAll");
+      if (fresh.auction) setAuction(fresh.auction);
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // --- Computed values (filtered by selected year) ---
   const yearStr = String(currentYear);
   const yearIncome = income.filter((d) => String(d.Year) === yearStr);
@@ -997,6 +1057,16 @@ function App() {
 
       {/* Main Content */}
       <main style={styles.main}>
+        {/* Event Setup Banner - show if no Day1 for current year */}
+        {!day1Date && (
+          <EventSetupBanner
+            currentYear={currentYear}
+            isAdmin={isAdmin}
+            onSave={saveEventConfig}
+            onSeedAuction={seedAuctionItems}
+            lang={lang}
+          />
+        )}
         {activeTab === "dashboard" && (
           <Dashboard
             totalIncome={totalIncome}
@@ -1022,6 +1092,7 @@ function App() {
             lang={lang}
             categories={INCOME_CATS}
             donorTypes={DONOR_TYPES}
+            day1Date={day1Date}
           />
         )}
         {activeTab === "expenses" && (
@@ -1035,6 +1106,7 @@ function App() {
             showToast={showToast}
             lang={lang}
             categories={EXPENSE_CATS}
+            day1Date={day1Date}
           />
         )}
         {activeTab === "auction" && (
@@ -1091,6 +1163,7 @@ function App() {
           onClose={() => setShowForm(null)}
           categories={INCOME_CATS}
           donorTypes={DONOR_TYPES}
+          day1Date={day1Date}
         />
       )}
       {showForm === "expense" && (
@@ -1098,6 +1171,7 @@ function App() {
           onSubmit={addExpense}
           onClose={() => setShowForm(null)}
           categories={EXPENSE_CATS}
+          day1Date={day1Date}
         />
       )}
       {showForm === "family" && (
@@ -1393,7 +1467,7 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
 // INCOME VIEW
 // ============================================================
 
-function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelete, showToast, lang: propLang, categories, donorTypes }) {
+function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelete, showToast, lang: propLang, categories, donorTypes, day1Date }) {
   const lang = useLang();
   const [editingItem, setEditingItem] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -1495,6 +1569,7 @@ function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelet
           donorTypes={donorTypes}
           onSubmit={(formData) => { onEdit(editingItem.TxnID, formData); setEditingItem(null); }}
           onClose={() => setEditingItem(null)}
+          day1Date={day1Date}
         />
       )}
     </div>
@@ -1505,7 +1580,7 @@ function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelet
 // EXPENSES VIEW
 // ============================================================
 
-function ExpensesView({ expenses, canEdit, isAdmin, onAdd, onEdit, onDelete, showToast, lang: propLang, categories }) {
+function ExpensesView({ expenses, canEdit, isAdmin, onAdd, onEdit, onDelete, showToast, lang: propLang, categories, day1Date }) {
   const lang = useLang();
   const [editingItem, setEditingItem] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -1599,6 +1674,7 @@ function ExpensesView({ expenses, canEdit, isAdmin, onAdd, onEdit, onDelete, sho
           categories={categories}
           onSubmit={(formData) => { onEdit(editingItem.TxnID, formData); setEditingItem(null); }}
           onClose={() => setEditingItem(null)}
+          day1Date={day1Date}
         />
       )}
     </div>
@@ -2058,16 +2134,116 @@ function FamiliesView({ families, isAdmin, canEdit, onAdd, showToast, lang: prop
 // ============================================================
 
 // ============================================================
+// ============================================================
+// DAY BADGE (read-only, auto-calculated from date)
+// ============================================================
+function DayBadge({ day, lang }) {
+  const colors = { "1": "#16a34a", "2": "#2563eb", "3": "#9333ea" };
+  const label = day === "1" ? t("day1", lang) : day === "2" ? t("day2", lang) : t("day3", lang);
+  return (
+    <div style={{
+      background: colors[day] || "#78716c",
+      color: "#fff",
+      borderRadius: 8,
+      padding: "8px 16px",
+      fontWeight: 700,
+      fontSize: 14,
+      textAlign: "center",
+      minWidth: 60,
+      marginBottom: 2,
+      whiteSpace: "nowrap",
+    }}>
+      {label}
+    </div>
+  );
+}
+
+// ============================================================
+// EVENT SETUP BANNER (shown when no Ledger entry for current year)
+// ============================================================
+function EventSetupBanner({ currentYear, isAdmin, onSave, onSeedAuction, lang }) {
+  const [showSetup, setShowSetup] = useState(false);
+  const [day1, setDay1] = useState("");
+  const [seedAuction, setSeedAuction] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  if (!isAdmin) {
+    return (
+      <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 12, padding: 16, marginBottom: 16, textAlign: "center" }}>
+        <p style={{ margin: 0, color: "#92400e", fontWeight: 600 }}>⚠️ {t("eventNotConfigured", lang)} ({currentYear})</p>
+        <p style={{ margin: "8px 0 0", color: "#a16207", fontSize: 13 }}>{t("pleaseConfigureEvent", lang)}</p>
+      </div>
+    );
+  }
+
+  if (!showSetup) {
+    return (
+      <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 12, padding: 16, marginBottom: 16, textAlign: "center" }}>
+        <p style={{ margin: 0, color: "#92400e", fontWeight: 600 }}>⚠️ {t("eventNotConfigured", lang)} ({currentYear})</p>
+        <button
+          onClick={() => setShowSetup(true)}
+          style={{ marginTop: 10, background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontWeight: 600, fontSize: 14, cursor: "pointer" }}
+        >
+          🛠️ {t("configureEvent", lang)}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: "#fffbeb", border: "1px solid #f59e0b", borderRadius: 12, padding: 16, marginBottom: 16 }}>
+      <h3 style={{ margin: "0 0 12px", color: "#92400e", fontSize: 16 }}>🛠️ {t("eventSetup", lang)} — {currentYear}</h3>
+      <label style={{ display: "block", marginBottom: 12, fontWeight: 600, color: "#78716c", fontSize: 13 }}>
+        {t("day1Date", lang)}
+        <input
+          type="date"
+          value={day1}
+          onChange={(e) => setDay1(e.target.value)}
+          style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", borderRadius: 8, border: "1px solid #d6d3d1", fontSize: 14, boxSizing: "border-box" }}
+        />
+      </label>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, fontSize: 13, color: "#57534e", cursor: "pointer" }}>
+        <input type="checkbox" checked={seedAuction} onChange={(e) => setSeedAuction(e.target.checked)} style={{ width: 18, height: 18 }} />
+        {t("seedAuctionItems", lang)}
+      </label>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={async () => {
+            if (!day1 || saving) return;
+            setSaving(true);
+            await onSave({ year: String(currentYear), day1: day1 });
+            if (seedAuction) {
+              await onSeedAuction(String(currentYear));
+            }
+            setSaving(false);
+            setShowSetup(false);
+          }}
+          style={{ flex: 1, background: "#16a34a", color: "#fff", border: "none", borderRadius: 8, padding: "10px 0", fontWeight: 600, fontSize: 14, cursor: "pointer", opacity: (!day1 || saving) ? 0.5 : 1 }}
+          disabled={!day1 || saving}
+        >
+          {saving ? "⏳..." : "✓ " + t("saveConfig", lang)}
+        </button>
+        <button
+          onClick={() => setShowSetup(false)}
+          style={{ padding: "10px 16px", background: "#e7e5e4", border: "none", borderRadius: 8, fontSize: 14, cursor: "pointer" }}
+        >
+          ✕
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
 // EDIT INCOME FORM (Admin only - pre-filled)
 // ============================================================
-function EditIncomeForm({ item, families, categories, donorTypes, onSubmit, onClose }) {
+function EditIncomeForm({ item, families, categories, donorTypes, onSubmit, onClose, day1Date }) {
   const lang = useLang();
   const [saving, setSaving] = useState(false);
   const cats = categories && categories.length > 0 ? categories : INCOME_CATEGORIES;
   const dtypes = donorTypes && donorTypes.length > 0 ? donorTypes : ["Family", "External"];
   const [form, setForm] = useState({
     date: item.Date || todayISO(),
-    day: item.Day || "1",
     donorType: item.DonorType || dtypes[0],
     familyId: item.FamilyID || "",
     donorName: item.DonorName || "",
@@ -2076,21 +2252,18 @@ function EditIncomeForm({ item, families, categories, donorTypes, onSubmit, onCl
     description: item.Description || "",
   });
   const formYear = form.date ? form.date.split("-")[0] : String(new Date().getFullYear());
+  const autoDay = calcDay(form.date, day1Date);
   const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
   return (
     <Modal title={t("editIncome", lang)} onClose={onClose}>
       <div style={styles.formGrid}>
-        <label style={styles.label}>{t("date", lang)}
-          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
-        </label>
-        <label style={styles.label}>{t("day", lang)}
-          <select value={form.day} onChange={(e) => set("day", e.target.value)} style={styles.input}>
-            <option value="1">{t("day1", lang)}</option>
-            <option value="2">{t("day2", lang)}</option>
-            <option value="3">{t("day3", lang)}</option>
-          </select>
-        </label>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+          <label style={{ ...styles.label, flex: 1 }}>{t("date", lang)}
+            <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
+          </label>
+          <DayBadge day={autoDay} lang={lang} />
+        </div>
         <label style={styles.label}>{t("donorType", lang)}
           <select value={form.donorType} onChange={(e) => set("donorType", e.target.value)} style={styles.input}>
             {dtypes.map((tp) => <option key={tp} value={tp}>{tp === "Family" ? t("family", lang) : tp === "External" ? t("external", lang) : tp}</option>)}
@@ -2120,7 +2293,7 @@ function EditIncomeForm({ item, families, categories, donorTypes, onSubmit, onCl
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && form.donorName && form.amount) { setSaving(true); onSubmit({ ...form, year: formYear }); } }}
+        onClick={() => { if (!saving && form.donorName && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
         style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: saving ? 0.6 : 1 }}
         disabled={saving || !form.donorName || !form.amount}
       >
@@ -2133,34 +2306,30 @@ function EditIncomeForm({ item, families, categories, donorTypes, onSubmit, onCl
 // ============================================================
 // EDIT EXPENSE FORM (Admin only - pre-filled)
 // ============================================================
-function EditExpenseForm({ item, categories, onSubmit, onClose }) {
+function EditExpenseForm({ item, categories, onSubmit, onClose, day1Date }) {
   const lang = useLang();
   const [saving, setSaving] = useState(false);
   const cats = categories && categories.length > 0 ? categories : EXPENSE_CATEGORIES;
   const [form, setForm] = useState({
     date: item.Date || todayISO(),
-    day: item.Day || "1",
     category: item.Category || cats[0],
     description: item.Description || "",
     amount: String(item.Amount || ""),
     vendor: item.Vendor || "",
   });
   const formYear = form.date ? form.date.split("-")[0] : String(new Date().getFullYear());
+  const autoDay = calcDay(form.date, day1Date);
   const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
   return (
     <Modal title={t("editExpense", lang)} onClose={onClose}>
       <div style={styles.formGrid}>
-        <label style={styles.label}>{t("date", lang)}
-          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
-        </label>
-        <label style={styles.label}>{t("day", lang)}
-          <select value={form.day} onChange={(e) => set("day", e.target.value)} style={styles.input}>
-            <option value="1">{t("day1", lang)}</option>
-            <option value="2">{t("day2", lang)}</option>
-            <option value="3">{t("day3", lang)}</option>
-          </select>
-        </label>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+          <label style={{ ...styles.label, flex: 1 }}>{t("date", lang)}
+            <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
+          </label>
+          <DayBadge day={autoDay} lang={lang} />
+        </div>
         <label style={styles.label}>{t("category", lang)}
           <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
             {cats.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
@@ -2177,7 +2346,7 @@ function EditExpenseForm({ item, categories, onSubmit, onClose }) {
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && form.description && form.amount) { setSaving(true); onSubmit({ ...form, year: formYear }); } }}
+        onClick={() => { if (!saving && form.description && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
         style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: saving ? 0.6 : 1 }}
         disabled={saving || !form.description || !form.amount}
       >
@@ -2190,7 +2359,7 @@ function EditExpenseForm({ item, categories, onSubmit, onClose }) {
 // ============================================================
 // INCOME FORM
 // ============================================================
-function IncomeForm({ families, onSubmit, onClose, categories, donorTypes }) {
+function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1Date }) {
   const lang = useLang();
   const [saving, setSaving] = useState(false);
   const today = todayISO();
@@ -2198,7 +2367,6 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes }) {
   const dtypes = donorTypes && donorTypes.length > 0 ? donorTypes : ["Family", "External"];
   const [form, setForm] = useState({
     date: today,
-    day: "1",
     donorType: dtypes[0],
     familyId: "",
     donorName: "",
@@ -2208,22 +2376,19 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes }) {
   });
   // Auto-derive year from date
   const formYear = form.date ? form.date.split("-")[0] : String(new Date().getFullYear());
+  const autoDay = calcDay(form.date, day1Date);
 
   const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
   return (
     <Modal title={t("recordIncome", lang)} onClose={onClose}>
       <div style={styles.formGrid}>
-        <label style={styles.label}>{t("date", lang)}
-          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
-        </label>
-        <label style={styles.label}>{t("day", lang)}
-          <select value={form.day} onChange={(e) => set("day", e.target.value)} style={styles.input}>
-            <option value="1">{t("day1", lang)}</option>
-            <option value="2">{t("day2", lang)}</option>
-            <option value="3">{t("day3", lang)}</option>
-          </select>
-        </label>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+          <label style={{ ...styles.label, flex: 1 }}>{t("date", lang)}
+            <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
+          </label>
+          <DayBadge day={autoDay} lang={lang} />
+        </div>
         <label style={styles.label}>{t("donorType", lang)}
           <select value={form.donorType} onChange={(e) => set("donorType", e.target.value)} style={styles.input}>
             {dtypes.map((tp) => <option key={tp} value={tp}>{tp === "Family" ? t("family", lang) : tp === "External" ? t("external", lang) : tp}</option>)}
@@ -2269,7 +2434,7 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes }) {
           if (saving) return;
           const isAuctionObj = form.category === "Objects for Auction";
           if (form.donorName && (isAuctionObj || form.amount)) { 
-            setSaving(true); onSubmit({ ...form, year: formYear, amount: isAuctionObj ? "0" : form.amount }); 
+            setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear, amount: isAuctionObj ? "0" : form.amount }); 
           }
         }}
         style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: saving ? 0.6 : 1 }}
@@ -2281,36 +2446,32 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes }) {
   );
 }
 
-function ExpenseForm({ onSubmit, onClose, categories }) {
+function ExpenseForm({ onSubmit, onClose, categories, day1Date }) {
   const lang = useLang();
   const [saving, setSaving] = useState(false);
   const today = todayISO();
   const cats = categories && categories.length > 0 ? categories : EXPENSE_CATEGORIES;
   const [form, setForm] = useState({
     date: today,
-    day: "1",
     category: cats[0],
     description: "",
     amount: "",
     vendor: "",
   });
   const formYear = form.date ? form.date.split("-")[0] : String(new Date().getFullYear());
+  const autoDay = calcDay(form.date, day1Date);
 
   const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
   return (
     <Modal title={t("recordExpense", lang)} onClose={onClose}>
       <div style={styles.formGrid}>
-        <label style={styles.label}>{t("date", lang)}
-          <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
-        </label>
-        <label style={styles.label}>{t("day", lang)}
-          <select value={form.day} onChange={(e) => set("day", e.target.value)} style={styles.input}>
-            <option value="1">{t("day1", lang)}</option>
-            <option value="2">{t("day2", lang)}</option>
-            <option value="3">{t("day3", lang)}</option>
-          </select>
-        </label>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+          <label style={{ ...styles.label, flex: 1 }}>{t("date", lang)}
+            <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
+          </label>
+          <DayBadge day={autoDay} lang={lang} />
+        </div>
         <label style={styles.label}>{t("category", lang)}
           <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
             {cats.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
@@ -2327,7 +2488,7 @@ function ExpenseForm({ onSubmit, onClose, categories }) {
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && form.description && form.amount) { setSaving(true); onSubmit({ ...form, year: formYear }); } }}
+        onClick={() => { if (!saving && form.description && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
         style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: saving ? 0.6 : 1 }}
         disabled={saving || !form.description || !form.amount}
       >
