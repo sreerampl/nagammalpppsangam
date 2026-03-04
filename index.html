@@ -1257,6 +1257,7 @@ function App() {
         {activeTab === "loans" && (
           <LoansView
             loans={yearLoans}
+            allLoans={loans}
             families={families}
             currentYear={currentYear}
             isAdmin={isAdmin}
@@ -3363,7 +3364,7 @@ function AuctionBalanceSheet({ auction, families, income, expenses, totalIncome,
 // ============================================================
 // LOANS VIEW (Pangali Advances / ஈனத்து கணக்கு)
 // ============================================================
-function LoansView({ loans, families, currentYear, isAdmin, onAdd, onReceive, onEdit, onDelete, showToast, day1Date }) {
+function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onReceive, onEdit, onDelete, showToast, day1Date }) {
   const lang = useLang();
   const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
   const [showAddForm, setShowAddForm] = useState(false);
@@ -3371,9 +3372,24 @@ function LoansView({ loans, families, currentYear, isAdmin, onAdd, onReceive, on
   const [editModal, setEditModal] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
+  // Compute last year's outstanding per family
+  const prevYear = String(Number(currentYear) - 1);
+  const prevYearOutstanding = {};
+  (allLoans || []).forEach((l) => {
+    if (String(l.Year) === prevYear) {
+      const fid = String(l.FamilyID || "").trim();
+      const due = (Number(l.TotalReceivable) || 0) - (Number(l.ReceivedAmount) || 0);
+      if (due > 0) {
+        if (!prevYearOutstanding[fid]) prevYearOutstanding[fid] = 0;
+        prevYearOutstanding[fid] += due;
+      }
+    }
+  });
+
   const totalAdvanced = loans.reduce((s, l) => s + (Number(l.LoanAmount) || 0), 0);
   const totalDue = loans.reduce((s, l) => s + (Number(l.TotalReceivable) || 0), 0);
   const totalRec = loans.reduce((s, l) => s + (Number(l.ReceivedAmount) || 0), 0);
+  const totalPrevOutstanding = Object.values(prevYearOutstanding).reduce((s, v) => s + v, 0);
   const pendingCount = loans.filter((l) => l.RecStatus !== "Received").length;
 
   const statusColor = (s) => s === "Received" ? "#16a34a" : s === "Partial" ? "#d97706" : "#dc2626";
@@ -3387,7 +3403,13 @@ function LoansView({ loans, families, currentYear, isAdmin, onAdd, onReceive, on
       </div>
 
       {/* Summary cards */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
+        {totalPrevOutstanding > 0 && (
+          <div style={{ background: "#fef3c7", borderRadius: 10, padding: "10px 8px", textAlign: "center", gridColumn: "1 / -1" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#92400e" }}>{fmt(totalPrevOutstanding)}</div>
+            <div style={{ fontSize: 10, color: "#78716c" }}>{lang === "ta" ? `${prevYear} நிலுவை` : `${prevYear} Outstanding`}</div>
+          </div>
+        )}
         <div style={{ background: "#fef3c7", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: "#92400e" }}>{fmt(totalAdvanced)}</div>
           <div style={{ fontSize: 10, color: "#78716c" }}>{t("totalAdvanced", lang)}</div>
@@ -3415,6 +3437,11 @@ function LoansView({ loans, families, currentYear, isAdmin, onAdd, onReceive, on
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{l.FamilyName} <span style={{ color: "#a8a29e", fontSize: 12 }}>({l.FamilyID})</span></div>
+                {prevYearOutstanding[String(l.FamilyID || "").trim()] > 0 && (
+                  <div style={{ fontSize: 12, color: "#b45309", background: "#fef3c7", borderRadius: 4, padding: "2px 6px", display: "inline-block", marginTop: 2 }}>
+                    ⚠️ {prevYear} {lang === "ta" ? "நிலுவை" : "Outstanding"}: {fmt(prevYearOutstanding[String(l.FamilyID || "").trim()])}
+                  </div>
+                )}
                 <div style={{ fontSize: 12, color: "#78716c", marginTop: 2 }}>
                   {t("loanAmount", lang)}: {fmt(l.LoanAmount)} · {t("interestRate", lang).replace(" (%)", "")}: {l.InterestRate}% · {t("interestAmount", lang)}: {fmt(l.InterestAmount)}
                 </div>
@@ -3449,6 +3476,7 @@ function LoansView({ loans, families, currentYear, isAdmin, onAdd, onReceive, on
         <LoanAddForm
           families={families}
           currentYear={currentYear}
+          day1Date={day1Date}
           onSubmit={(data) => { onAdd(data); setShowAddForm(false); }}
           onClose={() => setShowAddForm(false)}
         />
@@ -3489,7 +3517,7 @@ function LoansView({ loans, families, currentYear, isAdmin, onAdd, onReceive, on
 }
 
 // --- Loan Add Form ---
-function LoanAddForm({ families, currentYear, onSubmit, onClose }) {
+function LoanAddForm({ families, currentYear, onSubmit, onClose, day1Date }) {
   const lang = useLang();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
@@ -3505,6 +3533,7 @@ function LoanAddForm({ families, currentYear, onSubmit, onClose }) {
   const rate = Number(form.interestRate) || 0;
   const intAmt = Math.round(loanAmt * rate / 100);
   const totalRec = loanAmt + intAmt;
+  const autoDay = calcDay(form.issuedDate, day1Date);
 
   return (
     <Modal title={t("addLoan", lang)} onClose={onClose}>
@@ -3522,9 +3551,12 @@ function LoanAddForm({ families, currentYear, onSubmit, onClose }) {
           <label style={{ ...styles.label, flex: 1 }}>{t("interestRate", lang)}
             <input type="number" value={form.interestRate} onChange={(e) => set("interestRate", e.target.value)} style={styles.input} step="0.5" />
           </label>
+        </div>
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
           <label style={{ ...styles.label, flex: 1 }}>{t("issuedDate", lang)}
             <input type="date" value={form.issuedDate} onChange={(e) => set("issuedDate", e.target.value)} style={styles.input} />
           </label>
+          <DayBadge day={autoDay} lang={lang} />
         </div>
         {/* Auto-calculated summary */}
         {loanAmt > 0 && (
@@ -3538,9 +3570,9 @@ function LoanAddForm({ families, currentYear, onSubmit, onClose }) {
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && form.familyId && form.loanAmount) { setSaving(true); onSubmit({ ...form, year: String(currentYear) }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#b45309", opacity: (saving || !form.familyId || !form.loanAmount) ? 0.6 : 1 }}
-        disabled={saving || !form.familyId || !form.loanAmount}
+        onClick={() => { if (!saving && autoDay && form.familyId && form.loanAmount) { setSaving(true); onSubmit({ ...form, year: String(currentYear) }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#b45309", opacity: (saving || !autoDay || !form.familyId || !form.loanAmount) ? 0.6 : 1 }}
+        disabled={saving || !autoDay || !form.familyId || !form.loanAmount}
       >
         {saving ? "⏳ Saving..." : t("addLoan", lang)}
       </button>
@@ -3639,32 +3671,48 @@ function LoanEditForm({ loan, families, onSubmit, onClose }) {
 function LoanReport({ families, loans, currentYear }) {
   const lang = useLang();
   const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
+  const fmtNum = (v) => Number(v || 0).toLocaleString("en-IN");
   const yearStr = String(currentYear);
+  const prevYear = String(Number(currentYear) - 1);
+  const titleYear = prevYear + "-" + yearStr.slice(2); // e.g. "2025-26"
 
-  // Build a row per family with loan data for current year
-  const loansByFamily = {};
+  // Previous year outstanding per family
+  const prevByFamily = {};
   (loans || []).forEach((l) => {
-    if (String(l.Year) === yearStr) {
+    if (String(l.Year) === prevYear) {
       const fid = String(l.FamilyID || "").trim();
-      if (!loansByFamily[fid]) loansByFamily[fid] = { amount: 0, interest: 0, total: 0, received: 0, status: "—" };
-      loansByFamily[fid].amount += Number(l.LoanAmount) || 0;
-      loansByFamily[fid].interest += Number(l.InterestAmount) || 0;
-      loansByFamily[fid].total += Number(l.TotalReceivable) || 0;
-      loansByFamily[fid].received += Number(l.ReceivedAmount) || 0;
-      loansByFamily[fid].status = l.RecStatus || "Pending";
+      const due = (Number(l.TotalReceivable) || 0) - (Number(l.ReceivedAmount) || 0);
+      if (due > 0) {
+        if (!prevByFamily[fid]) prevByFamily[fid] = 0;
+        prevByFamily[fid] += due;
+      }
     }
   });
 
-  // Get default interest rate from any loan this year, or 9
-  const defaultRate = loans.length > 0 ? (Number(loans[0].InterestRate) || 9) : 9;
+  // Current year loans per family
+  const currByFamily = {};
+  (loans || []).forEach((l) => {
+    if (String(l.Year) === yearStr) {
+      const fid = String(l.FamilyID || "").trim();
+      if (!currByFamily[fid]) currByFamily[fid] = { amount: 0, interest: 0, total: 0, received: 0, status: "—" };
+      currByFamily[fid].amount += Number(l.LoanAmount) || 0;
+      currByFamily[fid].interest += Number(l.InterestAmount) || 0;
+      currByFamily[fid].total += Number(l.TotalReceivable) || 0;
+      currByFamily[fid].received += Number(l.ReceivedAmount) || 0;
+      currByFamily[fid].status = l.RecStatus || "Pending";
+    }
+  });
+
+  const currYearLoans = (loans || []).filter((l) => String(l.Year) === yearStr);
+  const defaultRate = currYearLoans.length > 0 ? (Number(currYearLoans[0].InterestRate) || 9) : 9;
 
   const rows = (families || []).map((f, idx) => {
     const fid = String(f.FamilyID || "").trim();
-    const d = loansByFamily[fid] || { amount: 0, interest: 0, total: 0, received: 0, status: "—" };
-    return { sl: idx + 1, id: fid, name: f.FamilyName, ...d };
+    const prev = prevByFamily[fid] || 0;
+    const d = currByFamily[fid] || { amount: 0, interest: 0, total: 0, received: 0, status: "—" };
+    return { sl: idx + 1, id: fid, name: f.FamilyName, prevOutstanding: prev, ...d };
   });
 
-  // Sort by FamilyID numerically
   rows.sort((a, b) => {
     const numA = parseInt(String(a.id).replace(/\D/g, "")) || 0;
     const numB = parseInt(String(b.id).replace(/\D/g, "")) || 0;
@@ -3672,62 +3720,127 @@ function LoanReport({ families, loans, currentYear }) {
   });
 
   const totals = rows.reduce((s, r) => ({
+    prevOutstanding: s.prevOutstanding + r.prevOutstanding,
     amount: s.amount + r.amount,
     interest: s.interest + r.interest,
     total: s.total + r.total,
     received: s.received + r.received,
-  }), { amount: 0, interest: 0, total: 0, received: 0 });
+  }), { prevOutstanding: 0, amount: 0, interest: 0, total: 0, received: 0 });
 
-  const cellStyle = { padding: "6px 8px", borderBottom: "1px solid #e7e5e4", fontSize: 12 };
-  const headStyle = { ...cellStyle, fontWeight: 700, background: "#292524", color: "#fff", position: "sticky", top: 0 };
+  // --- PDF Download ---
+  const downloadPDF = () => {
+    const printWin = window.open("", "_blank");
+    if (!printWin) return;
+    const htmlRows = rows.map((r) => {
+      const statusText = r.amount > 0 ? (r.status === "Received" ? "✅ Received" : r.status === "Partial" ? "🔶 Partial" : "⏳ Pending") : "";
+      return `<tr style="background:${r.amount > 0 || r.prevOutstanding > 0 ? '#fefce8' : '#fff'}">
+        <td style="text-align:center;padding:4px 6px;border:1px solid #999">${r.sl}</td>
+        <td style="padding:4px 6px;border:1px solid #999">${r.name}</td>
+        <td style="text-align:right;padding:4px 6px;border:1px solid #999">${r.prevOutstanding > 0 ? fmtNum(r.prevOutstanding) : '0'}</td>
+        <td style="text-align:right;padding:4px 6px;border:1px solid #999">${r.amount > 0 ? fmtNum(r.amount) : '0'}</td>
+        <td style="text-align:right;padding:4px 6px;border:1px solid #999">${r.interest > 0 ? fmtNum(r.interest) : '0'}</td>
+        <td style="text-align:right;padding:4px 6px;border:1px solid #999;font-weight:bold">${r.total > 0 ? fmtNum(r.total) : '0'}</td>
+        <td style="text-align:right;padding:4px 6px;border:1px solid #999;color:green">${r.received > 0 ? fmtNum(r.received) : '0'}</td>
+        <td style="text-align:center;padding:4px 6px;border:1px solid #999">${statusText}</td>
+      </tr>`;
+    }).join("");
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${titleYear} Enaththu Kanakku</title>
+      <style>body{font-family:Arial,sans-serif;margin:20px}table{border-collapse:collapse;width:100%}
+      @media print{body{margin:10px}button{display:none!important}}</style></head><body>
+      <div style="background:#fef3c7;padding:16px;text-align:center;border:2px solid #92400e;margin-bottom:16px">
+        <h2 style="margin:0;color:#1a237e">${titleYear} Amount advanced to Pangalis'</h2>
+        <h3 style="margin:4px 0 0;color:#1a237e">(Enaththu kanakku)</h3>
+      </div>
+      <table>
+        <thead>
+          <tr style="background:#1a237e;color:#fdd835">
+            <th style="padding:8px 6px;border:1px solid #999;width:40px">Sl.<br>No.</th>
+            <th style="padding:8px 6px;border:1px solid #999;text-align:left">Name</th>
+            <th style="padding:8px 6px;border:1px solid #999;text-align:right">Last Year<br>Receivable</th>
+            <th style="padding:8px 6px;border:1px solid #999;text-align:right">Amount</th>
+            <th style="padding:8px 6px;border:1px solid #999;text-align:right">Int @${defaultRate}%</th>
+            <th style="padding:8px 6px;border:1px solid #999;text-align:right">Total</th>
+            <th style="padding:8px 6px;border:1px solid #999;text-align:right;background:#16a34a;color:#fff">Rec.<br>Amt</th>
+            <th style="padding:8px 6px;border:1px solid #999;text-align:center;background:#16a34a;color:#fff">Rec.<br>Status</th>
+          </tr>
+        </thead>
+        <tbody>${htmlRows}</tbody>
+        <tfoot>
+          <tr style="background:#1a237e;color:#fff;font-weight:bold">
+            <td colspan="2" style="padding:6px;border:1px solid #999">Total</td>
+            <td style="text-align:right;padding:6px;border:1px solid #999">${fmtNum(totals.prevOutstanding)}</td>
+            <td style="text-align:right;padding:6px;border:1px solid #999">${fmtNum(totals.amount)}</td>
+            <td style="text-align:right;padding:6px;border:1px solid #999">${fmtNum(totals.interest)}</td>
+            <td style="text-align:right;padding:6px;border:1px solid #999">${fmtNum(totals.total)}</td>
+            <td style="text-align:right;padding:6px;border:1px solid #999">${fmtNum(totals.received)}</td>
+            <td style="padding:6px;border:1px solid #999"></td>
+          </tr>
+        </tfoot>
+      </table>
+      <button onclick="window.print()" style="margin-top:16px;padding:10px 24px;background:#1a237e;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer">🖨️ Print / Save as PDF</button>
+      </body></html>`;
+    printWin.document.write(html);
+    printWin.document.close();
+  };
+
+  const cellStyle = { padding: "5px 6px", borderBottom: "1px solid #e7e5e4", fontSize: 11 };
+  const headStyle = { ...cellStyle, fontWeight: 700, background: "#1a237e", color: "#fdd835", position: "sticky", top: 0, fontSize: 10, whiteSpace: "nowrap" };
+  const greenHead = { ...headStyle, background: "#16a34a", color: "#fff" };
 
   return (
     <div style={{ ...styles.card, padding: 0, overflow: "hidden" }}>
-      <div style={{ padding: "12px 16px", background: "#fef3c7", borderBottom: "1px solid #e7e5e4" }}>
-        <h3 style={{ margin: 0, fontSize: 16, color: "#92400e" }}>{t("loanReport", lang)}</h3>
-        <div style={{ fontSize: 12, color: "#78716c", marginTop: 4 }}>
-          {lang === "ta" ? "ஈனத்து கணக்கு — பங்காளிகளுக்கு வழங்கிய முன்பணம்" : "Amount advanced to Pangalis"} · {yearStr} · Int @{defaultRate}%
-        </div>
+      <div style={{ padding: "12px 16px", background: "#fef3c7", borderBottom: "2px solid #92400e", textAlign: "center" }}>
+        <h3 style={{ margin: 0, fontSize: 16, color: "#1a237e" }}>{titleYear} Amount advanced to Pangalis'</h3>
+        <div style={{ fontSize: 13, color: "#1a237e", fontWeight: 600 }}>(Enaththu kanakku)</div>
+        <button onClick={downloadPDF} style={{ marginTop: 8, padding: "6px 16px", background: "#1a237e", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+          📄 Download PDF
+        </button>
       </div>
       <div style={{ overflowX: "auto" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              <th style={{ ...headStyle, textAlign: "center", width: 30 }}>Sl</th>
-              <th style={headStyle}>{lang === "ta" ? "பெயர்" : "Name"}</th>
-              <th style={{ ...headStyle, textAlign: "right" }}>{lang === "ta" ? "தொகை" : "Amount"}</th>
-              <th style={{ ...headStyle, textAlign: "right" }}>{lang === "ta" ? "வட்டி" : "Int"}</th>
-              <th style={{ ...headStyle, textAlign: "right" }}>{lang === "ta" ? "மொத்தம்" : "Total"}</th>
-              <th style={{ ...headStyle, textAlign: "right" }}>{lang === "ta" ? "வசூல்" : "Rec."}</th>
-              <th style={{ ...headStyle, textAlign: "center" }}>{lang === "ta" ? "நிலை" : "Status"}</th>
+              <th style={{ ...headStyle, textAlign: "center", width: 28 }}>Sl.<br/>No.</th>
+              <th style={headStyle}>Name</th>
+              <th style={{ ...headStyle, textAlign: "right" }}>Last Year<br/>Receivable</th>
+              <th style={{ ...headStyle, textAlign: "right" }}>Amount</th>
+              <th style={{ ...headStyle, textAlign: "right" }}>Int @{defaultRate}%</th>
+              <th style={{ ...headStyle, textAlign: "right" }}>Total</th>
+              <th style={{ ...greenHead, textAlign: "right" }}>Rec.<br/>Amt</th>
+              <th style={{ ...greenHead, textAlign: "center" }}>Rec.<br/>Status</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((r) => (
-              <tr key={r.id} style={{ background: r.amount > 0 ? (r.status === "Received" ? "#f0fdf4" : "#fefce8") : "#fff" }}>
-                <td style={{ ...cellStyle, textAlign: "center", color: "#a8a29e" }}>{r.sl}</td>
-                <td style={cellStyle}>{r.name}</td>
-                <td style={{ ...cellStyle, textAlign: "right", fontWeight: r.amount > 0 ? 600 : 400 }}>{r.amount > 0 ? fmt(r.amount) : "0"}</td>
-                <td style={{ ...cellStyle, textAlign: "right" }}>{r.interest > 0 ? fmt(r.interest) : "0"}</td>
-                <td style={{ ...cellStyle, textAlign: "right", fontWeight: 600 }}>{r.total > 0 ? fmt(r.total) : "0"}</td>
-                <td style={{ ...cellStyle, textAlign: "right", color: r.received > 0 ? "#16a34a" : "#78716c" }}>{r.received > 0 ? fmt(r.received) : "0"}</td>
-                <td style={{ ...cellStyle, textAlign: "center" }}>
-                  {r.amount > 0 ? (
-                    <span style={{ fontSize: 11, fontWeight: 700, color: r.status === "Received" ? "#16a34a" : r.status === "Partial" ? "#d97706" : "#dc2626" }}>
-                      {r.status === "Received" ? "✅" : r.status === "Partial" ? "🔶" : "⏳"}
-                    </span>
-                  ) : "—"}
-                </td>
-              </tr>
-            ))}
+            {rows.map((r) => {
+              const hasData = r.amount > 0 || r.prevOutstanding > 0;
+              return (
+                <tr key={r.id} style={{ background: hasData ? "#fefce8" : "#fff" }}>
+                  <td style={{ ...cellStyle, textAlign: "center", color: "#a8a29e" }}>{r.sl}</td>
+                  <td style={cellStyle}>{r.name}</td>
+                  <td style={{ ...cellStyle, textAlign: "right", color: r.prevOutstanding > 0 ? "#b45309" : "#78716c" }}>{r.prevOutstanding > 0 ? fmtNum(r.prevOutstanding) : "0"}</td>
+                  <td style={{ ...cellStyle, textAlign: "right", fontWeight: r.amount > 0 ? 600 : 400 }}>{r.amount > 0 ? fmtNum(r.amount) : "0"}</td>
+                  <td style={{ ...cellStyle, textAlign: "right" }}>{r.interest > 0 ? fmtNum(r.interest) : "0"}</td>
+                  <td style={{ ...cellStyle, textAlign: "right", fontWeight: 600 }}>{r.total > 0 ? fmtNum(r.total) : "0"}</td>
+                  <td style={{ ...cellStyle, textAlign: "right", color: r.received > 0 ? "#16a34a" : "#78716c" }}>{r.received > 0 ? fmtNum(r.received) : "0"}</td>
+                  <td style={{ ...cellStyle, textAlign: "center" }}>
+                    {r.amount > 0 ? (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: r.status === "Received" ? "#16a34a" : r.status === "Partial" ? "#d97706" : "#dc2626" }}>
+                        {r.status === "Received" ? "✅" : r.status === "Partial" ? "🔶" : "⏳"}
+                      </span>
+                    ) : ""}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
           <tfoot>
-            <tr style={{ background: "#292524", color: "#fff", fontWeight: 700 }}>
-              <td colSpan="2" style={{ ...cellStyle, color: "#fff" }}>{lang === "ta" ? "மொத்தம்" : "Total"}</td>
-              <td style={{ ...cellStyle, textAlign: "right", color: "#fff" }}>{fmt(totals.amount)}</td>
-              <td style={{ ...cellStyle, textAlign: "right", color: "#fff" }}>{fmt(totals.interest)}</td>
-              <td style={{ ...cellStyle, textAlign: "right", color: "#fff" }}>{fmt(totals.total)}</td>
-              <td style={{ ...cellStyle, textAlign: "right", color: "#fff" }}>{fmt(totals.received)}</td>
+            <tr style={{ background: "#1a237e", color: "#fff", fontWeight: 700 }}>
+              <td colSpan="2" style={{ ...cellStyle, color: "#fff" }}>Total</td>
+              <td style={{ ...cellStyle, textAlign: "right", color: "#fdd835" }}>{fmtNum(totals.prevOutstanding)}</td>
+              <td style={{ ...cellStyle, textAlign: "right", color: "#fff" }}>{fmtNum(totals.amount)}</td>
+              <td style={{ ...cellStyle, textAlign: "right", color: "#fff" }}>{fmtNum(totals.interest)}</td>
+              <td style={{ ...cellStyle, textAlign: "right", color: "#fff" }}>{fmtNum(totals.total)}</td>
+              <td style={{ ...cellStyle, textAlign: "right", color: "#4ade80" }}>{fmtNum(totals.received)}</td>
               <td style={cellStyle}></td>
             </tr>
           </tfoot>
