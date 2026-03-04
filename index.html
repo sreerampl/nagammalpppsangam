@@ -997,6 +997,7 @@ function App() {
         Year: data.year || String(new Date().getFullYear()),
         FamilyID: data.familyId || "",
         FamilyName: data.familyName || "",
+        LastYearReceivable: result.lastYearReceivable || 0,
         LoanAmount: loanAmt,
         InterestRate: rate,
         InterestAmount: intAmt,
@@ -3372,17 +3373,15 @@ function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onR
   const [editModal, setEditModal] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
-  // Compute last year's outstanding per family
+  // Get last year outstanding from stored field on current year loans
   const prevYear = String(Number(currentYear) - 1);
   const prevYearOutstanding = {};
-  (allLoans || []).forEach((l) => {
-    if (String(l.Year) === prevYear) {
-      const fid = String(l.FamilyID || "").trim();
-      const due = (Number(l.TotalReceivable) || 0) - (Number(l.ReceivedAmount) || 0);
-      if (due > 0) {
-        if (!prevYearOutstanding[fid]) prevYearOutstanding[fid] = 0;
-        prevYearOutstanding[fid] += due;
-      }
+  (loans || []).forEach((l) => {
+    const fid = String(l.FamilyID || "").trim();
+    const lyr = Number(l.LastYearReceivable) || 0;
+    if (lyr > 0) {
+      if (!prevYearOutstanding[fid]) prevYearOutstanding[fid] = 0;
+      prevYearOutstanding[fid] += lyr;
     }
   });
 
@@ -3676,15 +3675,15 @@ function LoanReport({ families, loans, currentYear }) {
   const prevYear = String(Number(currentYear) - 1);
   const titleYear = prevYear + "-" + yearStr.slice(2); // e.g. "2025-26"
 
-  // Previous year outstanding per family
+  // Previous year outstanding from stored field on current year loans
   const prevByFamily = {};
   (loans || []).forEach((l) => {
-    if (String(l.Year) === prevYear) {
+    if (String(l.Year) === yearStr) {
       const fid = String(l.FamilyID || "").trim();
-      const due = (Number(l.TotalReceivable) || 0) - (Number(l.ReceivedAmount) || 0);
-      if (due > 0) {
+      const lyr = Number(l.LastYearReceivable) || 0;
+      if (lyr > 0) {
         if (!prevByFamily[fid]) prevByFamily[fid] = 0;
-        prevByFamily[fid] += due;
+        prevByFamily[fid] += lyr;
       }
     }
   });

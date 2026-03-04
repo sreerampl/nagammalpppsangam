@@ -742,11 +742,28 @@ function handleAddLoan(data, email) {
   var interestAmt = Math.round(loanAmt * rate / 100);
   var totalRec = loanAmt + interestAmt;
 
+  // Calculate last year receivable for this family
+  var prevYear = String(Number(year) - 1);
+  var allRows = sheet.getDataRange().getValues();
+  var headers = allRows[0];
+  var yearCol = headers.indexOf("Year");
+  var fidCol = headers.indexOf("FamilyID");
+  var totalRecCol = headers.indexOf("TotalReceivable");
+  var recAmtCol = headers.indexOf("ReceivedAmount");
+  var lastYearRec = 0;
+  for (var i = 1; i < allRows.length; i++) {
+    if (String(allRows[i][yearCol]) === prevYear && String(allRows[i][fidCol]).trim() === String(data.familyId).trim()) {
+      var due = (Number(allRows[i][totalRecCol]) || 0) - (Number(allRows[i][recAmtCol]) || 0);
+      if (due > 0) lastYearRec += due;
+    }
+  }
+
   var row = [
     loanId,
     year,
     data.familyId || "",
     data.familyName || "",
+    lastYearRec,
     loanAmt,
     rate,
     interestAmt,
@@ -760,8 +777,8 @@ function handleAddLoan(data, email) {
     data.notes || ""
   ];
   sheet.appendRow(row);
-  writeAudit("CREATE", "Loan", loanId + " ₹" + loanAmt + " to " + data.familyName + " @" + rate + "%", email);
-  return jsonResponse({ success: true, data: { loanId: loanId } });
+  writeAudit("CREATE", "Loan", loanId + " ₹" + loanAmt + " to " + data.familyName + " @" + rate + "% (prev:" + lastYearRec + ")", email);
+  return jsonResponse({ success: true, data: { loanId: loanId, lastYearReceivable: lastYearRec } });
 }
 
 function handleReceiveLoan(data, email) {
