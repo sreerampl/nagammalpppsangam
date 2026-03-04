@@ -21,7 +21,8 @@ var SHEETS = {
   AUCTION: "Auction",
   LEDGER: "Ledger",
   ACCESS: "AccessControl",
-  AUDIT: "AuditLog"
+  AUDIT: "AuditLog",
+  LOANS: "Loans"
 };
 
 // ============================================================
@@ -113,6 +114,16 @@ function handleRequest(e) {
       case "seedAuctionItems":
         return requireRole(userRole, "Admin", function() { return handleSeedAuctionItems(params.data, email); });
 
+      // --- LOANS (Pangali Advances) ---
+      case "addLoan":
+        return requireRole(userRole, "Admin", function() { return handleAddLoan(params.data, email); });
+      case "receiveLoan":
+        return requireRole(userRole, "Admin", function() { return handleReceiveLoan(params.data, email); });
+      case "editLoan":
+        return requireRole(userRole, "Admin", function() { return handleEditLoan(params.data, email); });
+      case "deleteLoan":
+        return requireRole(userRole, "Admin", function() { return handleDeleteLoan(params.data, email); });
+
       default:
         return jsonResponse({ success: false, error: "Unknown action: " + action });
     }
@@ -174,6 +185,7 @@ function handleLoadAll(email, userRole) {
     auction: readSheet(ss, SHEETS.AUCTION),
     access: readSheet(ss, SHEETS.ACCESS),
     ledger: readSheet(ss, SHEETS.LEDGER),
+    loans: readSheet(ss, SHEETS.LOANS),
     role: userRole,
   };
 
@@ -712,4 +724,120 @@ function testSetup() {
   for (var j = 1; j < rows.length; j++) {
     Logger.log("  " + rows[j][0] + " → " + rows[j][1]);
   }
+}
+
+// ============================================================
+// LOANS (Pangali Advances / ஈனத்து கணக்கு)
+// ============================================================
+// Sheet columns: LoanID | Year | FamilyID | FamilyName | LoanAmount | InterestRate | InterestAmount | TotalReceivable | ReceivedAmount | RecStatus | IssuedBy | IssuedDate | ReceivedBy | ReceivedDate | Notes
+
+function handleAddLoan(data, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.LOANS);
+  var loanId = generateId("LN");
+  var ts = now();
+  var year = data.year || String(new Date().getFullYear());
+  var loanAmt = Number(data.loanAmount) || 0;
+  var rate = Number(data.interestRate) || 9;
+  var interestAmt = Math.round(loanAmt * rate / 100);
+  var totalRec = loanAmt + interestAmt;
+
+  var row = [
+    loanId,
+    year,
+    data.familyId || "",
+    data.familyName || "",
+    loanAmt,
+    rate,
+    interestAmt,
+    totalRec,
+    0,
+    "Pending",
+    email,
+    data.issuedDate || ts,
+    "",
+    "",
+    data.notes || ""
+  ];
+  sheet.appendRow(row);
+  writeAudit("CREATE", "Loan", loanId + " ₹" + loanAmt + " to " + data.familyName + " @" + rate + "%", email);
+  return jsonResponse({ success: true, data: { loanId: loanId } });
+}
+
+function handleReceiveLoan(data, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.LOANS);
+  var rows = sheet.getDataRange().getValues();
+  var headers = rows[0];
+  var idCol = headers.indexOf("LoanID");
+
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][idCol]).trim() === String(data.loanId).trim()) {
+      var recAmtCol = headers.indexOf("ReceivedAmount");
+      var statusCol = headers.indexOf("RecStatus");
+      var recByCol = headers.indexOf("ReceivedBy");
+      var recDateCol = headers.indexOf("ReceivedDate");
+      var totalRecCol = headers.indexOf("TotalReceivable");
+      var receivedAmt = Number(data.receivedAmount) || 0;
+      var totalRec = Number(rows[i][totalRecCol]) || 0;
+      var prevReceived = Number(rows[i][recAmtCol]) || 0;
+      var newTotal = prevReceived + receivedAmt;
+      var newStatus = newTotal >= totalRec ? "Received" : "Partial";
+
+      sheet.getRange(i + 1, recAmtCol + 1).setValue(newTotal);
+      sheet.getRange(i + 1, statusCol + 1).setValue(newStatus);
+      sheet.getRange(i + 1, recByCol + 1).setValue(email);
+      sheet.getRange(i + 1, recDateCol + 1).setValue(now());
+
+      writeAudit("UPDATE", "Loan", data.loanId + " received ₹" + receivedAmt + " (total ₹" + newTotal + "/" + totalRec + ") → " + newStatus, email);
+      return jsonResponse({ success: true, data: { loanId: data.loanId, status: newStatus, receivedAmount: newTotal } });
+    }
+  }
+  return jsonResponse({ success: false, error: "Loan not found: " + data.loanId });
+}
+
+function handleEditLoan(data, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.LOANS);
+  var rows = sheet.getDataRange().getValues();
+  var headers = rows[0];
+  var idCol = headers.indexOf("LoanID");
+
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][idCol]).trim() === String(data.loanId).trim()) {
+      var loanAmt = Number(data.loanAmount) || Number(rows[i][headers.indexOf("LoanAmount")]);
+      var rate = Number(data.interestRate) || Number(rows[i][headers.indexOf("InterestRate")]);
+      var interestAmt = Math.round(loanAmt * rate / 100);
+      var totalRec = loanAmt + interestAmt;
+
+      sheet.getRange(i + 1, headers.indexOf("FamilyID") + 1).setValue(data.familyId || rows[i][headers.indexOf("FamilyID")]);
+      sheet.getRange(i + 1, headers.indexOf("FamilyName") + 1).setValue(data.familyName || rows[i][headers.indexOf("FamilyName")]);
+      sheet.getRange(i + 1, headers.indexOf("LoanAmount") + 1).setValue(loanAmt);
+      sheet.getRange(i + 1, headers.indexOf("InterestRate") + 1).setValue(rate);
+      sheet.getRange(i + 1, headers.indexOf("InterestAmount") + 1).setValue(interestAmt);
+      sheet.getRange(i + 1, headers.indexOf("TotalReceivable") + 1).setValue(totalRec);
+      sheet.getRange(i + 1, headers.indexOf("Notes") + 1).setValue(data.notes !== undefined ? data.notes : rows[i][headers.indexOf("Notes")]);
+
+      writeAudit("UPDATE", "Loan", data.loanId + " updated ₹" + loanAmt + " @" + rate + "%", email);
+      return jsonResponse({ success: true, data: { loanId: data.loanId } });
+    }
+  }
+  return jsonResponse({ success: false, error: "Loan not found: " + data.loanId });
+}
+
+function handleDeleteLoan(data, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.LOANS);
+  var rows = sheet.getDataRange().getValues();
+  var headers = rows[0];
+  var idCol = headers.indexOf("LoanID");
+
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][idCol]).trim() === String(data.loanId).trim()) {
+      sheet.deleteRow(i + 1);
+      writeAudit("DELETE", "Loan", data.loanId + " deleted", email);
+      return jsonResponse({ success: true, data: { loanId: data.loanId } });
+    }
+  }
+  return jsonResponse({ success: false, error: "Loan not found: " + data.loanId });
 }

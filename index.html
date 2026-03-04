@@ -208,6 +208,32 @@ const T = {
   pleaseConfigureEvent: { en: "Please ask an Admin to configure the event dates for this year.", ta: "இந்த ஆண்டுக்கான நிகழ்வு தேதிகளை உள்ளமைக்க நிர்வாகியிடம் கேளுங்கள்." },
   seedAuctionItems: { en: "Also create 48 standard auction items", ta: "48 நிலையான ஏல பொருட்களையும் உருவாக்கு" },
   auctionSeeded: { en: "auction items created!", ta: "ஏல பொருட்கள் உருவாக்கப்பட்டன!" },
+  // Loans (Pangali Advances)
+  navLoans: { en: "Loans", ta: "கடன்" },
+  loans: { en: "Pangali Advances", ta: "ஈனத்து கணக்கு" },
+  addLoan: { en: "Issue Advance", ta: "முன்பணம் வழங்கு" },
+  loanAmount: { en: "Advance Amount", ta: "முன்பணத் தொகை" },
+  interestRate: { en: "Interest Rate (%)", ta: "வட்டி விகிதம் (%)" },
+  interestAmount: { en: "Interest", ta: "வட்டி" },
+  totalReceivable: { en: "Total Receivable", ta: "மொத்த வசூல்" },
+  receivedAmount: { en: "Received", ta: "வசூலானது" },
+  recStatus: { en: "Status", ta: "நிலை" },
+  issuedDate: { en: "Issued Date", ta: "வழங்கிய தேதி" },
+  receiveLoan: { en: "Record Payment", ta: "வசூல் பதிவு" },
+  receiveAmount: { en: "Amount Received", ta: "வசூலான தொகை" },
+  loanPending: { en: "Pending", ta: "நிலுவை" },
+  loanPartial: { en: "Partial", ta: "பகுதி" },
+  loanReceived: { en: "Received", ta: "வசூலானது" },
+  loanSaved: { en: "Advance recorded!", ta: "முன்பணம் பதிவு செய்யப்பட்டது!" },
+  loanPaymentSaved: { en: "Payment recorded!", ta: "வசூல் பதிவு செய்யப்பட்டது!" },
+  loanReport: { en: "🏦 Pangali Advances", ta: "🏦 ஈனத்து கணக்கு" },
+  loanDeleted: { en: "Advance deleted", ta: "முன்பணம் நீக்கப்பட்டது" },
+  loanEdited: { en: "Advance updated", ta: "முன்பணம் புதுப்பிக்கப்பட்டது" },
+  pendingLoans: { en: "Pending", ta: "நிலுவை" },
+  totalAdvanced: { en: "Total Advanced", ta: "மொத்த முன்பணம்" },
+  totalDue: { en: "Total Due", ta: "மொத்த வசூல்" },
+  totalReceived: { en: "Total Received", ta: "மொத்தம் வசூலானது" },
+  balance: { en: "Balance", ta: "இருப்பு" },
   invalidEventDate: { en: "Date must be one of the 3 event days", ta: "தேதி 3 நிகழ்வு நாட்களில் ஒன்றாக இருக்க வேண்டும்" },
   currentYearLive: { en: "(Live)", ta: "(நேரடி)" },
   growth: { en: "Growth", ta: "வளர்ச்சி" },
@@ -471,6 +497,7 @@ function App() {
   const [accessList, setAccessList] = useState([]);
   const [auditLog, setAuditLog] = useState([]);
   const [ledger, setLedger] = useState([]);
+  const [loans, setLoans] = useState([]);
 
   // UI state
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -545,6 +572,7 @@ function App() {
         if (result.expenses) setExpenses(result.expenses);
         if (result.auction) setAuction(result.auction);
         if (result.ledger) setLedger(result.ledger);
+        if (result.loans) setLoans(result.loans);
         if (result.auditLog) setAuditLog(result.auditLog);
       } catch (e) { console.error("Post-sync refresh failed:", e); }
     }
@@ -956,10 +984,97 @@ function App() {
     }
   };
 
+  // --- Loan functions ---
+  const addLoan = async (data) => {
+    setBusy(true);
+    try {
+      const result = await backendRef.current.post("addLoan", data);
+      const loanAmt = Number(data.loanAmount) || 0;
+      const rate = Number(data.interestRate) || 9;
+      const intAmt = Math.round(loanAmt * rate / 100);
+      const row = {
+        LoanID: result.loanId,
+        Year: data.year || String(new Date().getFullYear()),
+        FamilyID: data.familyId || "",
+        FamilyName: data.familyName || "",
+        LoanAmount: loanAmt,
+        InterestRate: rate,
+        InterestAmount: intAmt,
+        TotalReceivable: loanAmt + intAmt,
+        ReceivedAmount: 0,
+        RecStatus: "Pending",
+        IssuedBy: user.email,
+        IssuedDate: data.issuedDate || now(),
+        ReceivedBy: "",
+        ReceivedDate: "",
+        Notes: data.notes || "",
+      };
+      setLoans((prev) => [...prev, row]);
+      showToast(t("loanSaved", lang));
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const receiveLoan = async (data) => {
+    setBusy(true);
+    try {
+      const result = await backendRef.current.post("receiveLoan", data);
+      setLoans((prev) => prev.map((l) => {
+        if (l.LoanID === data.loanId) {
+          return { ...l, ReceivedAmount: result.receivedAmount, RecStatus: result.status, ReceivedBy: user.email, ReceivedDate: now() };
+        }
+        return l;
+      }));
+      showToast(t("loanPaymentSaved", lang));
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const editLoan = async (data) => {
+    setBusy(true);
+    try {
+      await backendRef.current.post("editLoan", data);
+      const loanAmt = Number(data.loanAmount) || 0;
+      const rate = Number(data.interestRate) || 9;
+      const intAmt = Math.round(loanAmt * rate / 100);
+      setLoans((prev) => prev.map((l) => {
+        if (l.LoanID === data.loanId) {
+          return { ...l, FamilyID: data.familyId || l.FamilyID, FamilyName: data.familyName || l.FamilyName, LoanAmount: loanAmt, InterestRate: rate, InterestAmount: intAmt, TotalReceivable: loanAmt + intAmt, Notes: data.notes !== undefined ? data.notes : l.Notes };
+        }
+        return l;
+      }));
+      showToast(t("loanEdited", lang));
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteLoan = async (loanId) => {
+    setBusy(true);
+    try {
+      await backendRef.current.post("deleteLoan", { loanId });
+      setLoans((prev) => prev.filter((l) => l.LoanID !== loanId));
+      showToast(t("loanDeleted", lang));
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // --- Computed values (filtered by selected year) ---
   const yearStr = String(currentYear);
   const yearIncome = income.filter((d) => String(d.Year) === yearStr);
   const yearExpenses = expenses.filter((e) => String(e.Year) === yearStr);
+  const yearLoans = loans.filter((l) => String(l.Year) === yearStr);
   const yearAuction = auction.filter((a) => String(a.Year) === yearStr);
   const totalIncome = yearIncome.reduce((s, d) => s + Number(d.Amount || 0), 0);
   const totalExpenses = yearExpenses.reduce((s, e) => s + Number(e.Amount || 0), 0);
@@ -1139,12 +1254,27 @@ function App() {
             lang={lang}
           />
         )}
+        {activeTab === "loans" && (
+          <LoansView
+            loans={yearLoans}
+            families={families}
+            currentYear={currentYear}
+            isAdmin={isAdmin}
+            onAdd={addLoan}
+            onReceive={receiveLoan}
+            onEdit={editLoan}
+            onDelete={deleteLoan}
+            showToast={showToast}
+            day1Date={day1Date}
+          />
+        )}
         {activeTab === "reports" && (
           <ReportsView
             families={families}
             income={yearIncome}
             expenses={yearExpenses}
             auction={yearAuction}
+            loans={loans}
             totalIncome={totalIncome}
             totalExpenses={totalExpenses}
             totalAuction={totalAuction}
@@ -1201,6 +1331,7 @@ function App() {
           { id: "expenses", icon: "💸", label: t("navExpense", lang) },
           { id: "auction", icon: "🔨", label: t("navAuction", lang) },
           { id: "families", icon: "👨‍👩‍👧‍👦", label: t("navFamily", lang) },
+          { id: "loans", icon: "🏦", label: t("navLoans", lang) },
           { id: "reports", icon: "📋", label: t("navReports", lang) },
           ...(isAdmin ? [{ id: "auditlog", icon: "📜", label: t("navAuditLog", lang) }] : []),
         ].map((tab) => (
@@ -2609,7 +2740,7 @@ function AuctionItemForm({ onSubmit, onClose, currentYear }) {
 // REPORTS VIEW
 // ============================================================
 
-function ReportsView({ families, income, expenses, auction, totalIncome, totalExpenses, totalAuction, balance, ledger, currentYear, showToast, lang: propLang }) {
+function ReportsView({ families, income, expenses, auction, loans, totalIncome, totalExpenses, totalAuction, balance, ledger, currentYear, showToast, lang: propLang }) {
   const lang = useLang();
   const [activeReport, setActiveReport] = useState("membership");
 
@@ -2661,6 +2792,7 @@ function ReportsView({ families, income, expenses, auction, totalIncome, totalEx
           { id: "membership", label: t("membershipReport", lang) },
           { id: "address", label: t("addressBook", lang) },
           { id: "auction_balance", label: t("auctionBalance", lang) },
+          { id: "loan_report", label: t("loanReport", lang) },
           { id: "year_on_year", label: t("yearOnYear", lang) },
         ].map((r) => (
           <button
@@ -2691,6 +2823,9 @@ function ReportsView({ families, income, expenses, auction, totalIncome, totalEx
           totalAuction={totalAuction}
           balance={balance}
         />
+      )}
+      {activeReport === "loan_report" && (
+        <LoanReport families={families} loans={loans} currentYear={currentYear} />
       )}
       {activeReport === "year_on_year" && (
         <YearOnYearReport
@@ -3221,6 +3356,383 @@ function AuctionBalanceSheet({ auction, families, income, expenses, totalIncome,
           {t("pendingDisclaimer", lang).replace("{amount}", formatCurrency(pendingTotal))}
         </p>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// LOANS VIEW (Pangali Advances / ஈனத்து கணக்கு)
+// ============================================================
+function LoansView({ loans, families, currentYear, isAdmin, onAdd, onReceive, onEdit, onDelete, showToast, day1Date }) {
+  const lang = useLang();
+  const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [receiveModal, setReceiveModal] = useState(null);
+  const [editModal, setEditModal] = useState(null);
+  const [confirmDelete, setConfirmDelete] = useState(null);
+
+  const totalAdvanced = loans.reduce((s, l) => s + (Number(l.LoanAmount) || 0), 0);
+  const totalDue = loans.reduce((s, l) => s + (Number(l.TotalReceivable) || 0), 0);
+  const totalRec = loans.reduce((s, l) => s + (Number(l.ReceivedAmount) || 0), 0);
+  const pendingCount = loans.filter((l) => l.RecStatus !== "Received").length;
+
+  const statusColor = (s) => s === "Received" ? "#16a34a" : s === "Partial" ? "#d97706" : "#dc2626";
+  const statusLabel = (s) => s === "Received" ? t("loanReceived", lang) : s === "Partial" ? t("loanPartial", lang) : t("loanPending", lang);
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>{t("loans", lang)}</h2>
+        {isAdmin && <button onClick={() => setShowAddForm(true)} style={styles.addBtn}>+ {t("addLoan", lang)}</button>}
+      </div>
+
+      {/* Summary cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+        <div style={{ background: "#fef3c7", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#92400e" }}>{fmt(totalAdvanced)}</div>
+          <div style={{ fontSize: 10, color: "#78716c" }}>{t("totalAdvanced", lang)}</div>
+        </div>
+        <div style={{ background: "#fee2e2", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#991b1b" }}>{fmt(totalDue)}</div>
+          <div style={{ fontSize: 10, color: "#78716c" }}>{t("totalDue", lang)}</div>
+        </div>
+        <div style={{ background: "#dcfce7", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#166534" }}>{fmt(totalRec)}</div>
+          <div style={{ fontSize: 10, color: "#78716c" }}>{t("totalReceived", lang)}</div>
+        </div>
+        <div style={{ background: "#fef9c3", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#854d0e" }}>{pendingCount}</div>
+          <div style={{ fontSize: 10, color: "#78716c" }}>{t("pendingLoans", lang)}</div>
+        </div>
+      </div>
+
+      {/* Loan list */}
+      {loans.length === 0 ? (
+        <div style={{ textAlign: "center", padding: 40, color: "#a8a29e" }}>{lang === "ta" ? "இந்த ஆண்டு கடன்கள் இல்லை" : "No advances for this year"}</div>
+      ) : (
+        loans.map((l) => (
+          <div key={l.LoanID} style={{ ...styles.card, marginBottom: 10, borderLeft: `4px solid ${statusColor(l.RecStatus)}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{l.FamilyName} <span style={{ color: "#a8a29e", fontSize: 12 }}>({l.FamilyID})</span></div>
+                <div style={{ fontSize: 12, color: "#78716c", marginTop: 2 }}>
+                  {t("loanAmount", lang)}: {fmt(l.LoanAmount)} · {t("interestRate", lang).replace(" (%)", "")}: {l.InterestRate}% · {t("interestAmount", lang)}: {fmt(l.InterestAmount)}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4 }}>
+                  {t("totalReceivable", lang)}: {fmt(l.TotalReceivable)} · {t("receivedAmount", lang)}: {fmt(l.ReceivedAmount)}
+                </div>
+                {l.Notes && <div style={{ fontSize: 11, color: "#78716c", marginTop: 2 }}>📝 {l.Notes}</div>}
+              </div>
+              <div style={{ textAlign: "right" }}>
+                <span style={{ background: statusColor(l.RecStatus), color: "#fff", borderRadius: 6, padding: "3px 8px", fontSize: 11, fontWeight: 700 }}>
+                  {statusLabel(l.RecStatus)}
+                </span>
+                {isAdmin && l.RecStatus !== "Received" && (
+                  <div style={{ marginTop: 6 }}>
+                    <button onClick={() => setReceiveModal(l)} style={{ ...styles.addBtn, fontSize: 11, padding: "4px 10px", background: "#16a34a" }}>💰 {t("receiveLoan", lang)}</button>
+                  </div>
+                )}
+                {isAdmin && (
+                  <div style={{ marginTop: 4, display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                    <button onClick={() => setEditModal(l)} style={{ fontSize: 11, background: "none", border: "1px solid #d6d3d1", borderRadius: 6, padding: "2px 8px", cursor: "pointer" }}>✏️</button>
+                    <button onClick={() => setConfirmDelete(l)} style={{ fontSize: 11, background: "none", border: "1px solid #fecaca", borderRadius: 6, padding: "2px 8px", cursor: "pointer", color: "#dc2626" }}>🗑️</button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))
+      )}
+
+      {/* Add Loan Modal */}
+      {showAddForm && (
+        <LoanAddForm
+          families={families}
+          currentYear={currentYear}
+          onSubmit={(data) => { onAdd(data); setShowAddForm(false); }}
+          onClose={() => setShowAddForm(false)}
+        />
+      )}
+
+      {/* Receive Payment Modal */}
+      {receiveModal && (
+        <LoanReceiveForm
+          loan={receiveModal}
+          onSubmit={(data) => { onReceive(data); setReceiveModal(null); }}
+          onClose={() => setReceiveModal(null)}
+        />
+      )}
+
+      {/* Edit Loan Modal */}
+      {editModal && (
+        <LoanEditForm
+          loan={editModal}
+          families={families}
+          onSubmit={(data) => { onEdit(data); setEditModal(null); }}
+          onClose={() => setEditModal(null)}
+        />
+      )}
+
+      {/* Delete Confirmation */}
+      {confirmDelete && (
+        <Modal title={lang === "ta" ? "நீக்க உறுதிப்படுத்தவும்" : "Confirm Delete"} onClose={() => setConfirmDelete(null)}>
+          <p>{lang === "ta" ? "இந்த முன்பணத்தை நீக்க வேண்டுமா?" : "Delete this advance?"}</p>
+          <p style={{ fontWeight: 700 }}>{confirmDelete.FamilyName} — {fmt(confirmDelete.LoanAmount)}</p>
+          <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+            <button onClick={() => setConfirmDelete(null)} style={{ ...styles.btnPrimary, flex: 1, background: "#78716c" }}>{t("cancel", lang)}</button>
+            <button onClick={() => { onDelete(confirmDelete.LoanID); setConfirmDelete(null); }} style={{ ...styles.btnPrimary, flex: 1, background: "#dc2626" }}>{t("delete", lang)}</button>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+// --- Loan Add Form ---
+function LoanAddForm({ families, currentYear, onSubmit, onClose }) {
+  const lang = useLang();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    familyId: "",
+    familyName: "",
+    loanAmount: "",
+    interestRate: "9",
+    issuedDate: todayISO(),
+    notes: "",
+  });
+  const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
+  const loanAmt = Number(form.loanAmount) || 0;
+  const rate = Number(form.interestRate) || 0;
+  const intAmt = Math.round(loanAmt * rate / 100);
+  const totalRec = loanAmt + intAmt;
+
+  return (
+    <Modal title={t("addLoan", lang)} onClose={onClose}>
+      <div style={styles.formGrid}>
+        <label style={styles.label}>{t("family", lang)}
+          <select value={form.familyId} onChange={(e) => { const fam = families.find((f) => f.FamilyID === e.target.value); set("familyId", e.target.value); if (fam) set("familyName", fam.FamilyName); }} style={styles.input}>
+            <option value="">{t("select", lang)}</option>
+            {families.map((f) => (<option key={f.FamilyID} value={f.FamilyID}>{f.FamilyName} ({f.FamilyID})</option>))}
+          </select>
+        </label>
+        <label style={styles.label}>{t("loanAmount", lang)} (₹)
+          <input type="number" value={form.loanAmount} onChange={(e) => set("loanAmount", e.target.value)} style={styles.input} placeholder="0" />
+        </label>
+        <div style={{ display: "flex", gap: 10 }}>
+          <label style={{ ...styles.label, flex: 1 }}>{t("interestRate", lang)}
+            <input type="number" value={form.interestRate} onChange={(e) => set("interestRate", e.target.value)} style={styles.input} step="0.5" />
+          </label>
+          <label style={{ ...styles.label, flex: 1 }}>{t("issuedDate", lang)}
+            <input type="date" value={form.issuedDate} onChange={(e) => set("issuedDate", e.target.value)} style={styles.input} />
+          </label>
+        </div>
+        {/* Auto-calculated summary */}
+        {loanAmt > 0 && (
+          <div style={{ background: "#f5f5f4", borderRadius: 8, padding: 12, fontSize: 13 }}>
+            <div>{t("interestAmount", lang)}: <strong>₹{intAmt.toLocaleString("en-IN")}</strong> ({rate}%)</div>
+            <div style={{ fontWeight: 700, fontSize: 15, marginTop: 4, color: "#b45309" }}>{t("totalReceivable", lang)}: ₹{totalRec.toLocaleString("en-IN")}</div>
+          </div>
+        )}
+        <label style={styles.label}>{t("notes", lang)}
+          <input value={form.notes} onChange={(e) => set("notes", e.target.value)} style={styles.input} />
+        </label>
+      </div>
+      <button
+        onClick={() => { if (!saving && form.familyId && form.loanAmount) { setSaving(true); onSubmit({ ...form, year: String(currentYear) }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#b45309", opacity: (saving || !form.familyId || !form.loanAmount) ? 0.6 : 1 }}
+        disabled={saving || !form.familyId || !form.loanAmount}
+      >
+        {saving ? "⏳ Saving..." : t("addLoan", lang)}
+      </button>
+    </Modal>
+  );
+}
+
+// --- Loan Receive Form ---
+function LoanReceiveForm({ loan, onSubmit, onClose }) {
+  const lang = useLang();
+  const [saving, setSaving] = useState(false);
+  const remaining = (Number(loan.TotalReceivable) || 0) - (Number(loan.ReceivedAmount) || 0);
+  const [amount, setAmount] = useState(String(remaining));
+  const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
+
+  return (
+    <Modal title={t("receiveLoan", lang)} onClose={onClose}>
+      <div style={{ background: "#f5f5f4", borderRadius: 8, padding: 12, marginBottom: 12 }}>
+        <div style={{ fontWeight: 700, fontSize: 15 }}>{loan.FamilyName} <span style={{ color: "#a8a29e", fontSize: 12 }}>({loan.FamilyID})</span></div>
+        <div style={{ fontSize: 13, marginTop: 4 }}>
+          {t("loanAmount", lang)}: {fmt(loan.LoanAmount)} · {t("interestRate", lang).replace(" (%)", "")}: {loan.InterestRate}%
+        </div>
+        <div style={{ fontSize: 13 }}>{t("totalReceivable", lang)}: {fmt(loan.TotalReceivable)} · {t("receivedAmount", lang)}: {fmt(loan.ReceivedAmount)}</div>
+        <div style={{ fontWeight: 700, color: "#b45309", marginTop: 4 }}>{lang === "ta" ? "நிலுவை" : "Balance Due"}: {fmt(remaining)}</div>
+      </div>
+      <div style={styles.formGrid}>
+        <label style={styles.label}>{t("receiveAmount", lang)} (₹)
+          <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} style={styles.input} max={remaining} />
+        </label>
+      </div>
+      <button
+        onClick={() => { if (!saving && amount && Number(amount) > 0) { setSaving(true); onSubmit({ loanId: loan.LoanID, receivedAmount: amount }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#16a34a", opacity: (saving || !amount || Number(amount) <= 0) ? 0.6 : 1 }}
+        disabled={saving || !amount || Number(amount) <= 0}
+      >
+        {saving ? "⏳ Saving..." : t("receiveLoan", lang)}
+      </button>
+    </Modal>
+  );
+}
+
+// --- Loan Edit Form ---
+function LoanEditForm({ loan, families, onSubmit, onClose }) {
+  const lang = useLang();
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    familyId: loan.FamilyID || "",
+    familyName: loan.FamilyName || "",
+    loanAmount: String(loan.LoanAmount || ""),
+    interestRate: String(loan.InterestRate || "9"),
+    notes: loan.Notes || "",
+  });
+  const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
+  const loanAmt = Number(form.loanAmount) || 0;
+  const rate = Number(form.interestRate) || 0;
+  const intAmt = Math.round(loanAmt * rate / 100);
+  const totalRec = loanAmt + intAmt;
+
+  return (
+    <Modal title={lang === "ta" ? "முன்பணம் திருத்து" : "Edit Advance"} onClose={onClose}>
+      <div style={styles.formGrid}>
+        <label style={styles.label}>{t("family", lang)}
+          <select value={form.familyId} onChange={(e) => { const fam = families.find((f) => f.FamilyID === e.target.value); set("familyId", e.target.value); if (fam) set("familyName", fam.FamilyName); }} style={styles.input}>
+            <option value="">{t("select", lang)}</option>
+            {families.map((f) => (<option key={f.FamilyID} value={f.FamilyID}>{f.FamilyName} ({f.FamilyID})</option>))}
+          </select>
+        </label>
+        <label style={styles.label}>{t("loanAmount", lang)} (₹)
+          <input type="number" value={form.loanAmount} onChange={(e) => set("loanAmount", e.target.value)} style={styles.input} />
+        </label>
+        <label style={styles.label}>{t("interestRate", lang)}
+          <input type="number" value={form.interestRate} onChange={(e) => set("interestRate", e.target.value)} style={styles.input} step="0.5" />
+        </label>
+        {loanAmt > 0 && (
+          <div style={{ background: "#f5f5f4", borderRadius: 8, padding: 12, fontSize: 13 }}>
+            <div>{t("interestAmount", lang)}: <strong>₹{intAmt.toLocaleString("en-IN")}</strong></div>
+            <div style={{ fontWeight: 700, fontSize: 15, marginTop: 4, color: "#b45309" }}>{t("totalReceivable", lang)}: ₹{totalRec.toLocaleString("en-IN")}</div>
+          </div>
+        )}
+        <label style={styles.label}>{t("notes", lang)}
+          <input value={form.notes} onChange={(e) => set("notes", e.target.value)} style={styles.input} />
+        </label>
+      </div>
+      <button
+        onClick={() => { if (!saving && form.familyId && form.loanAmount) { setSaving(true); onSubmit({ ...form, loanId: loan.LoanID }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: (saving || !form.familyId || !form.loanAmount) ? 0.6 : 1 }}
+        disabled={saving || !form.familyId || !form.loanAmount}
+      >
+        {saving ? "⏳ Saving..." : t("loanEdited", lang)}
+      </button>
+    </Modal>
+  );
+}
+
+// --- Loan Report (matching Inaththu Kanakku PDF format) ---
+function LoanReport({ families, loans, currentYear }) {
+  const lang = useLang();
+  const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
+  const yearStr = String(currentYear);
+
+  // Build a row per family with loan data for current year
+  const loansByFamily = {};
+  (loans || []).forEach((l) => {
+    if (String(l.Year) === yearStr) {
+      const fid = String(l.FamilyID || "").trim();
+      if (!loansByFamily[fid]) loansByFamily[fid] = { amount: 0, interest: 0, total: 0, received: 0, status: "—" };
+      loansByFamily[fid].amount += Number(l.LoanAmount) || 0;
+      loansByFamily[fid].interest += Number(l.InterestAmount) || 0;
+      loansByFamily[fid].total += Number(l.TotalReceivable) || 0;
+      loansByFamily[fid].received += Number(l.ReceivedAmount) || 0;
+      loansByFamily[fid].status = l.RecStatus || "Pending";
+    }
+  });
+
+  // Get default interest rate from any loan this year, or 9
+  const defaultRate = loans.length > 0 ? (Number(loans[0].InterestRate) || 9) : 9;
+
+  const rows = (families || []).map((f, idx) => {
+    const fid = String(f.FamilyID || "").trim();
+    const d = loansByFamily[fid] || { amount: 0, interest: 0, total: 0, received: 0, status: "—" };
+    return { sl: idx + 1, id: fid, name: f.FamilyName, ...d };
+  });
+
+  // Sort by FamilyID numerically
+  rows.sort((a, b) => {
+    const numA = parseInt(String(a.id).replace(/\D/g, "")) || 0;
+    const numB = parseInt(String(b.id).replace(/\D/g, "")) || 0;
+    return numA - numB;
+  });
+
+  const totals = rows.reduce((s, r) => ({
+    amount: s.amount + r.amount,
+    interest: s.interest + r.interest,
+    total: s.total + r.total,
+    received: s.received + r.received,
+  }), { amount: 0, interest: 0, total: 0, received: 0 });
+
+  const cellStyle = { padding: "6px 8px", borderBottom: "1px solid #e7e5e4", fontSize: 12 };
+  const headStyle = { ...cellStyle, fontWeight: 700, background: "#292524", color: "#fff", position: "sticky", top: 0 };
+
+  return (
+    <div style={{ ...styles.card, padding: 0, overflow: "hidden" }}>
+      <div style={{ padding: "12px 16px", background: "#fef3c7", borderBottom: "1px solid #e7e5e4" }}>
+        <h3 style={{ margin: 0, fontSize: 16, color: "#92400e" }}>{t("loanReport", lang)}</h3>
+        <div style={{ fontSize: 12, color: "#78716c", marginTop: 4 }}>
+          {lang === "ta" ? "ஈனத்து கணக்கு — பங்காளிகளுக்கு வழங்கிய முன்பணம்" : "Amount advanced to Pangalis"} · {yearStr} · Int @{defaultRate}%
+        </div>
+      </div>
+      <div style={{ overflowX: "auto" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr>
+              <th style={{ ...headStyle, textAlign: "center", width: 30 }}>Sl</th>
+              <th style={headStyle}>{lang === "ta" ? "பெயர்" : "Name"}</th>
+              <th style={{ ...headStyle, textAlign: "right" }}>{lang === "ta" ? "தொகை" : "Amount"}</th>
+              <th style={{ ...headStyle, textAlign: "right" }}>{lang === "ta" ? "வட்டி" : "Int"}</th>
+              <th style={{ ...headStyle, textAlign: "right" }}>{lang === "ta" ? "மொத்தம்" : "Total"}</th>
+              <th style={{ ...headStyle, textAlign: "right" }}>{lang === "ta" ? "வசூல்" : "Rec."}</th>
+              <th style={{ ...headStyle, textAlign: "center" }}>{lang === "ta" ? "நிலை" : "Status"}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.id} style={{ background: r.amount > 0 ? (r.status === "Received" ? "#f0fdf4" : "#fefce8") : "#fff" }}>
+                <td style={{ ...cellStyle, textAlign: "center", color: "#a8a29e" }}>{r.sl}</td>
+                <td style={cellStyle}>{r.name}</td>
+                <td style={{ ...cellStyle, textAlign: "right", fontWeight: r.amount > 0 ? 600 : 400 }}>{r.amount > 0 ? fmt(r.amount) : "0"}</td>
+                <td style={{ ...cellStyle, textAlign: "right" }}>{r.interest > 0 ? fmt(r.interest) : "0"}</td>
+                <td style={{ ...cellStyle, textAlign: "right", fontWeight: 600 }}>{r.total > 0 ? fmt(r.total) : "0"}</td>
+                <td style={{ ...cellStyle, textAlign: "right", color: r.received > 0 ? "#16a34a" : "#78716c" }}>{r.received > 0 ? fmt(r.received) : "0"}</td>
+                <td style={{ ...cellStyle, textAlign: "center" }}>
+                  {r.amount > 0 ? (
+                    <span style={{ fontSize: 11, fontWeight: 700, color: r.status === "Received" ? "#16a34a" : r.status === "Partial" ? "#d97706" : "#dc2626" }}>
+                      {r.status === "Received" ? "✅" : r.status === "Partial" ? "🔶" : "⏳"}
+                    </span>
+                  ) : "—"}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr style={{ background: "#292524", color: "#fff", fontWeight: 700 }}>
+              <td colSpan="2" style={{ ...cellStyle, color: "#fff" }}>{lang === "ta" ? "மொத்தம்" : "Total"}</td>
+              <td style={{ ...cellStyle, textAlign: "right", color: "#fff" }}>{fmt(totals.amount)}</td>
+              <td style={{ ...cellStyle, textAlign: "right", color: "#fff" }}>{fmt(totals.interest)}</td>
+              <td style={{ ...cellStyle, textAlign: "right", color: "#fff" }}>{fmt(totals.total)}</td>
+              <td style={{ ...cellStyle, textAlign: "right", color: "#fff" }}>{fmt(totals.received)}</td>
+              <td style={cellStyle}></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
     </div>
   );
 }
