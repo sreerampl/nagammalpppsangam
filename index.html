@@ -3833,25 +3833,53 @@ function LoanReport({ families, loans, currentYear }) {
 // ============================================================
 function AuditLogView({ entries }) {
   const { lang } = useContext(LangContext);
+  const [filter, setFilter] = useState("all");
   const actionColors = {
     CREATE: "#059669", BID: "#2563eb", CONFIRM: "#7c3aed",
-    LOGIN: "#6b7280", LOGOUT: "#6b7280", UPDATE: "#d97706", DELETE: "#dc2626",
+    LOGIN: "#6b7280", LOGOUT: "#6b7280", UPDATE: "#d97706", DELETE: "#dc2626", EDIT: "#d97706",
   };
+
+  const financialModules = ["Income", "Expenses", "Auction", "Loan"];
+  const filtered = filter === "all" ? entries : entries.filter((e) => financialModules.includes(e.Module));
+
   return (
     <div>
       <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, fontFamily: "'Outfit', sans-serif" }}>
         📜 {t("navAuditLog", lang)}
       </h2>
+
+      {/* Filter tabs */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        {[
+          { id: "all", label: lang === "ta" ? "அனைத்து செயல்கள்" : "All Activity", icon: "📋" },
+          { id: "financial", label: lang === "ta" ? "நிதி பரிவர்த்தனைகள்" : "Financial Txn", icon: "💰" },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setFilter(tab.id)}
+            style={{
+              flex: 1, padding: "8px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
+              cursor: "pointer", border: "1px solid #d6d3d1", transition: "all 0.2s",
+              background: filter === tab.id ? "#292524" : "#fff",
+              color: filter === tab.id ? "#fff" : "#57534e",
+            }}
+          >
+            {tab.icon} {tab.label}
+          </button>
+        ))}
+      </div>
+
       <p style={{ fontSize: 12, color: "#78716c", marginBottom: 12 }}>
-        {entries.length} {lang === "ta" ? "பதிவுகள்" : "entries"}
+        {filtered.length} {lang === "ta" ? "பதிவுகள்" : "entries"}
+        {filter === "financial" && <span style={{ color: "#b45309" }}> ({lang === "ta" ? "வருமானம், செலவுகள், ஏலம், கடன்" : "Income, Expenses, Auction, Loan"})</span>}
       </p>
-      {entries.length === 0 ? (
+      {filtered.length === 0 ? (
         <p style={{ textAlign: "center", color: "#a8a29e", padding: 40 }}>
-          {lang === "ta" ? "தணிக்கைப் பதிவுகள் இல்லை" : "No audit log entries yet"}
+          {lang === "ta" ? "பதிவுகள் இல்லை" : "No entries found"}
         </p>
       ) : (
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {entries.map((e, i) => (
+          {filtered.map((e, i) => (
             <div key={i} style={{
               background: "#fff", borderRadius: 10, padding: "10px 14px",
               border: "1px solid #e7e5e4", boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
