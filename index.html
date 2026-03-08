@@ -283,15 +283,7 @@ const T = {
   toastBidSubmit: { en: "Bid submitted! Awaiting confirmation.", ta: "ஏலம் சமர்ப்பிக்கப்பட்டது! உறுதிக்காக காத்திருக்கிறது." },
   toastBidConfirm: { en: "Bid confirmed!", ta: "ஏலம் உறுதிசெய்யப்பட்டது!" },
   toastBidSelfError: { en: "Cannot confirm your own entry!", ta: "உங்கள் சொந்த பதிவை உறுதிசெய்ய முடியாது!" },
-  toastOfflineSaved: { en: "Saved offline. Will sync when online.", ta: "ஆஃப்லைனில் சேமிக்கப்பட்டது. ஆன்லைனில் ஒத்திசைக்கும்." },
-  toastSynced: { en: "Offline entries synced!", ta: "ஆஃப்லைன் பதிவுகள் ஒத்திசைக்கப்பட்டன!" },
-  toastSyncFailed: { en: "Some entries failed to sync.", ta: "சில பதிவுகள் ஒத்திசைக்கத் தவறின." },
   toastExported: { en: "Data exported!", ta: "தரவு ஏற்றுமதி செய்யப்பட்டது!" },
-
-  // Offline
-  offlineBanner: { en: "📡 Offline — entries will be saved locally", ta: "📡 ஆஃப்லைன் — பதிவுகள் உள்ளூரில் சேமிக்கப்படும்" },
-  pendingSync: { en: "pending sync", ta: "ஒத்திசைவு நிலுவை" },
-  syncNow: { en: "Sync Now", ta: "இப்போது ஒத்திசை" },
 
   // Export
   exportCSV: { en: "📥 Export CSV", ta: "📥 CSV ஏற்றுமதி" },
@@ -399,31 +391,6 @@ function exportToCSV(filename, headers, rows) {
   URL.revokeObjectURL(url);
 }
 
-// --- Offline Queue ---
-const OFFLINE_QUEUE_KEY = "prayer_offline_queue";
-
-function getOfflineQueue() {
-  try {
-    return JSON.parse(localStorage.getItem(OFFLINE_QUEUE_KEY) || "[]");
-  } catch { return []; }
-}
-
-function addToOfflineQueue(entry) {
-  const queue = getOfflineQueue();
-  queue.push({ ...entry, _offlineId: Date.now() + "-" + Math.random().toString(36).slice(2, 8), _timestamp: new Date().toISOString() });
-  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
-  return queue.length;
-}
-
-function removeFromOfflineQueue(offlineId) {
-  const queue = getOfflineQueue().filter((e) => e._offlineId !== offlineId);
-  localStorage.setItem(OFFLINE_QUEUE_KEY, JSON.stringify(queue));
-}
-
-function clearOfflineQueue() {
-  localStorage.setItem(OFFLINE_QUEUE_KEY, "[]");
-}
-
 // --- Photo Helper (compress & convert to base64) ---
 function compressImage(file, maxWidth = 800, quality = 0.6) {
   return new Promise((resolve, reject) => {
@@ -505,8 +472,6 @@ function App() {
   const [toast, setToast] = useState(null);
   const [busy, setBusy] = useState(false);
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [offlineCount, setOfflineCount] = useState(getOfflineQueue().length);
 
   // Derive Day1 date from Ledger for current year
   const currentLedgerEntry = (ledger || []).find((r) => String(r.Year) === String(currentYear));
@@ -524,15 +489,6 @@ function App() {
 
   const backendRef = useRef(null);
 
-  // Online/Offline listener
-  useEffect(() => {
-    const onOnline = () => { setIsOnline(true); };
-    const onOffline = () => { setIsOnline(false); };
-    window.addEventListener("online", onOnline);
-    window.addEventListener("offline", onOffline);
-    return () => { window.removeEventListener("online", onOnline); window.removeEventListener("offline", onOffline); };
-  }, []);
-
   // --- Derived from Master sheet (fallback to hardcoded) ---
   const INCOME_CATS = (master["Income Category"] && master["Income Category"].length > 0) ? master["Income Category"] : INCOME_CATEGORIES;
   const EXPENSE_CATS = (master["Expense Category"] && master["Expense Category"].length > 0) ? master["Expense Category"] : EXPENSE_CATEGORIES;
@@ -544,50 +500,6 @@ function App() {
     setTimeout(() => setToast(null), 3000);
   }, []);
 
-  // --- Sync offline queue ---
-  const syncOfflineQueue = useCallback(async () => {
-    if (!backendRef.current) return;
-    const queue = getOfflineQueue();
-    if (queue.length === 0) return;
-    let synced = 0, failed = 0;
-    for (const entry of queue) {
-      try {
-        const { _offlineId, _timestamp, action, ...data } = entry;
-        await backendRef.current.post(action, data);
-        removeFromOfflineQueue(_offlineId);
-        synced++;
-      } catch (e) {
-        console.error("Sync failed for", entry._offlineId, e);
-        failed++;
-      }
-    }
-    setOfflineCount(getOfflineQueue().length);
-    if (synced > 0) {
-      // Refresh data
-      try {
-        const result = await backendRef.current.post("loadAll");
-        if (result.master) setMaster(result.master);
-        if (result.families) setFamilies(result.families);
-        if (result.income) setIncome(result.income);
-        if (result.expenses) setExpenses(result.expenses);
-        if (result.auction) setAuction(result.auction);
-        if (result.ledger) setLedger(result.ledger);
-        if (result.loans) setLoans(result.loans);
-        if (result.auditLog) setAuditLog(result.auditLog);
-      } catch (e) { console.error("Post-sync refresh failed:", e); }
-    }
-    if (failed > 0) showToast(t("toastSyncFailed", lang), "error");
-    else if (synced > 0) showToast(t("toastSynced", lang), "success");
-  }, [lang, showToast]);
-
-  // Auto-sync when coming back online
-  useEffect(() => {
-    if (isOnline && offlineCount > 0 && backendRef.current) {
-      syncOfflineQueue();
-    }
-  }, [isOnline, syncOfflineQueue, offlineCount]);
-
-  // Offline-aware submit: tries backend, falls back to offline queue
 
   // --- Google Sign-In ---
   const googleReadyRef = useRef(false);
@@ -1159,21 +1071,6 @@ function App() {
           background: toast.type === "error" ? "#dc2626" : toast.type === "info" ? "#2563eb" : "#059669",
         }}>
           {toast.msg}
-        </div>
-      )}
-
-      {/* Offline banner */}
-      {!isOnline && (
-        <div style={{ background: "#fef3c7", color: "#92400e", padding: "8px 16px", textAlign: "center", fontSize: 13, fontWeight: 600 }}>
-          {t("offlineBanner", lang)}
-        </div>
-      )}
-      {offlineCount > 0 && isOnline && (
-        <div style={{ background: "#dbeafe", color: "#1e40af", padding: "8px 16px", textAlign: "center", fontSize: 13, display: "flex", justifyContent: "center", alignItems: "center", gap: 12 }}>
-          <span>🔄 {offlineCount} {t("pendingSync", lang)}</span>
-          <button onClick={syncOfflineQueue} style={{ background: "#2563eb", color: "#fff", border: "none", borderRadius: 8, padding: "4px 12px", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-            {t("syncNow", lang)}
-          </button>
         </div>
       )}
 
@@ -4761,11 +4658,16 @@ const styles = {
     root.render(React.createElement(App));
   </script>
   <script>
-    // Register Service Worker for PWA
+    // Unregister any existing service worker and clear caches
     if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./sw.js').catch(() => {});
+      navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        registrations.forEach(function(reg) { reg.unregister(); });
       });
+      if (window.caches) {
+        caches.keys().then(function(names) {
+          names.forEach(function(name) { caches.delete(name); });
+        });
+      }
     }
   </script>
 </body>
