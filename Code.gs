@@ -739,8 +739,7 @@ function handleAddLoan(data, email) {
   var year = data.year || String(new Date().getFullYear());
   var loanAmt = Number(data.loanAmount) || 0;
   var rate = Number(data.interestRate) || 9;
-  var interestAmt = Math.round(loanAmt * rate / 100);
-  var totalRec = loanAmt + interestAmt;
+  var interestOnLoan = Math.round(loanAmt * rate / 100);
 
   // Use manually entered lastYearReceivable if provided, else auto-calculate
   var lastYearRec = 0;
@@ -761,6 +760,10 @@ function handleAddLoan(data, email) {
       }
     }
   }
+
+  var interestOnPrev = Math.round(lastYearRec * rate / 100);
+  var interestAmt = interestOnLoan + interestOnPrev;
+  var totalRec = lastYearRec + loanAmt + interestAmt;
 
   var row = [
     loanId,
@@ -828,14 +831,15 @@ function handleEditLoan(data, email) {
     if (String(rows[i][idCol]).trim() === String(data.loanId).trim()) {
       var loanAmt = Number(data.loanAmount) || Number(rows[i][headers.indexOf("LoanAmount")]);
       var rate = Number(data.interestRate) || Number(rows[i][headers.indexOf("InterestRate")]);
-      var interestAmt = Math.round(loanAmt * rate / 100);
-      var totalRec = loanAmt + interestAmt;
+      var lastYearRec = (data.lastYearReceivable !== undefined && data.lastYearReceivable !== "") ? Number(data.lastYearReceivable) || 0 : Number(rows[i][headers.indexOf("LastYearReceivable")]) || 0;
+      var interestOnLoan = Math.round(loanAmt * rate / 100);
+      var interestOnPrev = Math.round(lastYearRec * rate / 100);
+      var interestAmt = interestOnLoan + interestOnPrev;
+      var totalRec = lastYearRec + loanAmt + interestAmt;
 
       sheet.getRange(i + 1, headers.indexOf("FamilyID") + 1).setValue(data.familyId || rows[i][headers.indexOf("FamilyID")]);
       sheet.getRange(i + 1, headers.indexOf("FamilyName") + 1).setValue(data.familyName || rows[i][headers.indexOf("FamilyName")]);
-      if (data.lastYearReceivable !== undefined && data.lastYearReceivable !== "") {
-        sheet.getRange(i + 1, headers.indexOf("LastYearReceivable") + 1).setValue(Number(data.lastYearReceivable) || 0);
-      }
+      sheet.getRange(i + 1, headers.indexOf("LastYearReceivable") + 1).setValue(lastYearRec);
       sheet.getRange(i + 1, headers.indexOf("LoanAmount") + 1).setValue(loanAmt);
       sheet.getRange(i + 1, headers.indexOf("InterestRate") + 1).setValue(rate);
       sheet.getRange(i + 1, headers.indexOf("InterestAmount") + 1).setValue(interestAmt);

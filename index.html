@@ -904,17 +904,20 @@ function App() {
       const result = await backendRef.current.post("addLoan", data);
       const loanAmt = Number(data.loanAmount) || 0;
       const rate = Number(data.interestRate) || 9;
-      const intAmt = Math.round(loanAmt * rate / 100);
+      const lastYrRec = result.lastYearReceivable || 0;
+      const intOnLoan = Math.round(loanAmt * rate / 100);
+      const intOnPrev = Math.round(lastYrRec * rate / 100);
+      const intAmt = intOnLoan + intOnPrev;
       const row = {
         LoanID: result.loanId,
         Year: data.year || String(new Date().getFullYear()),
         FamilyID: data.familyId || "",
         FamilyName: data.familyName || "",
-        LastYearReceivable: result.lastYearReceivable || 0,
+        LastYearReceivable: lastYrRec,
         LoanAmount: loanAmt,
         InterestRate: rate,
         InterestAmount: intAmt,
-        TotalReceivable: loanAmt + intAmt,
+        TotalReceivable: lastYrRec + loanAmt + intAmt,
         ReceivedAmount: 0,
         RecStatus: "Pending",
         IssuedBy: user.email,
@@ -956,10 +959,13 @@ function App() {
       await backendRef.current.post("editLoan", data);
       const loanAmt = Number(data.loanAmount) || 0;
       const rate = Number(data.interestRate) || 9;
-      const intAmt = Math.round(loanAmt * rate / 100);
       setLoans((prev) => prev.map((l) => {
         if (l.LoanID === data.loanId) {
-          return { ...l, FamilyID: data.familyId || l.FamilyID, FamilyName: data.familyName || l.FamilyName, LastYearReceivable: data.lastYearReceivable !== undefined && data.lastYearReceivable !== "" ? Number(data.lastYearReceivable) : l.LastYearReceivable, LoanAmount: loanAmt, InterestRate: rate, InterestAmount: intAmt, TotalReceivable: loanAmt + intAmt, Notes: data.notes !== undefined ? data.notes : l.Notes };
+          const lastYrRec = data.lastYearReceivable !== undefined && data.lastYearReceivable !== "" ? Number(data.lastYearReceivable) : Number(l.LastYearReceivable) || 0;
+          const intOnLoan = Math.round(loanAmt * rate / 100);
+          const intOnPrev = Math.round(lastYrRec * rate / 100);
+          const intAmt = intOnLoan + intOnPrev;
+          return { ...l, FamilyID: data.familyId || l.FamilyID, FamilyName: data.familyName || l.FamilyName, LastYearReceivable: lastYrRec, LoanAmount: loanAmt, InterestRate: rate, InterestAmount: intAmt, TotalReceivable: lastYrRec + loanAmt + intAmt, Notes: data.notes !== undefined ? data.notes : l.Notes };
         }
         return l;
       }));
@@ -3487,8 +3493,10 @@ function LoanAddForm({ families, allLoans, currentYear, onSubmit, onClose, day1D
   const lastYrRec = Number(form.lastYearReceivable) || 0;
   const loanAmt = Number(form.loanAmount) || 0;
   const rate = Number(form.interestRate) || 0;
-  const intAmt = Math.round(loanAmt * rate / 100);
-  const totalRec = loanAmt + intAmt;
+  const intOnLoan = Math.round(loanAmt * rate / 100);
+  const intOnPrev = Math.round(lastYrRec * rate / 100);
+  const intAmt = intOnLoan + intOnPrev;
+  const totalRec = lastYrRec + loanAmt + intAmt;
   const autoDay = calcDay(form.issuedDate, day1Date);
 
   return (
@@ -3520,8 +3528,9 @@ function LoanAddForm({ families, allLoans, currentYear, onSubmit, onClose, day1D
         {/* Auto-calculated summary */}
         {(loanAmt > 0 || lastYrRec > 0) && (
           <div style={{ background: "#f5f5f4", borderRadius: 8, padding: 12, fontSize: 13 }}>
-            {lastYrRec > 0 && <div style={{ color: "#b45309" }}>{lang === "ta" ? "கடந்த ஆண்டு நிலுவை" : "Last Year Receivable"}: <strong>₹{lastYrRec.toLocaleString("en-IN")}</strong></div>}
-            {loanAmt > 0 && <div>{t("interestAmount", lang)}: <strong>₹{intAmt.toLocaleString("en-IN")}</strong> ({rate}%)</div>}
+            {lastYrRec > 0 && <div style={{ color: "#b45309" }}>{lang === "ta" ? "கடந்த ஆண்டு நிலுவை" : "Last Year Receivable"}: <strong>₹{lastYrRec.toLocaleString("en-IN")}</strong> {intOnPrev > 0 && <span>(+ ₹{intOnPrev.toLocaleString("en-IN")} {lang === "ta" ? "வட்டி" : "int"})</span>}</div>}
+            {loanAmt > 0 && <div>{lang === "ta" ? "புதிய கடன்" : "New Loan"}: <strong>₹{loanAmt.toLocaleString("en-IN")}</strong> {intOnLoan > 0 && <span>(+ ₹{intOnLoan.toLocaleString("en-IN")} {lang === "ta" ? "வட்டி" : "int"})</span>}</div>}
+            <div style={{ fontSize: 12, color: "#78716c", marginTop: 2 }}>{t("interestAmount", lang)}: ₹{intAmt.toLocaleString("en-IN")} ({rate}%)</div>
             <div style={{ fontWeight: 700, fontSize: 15, marginTop: 4, color: "#b45309" }}>{t("totalReceivable", lang)}: ₹{totalRec.toLocaleString("en-IN")}</div>
           </div>
         )}
@@ -3587,10 +3596,13 @@ function LoanEditForm({ loan, families, onSubmit, onClose }) {
     notes: loan.Notes || "",
   });
   const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
+  const lastYrRec = Number(form.lastYearReceivable) || 0;
   const loanAmt = Number(form.loanAmount) || 0;
   const rate = Number(form.interestRate) || 0;
-  const intAmt = Math.round(loanAmt * rate / 100);
-  const totalRec = loanAmt + intAmt;
+  const intOnLoan = Math.round(loanAmt * rate / 100);
+  const intOnPrev = Math.round(lastYrRec * rate / 100);
+  const intAmt = intOnLoan + intOnPrev;
+  const totalRec = lastYrRec + loanAmt + intAmt;
 
   return (
     <Modal title={lang === "ta" ? "முன்பணம் திருத்து" : "Edit Advance"} onClose={onClose}>
@@ -3610,9 +3622,11 @@ function LoanEditForm({ loan, families, onSubmit, onClose }) {
         <label style={styles.label}>{t("interestRate", lang)}
           <input type="number" value={form.interestRate} onChange={(e) => set("interestRate", e.target.value)} style={styles.input} step="0.5" />
         </label>
-        {loanAmt > 0 && (
+        {(loanAmt > 0 || lastYrRec > 0) && (
           <div style={{ background: "#f5f5f4", borderRadius: 8, padding: 12, fontSize: 13 }}>
-            <div>{t("interestAmount", lang)}: <strong>₹{intAmt.toLocaleString("en-IN")}</strong></div>
+            {lastYrRec > 0 && <div style={{ color: "#b45309" }}>{lang === "ta" ? "கடந்த ஆண்டு நிலுவை" : "Last Year Receivable"}: <strong>₹{lastYrRec.toLocaleString("en-IN")}</strong> (+ ₹{intOnPrev.toLocaleString("en-IN")} int)</div>}
+            {loanAmt > 0 && <div>{lang === "ta" ? "கடன்" : "Loan"}: <strong>₹{loanAmt.toLocaleString("en-IN")}</strong> (+ ₹{intOnLoan.toLocaleString("en-IN")} int)</div>}
+            <div style={{ fontSize: 12, color: "#78716c", marginTop: 2 }}>{t("interestAmount", lang)}: ₹{intAmt.toLocaleString("en-IN")} ({rate}%)</div>
             <div style={{ fontWeight: 700, fontSize: 15, marginTop: 4, color: "#b45309" }}>{t("totalReceivable", lang)}: ₹{totalRec.toLocaleString("en-IN")}</div>
           </div>
         )}
