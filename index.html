@@ -959,7 +959,7 @@ function App() {
       const intAmt = Math.round(loanAmt * rate / 100);
       setLoans((prev) => prev.map((l) => {
         if (l.LoanID === data.loanId) {
-          return { ...l, FamilyID: data.familyId || l.FamilyID, FamilyName: data.familyName || l.FamilyName, LoanAmount: loanAmt, InterestRate: rate, InterestAmount: intAmt, TotalReceivable: loanAmt + intAmt, Notes: data.notes !== undefined ? data.notes : l.Notes };
+          return { ...l, FamilyID: data.familyId || l.FamilyID, FamilyName: data.familyName || l.FamilyName, LastYearReceivable: data.lastYearReceivable !== undefined && data.lastYearReceivable !== "" ? Number(data.lastYearReceivable) : l.LastYearReceivable, LoanAmount: loanAmt, InterestRate: rate, InterestAmount: intAmt, TotalReceivable: loanAmt + intAmt, Notes: data.notes !== undefined ? data.notes : l.Notes };
         }
         return l;
       }));
@@ -3404,6 +3404,7 @@ function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onR
       {showAddForm && (
         <LoanAddForm
           families={families}
+          allLoans={allLoans}
           currentYear={currentYear}
           day1Date={day1Date}
           onSubmit={(data) => { onAdd(data); setShowAddForm(false); }}
@@ -3446,18 +3447,44 @@ function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onR
 }
 
 // --- Loan Add Form ---
-function LoanAddForm({ families, currentYear, onSubmit, onClose, day1Date }) {
+function LoanAddForm({ families, allLoans, currentYear, onSubmit, onClose, day1Date }) {
   const lang = useLang();
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
     familyId: "",
     familyName: "",
+    lastYearReceivable: "",
     loanAmount: "",
     interestRate: "9",
     issuedDate: todayISO(),
     notes: "",
   });
   const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
+
+  // Calculate previous year outstanding for a given family
+  const prevYear = String(Number(currentYear) - 1);
+  const calcPrevOutstanding = (familyId) => {
+    let due = 0;
+    (allLoans || []).forEach((l) => {
+      if (String(l.Year) === prevYear && String(l.FamilyID || "").trim() === String(familyId).trim()) {
+        const d = (Number(l.TotalReceivable) || 0) - (Number(l.ReceivedAmount) || 0);
+        if (d > 0) due += d;
+      }
+    });
+    return due;
+  };
+
+  // On family select, auto-fill last year receivable
+  const onFamilyChange = (e) => {
+    const fid = e.target.value;
+    const fam = families.find((f) => f.FamilyID === fid);
+    set("familyId", fid);
+    if (fam) set("familyName", fam.FamilyName);
+    const prevDue = calcPrevOutstanding(fid);
+    set("lastYearReceivable", prevDue > 0 ? String(prevDue) : "");
+  };
+
+  const lastYrRec = Number(form.lastYearReceivable) || 0;
   const loanAmt = Number(form.loanAmount) || 0;
   const rate = Number(form.interestRate) || 0;
   const intAmt = Math.round(loanAmt * rate / 100);
@@ -3468,10 +3495,13 @@ function LoanAddForm({ families, currentYear, onSubmit, onClose, day1Date }) {
     <Modal title={t("addLoan", lang)} onClose={onClose}>
       <div style={styles.formGrid}>
         <label style={styles.label}>{t("family", lang)}
-          <select value={form.familyId} onChange={(e) => { const fam = families.find((f) => f.FamilyID === e.target.value); set("familyId", e.target.value); if (fam) set("familyName", fam.FamilyName); }} style={styles.input}>
+          <select value={form.familyId} onChange={onFamilyChange} style={styles.input}>
             <option value="">{t("select", lang)}</option>
             {families.map((f) => (<option key={f.FamilyID} value={f.FamilyID}>{f.FamilyName} ({f.FamilyID})</option>))}
           </select>
+        </label>
+        <label style={styles.label}>{lang === "ta" ? "கடந்த ஆண்டு நிலுவை" : "Last Year Receivable"} (₹)
+          <input type="number" value={form.lastYearReceivable} onChange={(e) => set("lastYearReceivable", e.target.value)} style={{ ...styles.input, background: "#fef3c7" }} placeholder="0" />
         </label>
         <label style={styles.label}>{t("loanAmount", lang)} (₹)
           <input type="number" value={form.loanAmount} onChange={(e) => set("loanAmount", e.target.value)} style={styles.input} placeholder="0" />
@@ -3488,9 +3518,10 @@ function LoanAddForm({ families, currentYear, onSubmit, onClose, day1Date }) {
           <DayBadge day={autoDay} lang={lang} />
         </div>
         {/* Auto-calculated summary */}
-        {loanAmt > 0 && (
+        {(loanAmt > 0 || lastYrRec > 0) && (
           <div style={{ background: "#f5f5f4", borderRadius: 8, padding: 12, fontSize: 13 }}>
-            <div>{t("interestAmount", lang)}: <strong>₹{intAmt.toLocaleString("en-IN")}</strong> ({rate}%)</div>
+            {lastYrRec > 0 && <div style={{ color: "#b45309" }}>{lang === "ta" ? "கடந்த ஆண்டு நிலுவை" : "Last Year Receivable"}: <strong>₹{lastYrRec.toLocaleString("en-IN")}</strong></div>}
+            {loanAmt > 0 && <div>{t("interestAmount", lang)}: <strong>₹{intAmt.toLocaleString("en-IN")}</strong> ({rate}%)</div>}
             <div style={{ fontWeight: 700, fontSize: 15, marginTop: 4, color: "#b45309" }}>{t("totalReceivable", lang)}: ₹{totalRec.toLocaleString("en-IN")}</div>
           </div>
         )}
@@ -3499,9 +3530,9 @@ function LoanAddForm({ families, currentYear, onSubmit, onClose, day1Date }) {
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && autoDay && form.familyId && form.loanAmount) { setSaving(true); onSubmit({ ...form, year: String(currentYear) }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#b45309", opacity: (saving || !autoDay || !form.familyId || !form.loanAmount) ? 0.6 : 1 }}
-        disabled={saving || !autoDay || !form.familyId || !form.loanAmount}
+        onClick={() => { if (!saving && autoDay && form.familyId && (form.loanAmount || form.lastYearReceivable)) { setSaving(true); onSubmit({ ...form, year: String(currentYear) }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#b45309", opacity: (saving || !autoDay || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)) ? 0.6 : 1 }}
+        disabled={saving || !autoDay || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)}
       >
         {saving ? "⏳ Saving..." : t("addLoan", lang)}
       </button>
@@ -3550,6 +3581,7 @@ function LoanEditForm({ loan, families, onSubmit, onClose }) {
   const [form, setForm] = useState({
     familyId: loan.FamilyID || "",
     familyName: loan.FamilyName || "",
+    lastYearReceivable: String(loan.LastYearReceivable || ""),
     loanAmount: String(loan.LoanAmount || ""),
     interestRate: String(loan.InterestRate || "9"),
     notes: loan.Notes || "",
@@ -3569,6 +3601,9 @@ function LoanEditForm({ loan, families, onSubmit, onClose }) {
             {families.map((f) => (<option key={f.FamilyID} value={f.FamilyID}>{f.FamilyName} ({f.FamilyID})</option>))}
           </select>
         </label>
+        <label style={styles.label}>{lang === "ta" ? "கடந்த ஆண்டு நிலுவை" : "Last Year Receivable"} (₹)
+          <input type="number" value={form.lastYearReceivable} onChange={(e) => set("lastYearReceivable", e.target.value)} style={{ ...styles.input, background: "#fef3c7" }} placeholder="0" />
+        </label>
         <label style={styles.label}>{t("loanAmount", lang)} (₹)
           <input type="number" value={form.loanAmount} onChange={(e) => set("loanAmount", e.target.value)} style={styles.input} />
         </label>
@@ -3586,9 +3621,9 @@ function LoanEditForm({ loan, families, onSubmit, onClose }) {
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && form.familyId && form.loanAmount) { setSaving(true); onSubmit({ ...form, loanId: loan.LoanID }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: (saving || !form.familyId || !form.loanAmount) ? 0.6 : 1 }}
-        disabled={saving || !form.familyId || !form.loanAmount}
+        onClick={() => { if (!saving && form.familyId && (form.loanAmount || form.lastYearReceivable)) { setSaving(true); onSubmit({ ...form, loanId: loan.LoanID }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: (saving || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)) ? 0.6 : 1 }}
+        disabled={saving || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)}
       >
         {saving ? "⏳ Saving..." : t("loanEdited", lang)}
       </button>
