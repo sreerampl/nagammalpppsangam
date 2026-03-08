@@ -1,7 +1,7 @@
 {
   "name": "Family Prayer — Financial Tracker",
   "short_name": "Prayer Tracker",
-  "description": "Track income, expenses, auctions, and families for prayer events",
+  "description": "Track income, expenses, auctions, loans and families for prayer events",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f5f3ff",
