@@ -2730,6 +2730,7 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
       {activeReport === "year_on_year" && (
         <YearOnYearReport
           ledger={ledger}
+          loans={loans}
           currentYear={currentYear}
           totalIncome={totalIncome}
           totalExpenses={totalExpenses}
@@ -2742,25 +2743,43 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
 }
 
 // --- Year on Year Report ---
-function YearOnYearReport({ ledger, currentYear, totalIncome, totalExpenses, totalAuction, balance }) {
+function YearOnYearReport({ ledger, loans, currentYear, totalIncome, totalExpenses, totalAuction, balance }) {
   const lang = useLang();
   const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
+
+  // Aggregate loan data by year
+  const loansByYear = {};
+  (loans || []).forEach((l) => {
+    const yr = String(l.Year);
+    if (!loansByYear[yr]) loansByYear[yr] = { advanced: 0, receivable: 0, received: 0 };
+    loansByYear[yr].advanced += Number(l.LoanAmount) || 0;
+    loansByYear[yr].receivable += Number(l.TotalReceivable) || 0;
+    loansByYear[yr].received += Number(l.ReceivedAmount) || 0;
+  });
 
   // Build rows: historical from ledger + current year live
   const historicalRows = (ledger || [])
     .filter((r) => r.Year && String(r.Year) !== String(currentYear))
-    .map((r) => ({
-      year: String(r.Year),
-      opening: Number(r.OpeningBalance) || 0,
-      income: Number(r.TotalIncome) || 0,
-      auction: Number(r.TotalAuction) || 0,
-      expenses: Number(r.TotalExpenses) || 0,
-      closing: Number(r.ClosingBalance) || 0,
-      isLive: false,
-    }));
+    .map((r) => {
+      const yr = String(r.Year);
+      const ld = loansByYear[yr] || { advanced: 0, receivable: 0, received: 0 };
+      return {
+        year: yr,
+        opening: Number(r.OpeningBalance) || 0,
+        income: Number(r.TotalIncome) || 0,
+        auction: Number(r.TotalAuction) || 0,
+        expenses: Number(r.TotalExpenses) || 0,
+        closing: Number(r.ClosingBalance) || 0,
+        loanAdvanced: ld.advanced,
+        loanReceivable: ld.receivable,
+        loanReceived: ld.received,
+        isLive: false,
+      };
+    });
 
   // Current year from ledger (for opening balance) or default 0
   const currentLedger = (ledger || []).find((r) => String(r.Year) === String(currentYear));
+  const currLoan = loansByYear[String(currentYear)] || { advanced: 0, receivable: 0, received: 0 };
   const currentRow = {
     year: String(currentYear),
     opening: currentLedger ? Number(currentLedger.OpeningBalance) || 0 : 0,
@@ -2768,6 +2787,9 @@ function YearOnYearReport({ ledger, currentYear, totalIncome, totalExpenses, tot
     auction: totalAuction,
     expenses: totalExpenses,
     closing: (currentLedger ? Number(currentLedger.OpeningBalance) || 0 : 0) + totalIncome + totalAuction - totalExpenses,
+    loanAdvanced: currLoan.advanced,
+    loanReceivable: currLoan.receivable,
+    loanReceived: currLoan.received,
     isLive: true,
   };
 
@@ -2828,7 +2850,7 @@ function YearOnYearReport({ ledger, currentYear, totalIncome, totalExpenses, tot
 
       {/* Visual Bar Chart */}
       {allRows.length >= 2 && (() => {
-        const maxVal = Math.max(...allRows.map((r) => Math.max(r.income + r.auction, r.expenses, r.closing)));
+        const maxVal = Math.max(...allRows.map((r) => Math.max(r.income + r.auction, r.expenses, r.closing, r.loanAdvanced)));
         const barH = (val) => maxVal > 0 ? Math.max(4, (val / maxVal) * 120) : 4;
         return (
           <div style={{ marginBottom: 20, padding: 16, background: "#fafaf9", borderRadius: 12 }}>
@@ -2836,9 +2858,10 @@ function YearOnYearReport({ ledger, currentYear, totalIncome, totalExpenses, tot
               {allRows.map((row) => (
                 <div key={row.year} style={{ flex: 1, maxWidth: 80, textAlign: "center" }}>
                   <div style={{ display: "flex", justifyContent: "center", gap: 3, alignItems: "flex-end", height: 130 }}>
-                    <div style={{ width: 14, height: barH(row.income + row.auction), background: "#059669", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} title={t("totalIncome", lang) + ": " + fmt(row.income + row.auction)} />
-                    <div style={{ width: 14, height: barH(row.expenses), background: "#dc2626", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} title={t("totalExpenses", lang) + ": " + fmt(row.expenses)} />
-                    <div style={{ width: 14, height: barH(Math.abs(row.closing)), background: row.closing >= 0 ? "#2563eb" : "#f59e0b", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} title={t("closingBalance", lang) + ": " + fmt(row.closing)} />
+                    <div style={{ width: 12, height: barH(row.income + row.auction), background: "#059669", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} title={t("totalIncome", lang) + ": " + fmt(row.income + row.auction)} />
+                    <div style={{ width: 12, height: barH(row.expenses), background: "#dc2626", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} title={t("totalExpenses", lang) + ": " + fmt(row.expenses)} />
+                    <div style={{ width: 12, height: barH(row.loanAdvanced), background: "#d97706", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} title={(lang === "ta" ? "கடன்" : "Loans") + ": " + fmt(row.loanAdvanced)} />
+                    <div style={{ width: 12, height: barH(Math.abs(row.closing)), background: row.closing >= 0 ? "#2563eb" : "#f59e0b", borderRadius: "4px 4px 0 0", transition: "height 0.3s" }} title={t("closingBalance", lang) + ": " + fmt(row.closing)} />
                   </div>
                   <p style={{ fontSize: 11, fontWeight: row.isLive ? 700 : 500, color: row.isLive ? "#d97706" : "#78716c", margin: "6px 0 0" }}>
                     {row.year}{row.isLive ? "*" : ""}
@@ -2846,9 +2869,10 @@ function YearOnYearReport({ ledger, currentYear, totalIncome, totalExpenses, tot
                 </div>
               ))}
             </div>
-            <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 10, fontSize: 11, color: "#78716c" }}>
+            <div style={{ display: "flex", justifyContent: "center", gap: 16, marginTop: 10, fontSize: 11, color: "#78716c", flexWrap: "wrap" }}>
               <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#059669", borderRadius: 2, marginRight: 4 }}/>{t("totalIncome", lang)}</span>
               <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#dc2626", borderRadius: 2, marginRight: 4 }}/>{t("expenses", lang)}</span>
+              <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#d97706", borderRadius: 2, marginRight: 4 }}/>{lang === "ta" ? "கடன்" : "Loans"}</span>
               <span><span style={{ display: "inline-block", width: 10, height: 10, background: "#2563eb", borderRadius: 2, marginRight: 4 }}/>{t("closingBalance", lang)}</span>
             </div>
           </div>
@@ -2860,12 +2884,14 @@ function YearOnYearReport({ ledger, currentYear, totalIncome, totalExpenses, tot
         <table style={styles.table}>
           <thead>
             <tr>
-              <th style={{ ...styles.th, width: "12%" }}>{t("year", lang)}</th>
-              <th style={{ ...styles.th, width: "16%", textAlign: "right" }}>{t("openingBalance", lang)}</th>
-              <th style={{ ...styles.th, width: "18%", textAlign: "right" }}>{t("income", lang)}</th>
-              <th style={{ ...styles.th, width: "16%", textAlign: "right" }}>{t("auctionTitle", lang)}</th>
-              <th style={{ ...styles.th, width: "18%", textAlign: "right" }}>{t("expenses", lang)}</th>
-              <th style={{ ...styles.th, width: "20%", textAlign: "right" }}>{t("closingBalance", lang)}</th>
+              <th style={{ ...styles.th, width: "10%" }}>{t("year", lang)}</th>
+              <th style={{ ...styles.th, width: "13%", textAlign: "right" }}>{t("openingBalance", lang)}</th>
+              <th style={{ ...styles.th, width: "13%", textAlign: "right" }}>{t("income", lang)}</th>
+              <th style={{ ...styles.th, width: "12%", textAlign: "right" }}>{t("auctionTitle", lang)}</th>
+              <th style={{ ...styles.th, width: "13%", textAlign: "right" }}>{t("expenses", lang)}</th>
+              <th style={{ ...styles.th, width: "13%", textAlign: "right" }}>{lang === "ta" ? "கடன்" : "Loans"}</th>
+              <th style={{ ...styles.th, width: "13%", textAlign: "right" }}>{lang === "ta" ? "வசூல்" : "Loan Rec."}</th>
+              <th style={{ ...styles.th, width: "13%", textAlign: "right" }}>{t("closingBalance", lang)}</th>
             </tr>
           </thead>
           <tbody>
@@ -2884,6 +2910,12 @@ function YearOnYearReport({ ledger, currentYear, totalIncome, totalExpenses, tot
                 <td style={{ ...styles.td, textAlign: "right" }}>
                   <span style={{ fontFamily: "monospace" }}>{fmt(row.expenses)}</span>
                   {row.expGrowth !== null && <span style={{ display: "block", marginTop: 2 }}>{growthBadge(row.expGrowth)}</span>}
+                </td>
+                <td style={{ ...styles.td, textAlign: "right", fontFamily: "monospace", color: row.loanAdvanced > 0 ? "#b45309" : "#a8a29e" }}>
+                  {row.loanAdvanced > 0 ? fmt(row.loanAdvanced) : "—"}
+                </td>
+                <td style={{ ...styles.td, textAlign: "right", fontFamily: "monospace", color: row.loanReceived > 0 ? "#16a34a" : "#a8a29e" }}>
+                  {row.loanReceived > 0 ? fmt(row.loanReceived) : "—"}
                 </td>
                 <td style={{ ...styles.td, textAlign: "right", fontWeight: 700, fontFamily: "monospace", color: row.closing >= 0 ? "#16a34a" : "#dc2626" }}>
                   {fmt(row.closing)}
