@@ -1,7 +1,7 @@
 {
-  "name": "Family Prayer — Financial Tracker",
-  "short_name": "Prayer Tracker",
-  "description": "Track income, expenses, auctions, loans and families for prayer events",
+  "name": "Nagammal PPP Sangam",
+  "short_name": "PPP Sangam",
+  "description": "Nagammal PPP Sangam Mobile App",
   "start_url": ".",
   "display": "standalone",
   "background_color": "#f5f3ff",

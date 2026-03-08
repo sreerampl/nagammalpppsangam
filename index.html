@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Family Prayer — Financial Tracker</title>
-  <meta name="description" content="Family Prayer Event Financial Tracker — Income, Expenses, Auction, Reports" />
+  <title>Nagammal PPP Sangam</title>
+  <meta name="description" content="Nagammal PPP Sangam Mobile App" />
   <meta name="theme-color" content="#7c3aed" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -56,8 +56,8 @@ const useLang = () => useContext(LangContext);
 
 const T = {
   // App header
-  appTitle: { en: "Family Prayer", ta: "குடும்ப பிரார்த்தனை" },
-  appSubtitle: { en: "Family Prayer", ta: "குடும்ப பிரார்த்தனை" },
+  appTitle: { en: "Nagammal PPP Sangam", ta: "Nagammal PPP Sangam" },
+  appSubtitle: { en: "", ta: "" },
 
   // Navigation
   navHome: { en: "Home", ta: "முகப்பு" },
@@ -263,7 +263,7 @@ const T = {
   nameAddress: { en: "Name & Address", ta: "பெயர் & முகவரி" },
 
   // Login
-  loginTitle: { en: "Family Prayer Event Tracker", ta: "குடும்ப பிரார்த்தனை நிகழ்வு கணக்கு" },
+  loginTitle: { en: "Nagammal PPP Sangam", ta: "Nagammal PPP Sangam" },
   signInGoogle: { en: "Sign in with Google", ta: "Google மூலம் உள்நுழை" },
   loginFooter: {
     en: "Sign in with your Google account to access the event tracker. Your admin will assign your role.",
@@ -1025,7 +1025,6 @@ function App() {
             <div>
               <h1 style={styles.headerTitle}>{t("appTitle", lang)}</h1>
               <p style={styles.headerSubtitle}>
-                {t("appSubtitle", lang === "ta" ? "en" : "ta")} ·{" "}
                 <select
                   value={currentYear}
                   onChange={(e) => setCurrentYear(Number(e.target.value))}
@@ -1330,7 +1329,7 @@ function LoginScreen({ lang, setLang }) {
           {lang === "en" ? "தமிழ்" : "ENG"}
         </button>
         <div style={{ fontSize: 64, marginBottom: 8 }}>🪔</div>
-        <h1 style={styles.loginTitle}>குடும்ப பிரார்த்தனை</h1>
+        <h1 style={styles.loginTitle}>Nagammal PPP Sangam</h1>
         <p style={styles.loginSubtitle}>{t("loginTitle", lang)}</p>
         <div style={styles.loginDivider} />
         <div style={{ marginTop: 24 }}>
