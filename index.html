@@ -675,6 +675,7 @@ function App() {
       setAccessList(result.access || []);
       if (result.auditLog) setAuditLog(result.auditLog.reverse());
       if (result.ledger) setLedger(result.ledger);
+      if (result.loans) setLoans(result.loans);
       setRole(result.role || null);
     } catch (e) {
       setError("Failed to load data: " + e.message);
