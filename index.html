@@ -1122,11 +1122,11 @@ function App() {
           />
         )}
         {activeTab === "income" && (() => {
-          const specialCats = ["Pulli Vari", "Pen Pulli Varavu", "Nankodai Panam", "Nankodai Porutkkal"];
+          const specialCats = ["Pulli Vari", "Pen Pulli Vari", "Nankodai Panam", "Nankodai Porutkkal"];
           const subTabs = [
             { id: "general", label: t("generalIncome", lang), icon: "💰" },
             { id: "pulli", label: t("pulliVari", lang), icon: "👨", cat: "Pulli Vari" },
-            { id: "penpulli", label: t("penPulli", lang), icon: "👩", cat: "Pen Pulli Varavu" },
+            { id: "penpulli", label: t("penPulli", lang), icon: "👩", cat: "Pen Pulli Vari" },
             { id: "cashdon", label: t("nankodaiPanam", lang), icon: "💵", cat: "Nankodai Panam" },
             { id: "matdon", label: t("nankodaiPorutkkal", lang), icon: "📦", cat: "Nankodai Porutkkal" },
           ];
@@ -1135,6 +1135,8 @@ function App() {
             ? yearIncome.filter((d) => d.Category === activeSub.cat)
             : yearIncome.filter((d) => !specialCats.includes(d.Category));
           const filteredCats = activeSub.cat ? [activeSub.cat] : INCOME_CATS.filter((c) => !specialCats.includes(c));
+          const pulliDefault = Number((master["Pulli Vari Default"] || [])[0]) || 51;
+          const penPulliDefault = Number((master["Pen Pulli Vari Default"] || [])[0]) || 2;
           return (
             <div>
               {/* Sub-tab bar */}
@@ -1151,22 +1153,39 @@ function App() {
                   </button>
                 ))}
               </div>
-              <IncomeView
-                income={filteredIncome}
-                families={families}
-                canEdit={canEdit}
-                isAdmin={isAdmin}
-                onAdd={() => setShowForm(activeSub.cat ? "income_" + incomeSubTab : "income")}
-                onEdit={editIncome}
-                onDelete={deleteIncome}
-                showToast={showToast}
-                lang={lang}
-                categories={filteredCats}
-                donorTypes={activeSub.cat ? ["Family", "External"] : DONOR_TYPES}
-                day1Date={day1Date}
-                subTabTitle={activeSub.cat ? t(activeSub.id === "pulli" ? "pulliVariFull" : activeSub.id === "penpulli" ? "penPulliFull" : activeSub.id === "cashdon" ? "nankodaiPanamFull" : "nankodaiPorutkkalFull", lang) : null}
-                fixedCategory={activeSub.cat || null}
-              />
+              {/* Pulli Vari - family checklist view */}
+              {incomeSubTab === "pulli" ? (
+                <PulliVariView
+                  families={families}
+                  income={yearIncome}
+                  category={activeSub.cat}
+                  defaultAmount={pulliDefault}
+                  title={t("pulliVariFull", lang)}
+                  onAdd={addIncome}
+                  onDelete={deleteIncome}
+                  isAdmin={isAdmin}
+                  canEdit={canEdit}
+                  day1Date={day1Date}
+                  currentYear={currentYear}
+                />
+              ) : (
+                <IncomeView
+                  income={filteredIncome}
+                  families={families}
+                  canEdit={canEdit}
+                  isAdmin={isAdmin}
+                  onAdd={() => setShowForm(activeSub.cat ? "income_" + incomeSubTab : "income")}
+                  onEdit={editIncome}
+                  onDelete={deleteIncome}
+                  showToast={showToast}
+                  lang={lang}
+                  categories={filteredCats}
+                  donorTypes={activeSub.cat ? ["Family", "External"] : DONOR_TYPES}
+                  day1Date={day1Date}
+                  subTabTitle={activeSub.cat ? t(activeSub.id === "penpulli" ? "penPulliFull" : activeSub.id === "cashdon" ? "nankodaiPanamFull" : activeSub.id === "matdon" ? "nankodaiPorutkkalFull" : "generalIncome", lang) : null}
+                  fixedCategory={activeSub.cat || null}
+                />
+              )}
             </div>
           );
         })()}
@@ -1615,6 +1634,148 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
 // INCOME VIEW
 // ============================================================
 
+// ============================================================
+// PULLI VARI VIEW — Family checklist with auto-fill amounts
+// ============================================================
+function PulliVariView({ families, income, category, defaultAmount, title, onAdd, onDelete, isAdmin, canEdit, day1Date, currentYear }) {
+  const lang = useLang();
+  const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
+  const [busy, setBusy] = useState(null); // familyId being processed
+
+  // Find which families have paid (income entries with this category)
+  const paidByFamily = {};
+  (income || []).forEach((d) => {
+    if (d.Category === category) {
+      const fid = String(d.FamilyID || "").trim();
+      if (fid) {
+        if (!paidByFamily[fid]) paidByFamily[fid] = { amount: 0, txnId: d.TxnID };
+        paidByFamily[fid].amount += Number(d.Amount) || 0;
+        paidByFamily[fid].txnId = d.TxnID; // last one
+      }
+    }
+  });
+
+  // Build rows sorted by FamilyID
+  const rows = (families || []).map((f) => {
+    const fid = String(f.FamilyID || "").trim();
+    const paid = paidByFamily[fid];
+    return { id: fid, name: f.FamilyName, paid: !!paid, amount: paid ? paid.amount : 0, txnId: paid ? paid.txnId : null };
+  }).sort((a, b) => {
+    const numA = parseInt(String(a.id).replace(/\D/g, "")) || 0;
+    const numB = parseInt(String(b.id).replace(/\D/g, "")) || 0;
+    return numA - numB;
+  });
+
+  const paidCount = rows.filter((r) => r.paid).length;
+  const totalCollected = rows.reduce((s, r) => s + r.amount, 0);
+
+  // Quick-pay: create income entry for a family
+  const quickPay = async (fam) => {
+    if (busy) return;
+    setBusy(fam.id);
+    // Use day1Date as default date for the entry
+    const dateToUse = day1Date || todayISO();
+    const autoDay = calcDay(dateToUse, day1Date) || "1";
+    await onAdd({
+      date: dateToUse,
+      day: autoDay,
+      year: String(currentYear),
+      donorType: "Family",
+      familyId: fam.id,
+      donorName: fam.name,
+      category: category,
+      amount: String(defaultAmount),
+      description: "",
+    });
+    setBusy(null);
+  };
+
+  // Quick-unpay: delete the income entry
+  const quickUnpay = async (fam) => {
+    if (busy || !fam.txnId) return;
+    setBusy(fam.id);
+    await onDelete(fam.txnId);
+    setBusy(null);
+  };
+
+  return (
+    <div style={styles.page}>
+      <div style={styles.pageHeader}>
+        <h2 style={styles.pageTitle}>{title}</h2>
+      </div>
+
+      {/* Summary */}
+      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+        <div style={{ flex: 1, background: "#f0fdf4", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#166534" }}>{paidCount}</div>
+          <div style={{ fontSize: 11, color: "#15803d" }}>✅ {lang === "ta" ? "செலுத்தியது" : "Paid"}</div>
+        </div>
+        <div style={{ flex: 1, background: "#fef2f2", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+          <div style={{ fontSize: 22, fontWeight: 700, color: "#991b1b" }}>{rows.length - paidCount}</div>
+          <div style={{ fontSize: 11, color: "#dc2626" }}>❌ {lang === "ta" ? "செலுத்தவில்லை" : "Not Paid"}</div>
+        </div>
+        <div style={{ flex: 1, background: "#fef3c7", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#92400e" }}>{fmt(totalCollected)}</div>
+          <div style={{ fontSize: 11, color: "#78716c" }}>{lang === "ta" ? "வசூல்" : "Collected"}</div>
+        </div>
+      </div>
+
+      <div style={{ fontSize: 12, color: "#78716c", marginBottom: 8 }}>
+        {lang === "ta" ? "இயல்பு தொகை" : "Default amount"}: <strong>{fmt(defaultAmount)}</strong> {lang === "ta" ? "/ குடும்பம்" : "/ family"}
+      </div>
+
+      {/* Family list */}
+      {rows.map((r) => (
+        <div key={r.id} style={{
+          display: "flex", justifyContent: "space-between", alignItems: "center",
+          background: r.paid ? "#f0fdf4" : "#fff", borderRadius: 10, padding: "10px 14px",
+          marginBottom: 6, border: "1px solid " + (r.paid ? "#bbf7d0" : "#e7e5e4"),
+        }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{r.name}</div>
+            <div style={{ fontSize: 11, color: "#a8a29e" }}>{r.id}</div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            {r.paid && <span style={{ fontSize: 13, fontWeight: 600, color: "#16a34a" }}>{fmt(r.amount)}</span>}
+            {canEdit && !r.paid && (
+              <button
+                onClick={() => quickPay(r)}
+                disabled={!!busy}
+                style={{
+                  background: "#16a34a", color: "#fff", border: "none", borderRadius: 8,
+                  padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  opacity: busy === r.id ? 0.5 : 1,
+                }}
+              >
+                {busy === r.id ? "⏳" : "✅"} {fmt(defaultAmount)}
+              </button>
+            )}
+            {r.paid && (
+              <span style={{ fontSize: 18, color: "#16a34a" }}>✅</span>
+            )}
+            {isAdmin && r.paid && (
+              <button
+                onClick={() => quickUnpay(r)}
+                disabled={!!busy}
+                style={{
+                  background: "none", border: "1px solid #fecaca", borderRadius: 6,
+                  padding: "3px 8px", fontSize: 11, cursor: "pointer", color: "#dc2626",
+                  opacity: busy === r.id ? 0.5 : 1,
+                }}
+              >
+                ↩
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ============================================================
+// INCOME VIEW
+// ============================================================
 function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelete, showToast, lang: propLang, categories, donorTypes, day1Date, subTabTitle, fixedCategory }) {
   const lang = useLang();
   const [editingItem, setEditingItem] = useState(null);
