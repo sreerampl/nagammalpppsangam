@@ -2664,18 +2664,11 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
         <label style={styles.label}>{t("donorName", lang)}
           <input value={form.donorName} onChange={(e) => set("donorName", e.target.value)} style={styles.input} placeholder={t("nameOfDonor", lang)} />
         </label>
-        {!fixedCategory && (
         <label style={styles.label}>{t("category", lang)}
           <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
             {cats.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
           </select>
         </label>
-        )}
-        {fixedCategory && (
-          <div style={{ background: "#fef3c7", borderRadius: 8, padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#92400e" }}>
-            {tCat(fixedCategory, lang)}
-          </div>
-        )}
         {form.category !== "Objects for Auction" && (
           <label style={styles.label}>{t("amount", lang)} (₹)
             <input type="number" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} placeholder="0" />
@@ -2844,7 +2837,7 @@ function AuctionItemForm({ onSubmit, onClose, currentYear }) {
 
 function ReportsView({ families, income, expenses, auction, loans, totalIncome, totalExpenses, totalAuction, balance, ledger, currentYear, showToast, lang: propLang }) {
   const lang = useLang();
-  const [activeReport, setActiveReport] = useState("address");
+  const [activeReport, setActiveReport] = useState("auction_balance");
 
   return (
     <div style={styles.page}>
@@ -2855,7 +2848,6 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
       {/* Report selector */}
       <div style={styles.filterRow}>
         {[
-          { id: "address", label: t("addressBook", lang) },
           { id: "auction_balance", label: t("auctionBalance", lang) },
           { id: "loan_report", label: t("loanReport", lang) },
         ].map((r) => (
@@ -2874,7 +2866,6 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
         ))}
       </div>
 
-      {activeReport === "address" && <AddressReport families={families} />}
       {activeReport === "auction_balance" && (
         <AuctionBalanceSheet
           auction={auction}
