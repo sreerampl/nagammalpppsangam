@@ -214,7 +214,7 @@ const T = {
   // Income sub-tabs
   generalIncome: { en: "General", ta: "பொது வரவு" },
   pulliVari: { en: "Pulli Vari", ta: "புள்ளி வரி" },
-  penPulli: { en: "Pen Pulli", ta: "பெண் புள்ளி" },
+  penPulli: { en: "Pen Pulli Varavu", ta: "பெண் புள்ளி வரவு" },
   nankodaiPanam: { en: "Cash Donation", ta: "நன்கொடை பணம்" },
   nankodaiPorutkkal: { en: "Material Donation", ta: "நன்கொடை பொருட்கள்" },
   pulliVariFull: { en: "Pulli Vari (Men Membership)", ta: "புள்ளி வரி (ஆண் உறுப்பினர்)" },
@@ -1123,6 +1123,7 @@ function App() {
         )}
         {activeTab === "income" && (() => {
           const specialCats = ["Pulli Vari", "Pen Pulli Varavu", "Cash Donation", "Material Donation"];
+          const isSpecial = (cat) => specialCats.some((s) => String(cat || "").trim().toLowerCase() === s.toLowerCase());
           const subTabs = [
             { id: "general", label: t("generalIncome", lang), icon: "💰" },
             { id: "pulli", label: t("pulliVari", lang), icon: "👨", cat: "Pulli Vari" },
@@ -1132,9 +1133,9 @@ function App() {
           ];
           const activeSub = subTabs.find((s) => s.id === incomeSubTab) || subTabs[0];
           const filteredIncome = activeSub.cat
-            ? yearIncome.filter((d) => String(d.Category || "").trim() === activeSub.cat)
-            : yearIncome.filter((d) => !specialCats.includes(String(d.Category || "").trim()));
-          const filteredCats = activeSub.cat ? [activeSub.cat] : INCOME_CATS.filter((c) => !specialCats.includes(String(c).trim()));
+            ? yearIncome.filter((d) => String(d.Category || "").trim().toLowerCase() === activeSub.cat.toLowerCase())
+            : yearIncome.filter((d) => !isSpecial(d.Category));
+          const filteredCats = activeSub.cat ? [activeSub.cat] : INCOME_CATS.filter((c) => !isSpecial(c));
           const pulliDefault = Number((master["Pulli Vari Default"] || [])[0]) || 51;
           const penPulliDefault = Number((master["Pen Pulli Vari Default"] || [])[0]) || 2;
           return (
@@ -1804,8 +1805,8 @@ function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelet
         </div>
       </div>
 
-      {/* Filter Pills - hide when fixed category or single category */}
-      {!fixedCategory && categories && categories.length > 1 && (
+      {/* Filter Pills - only show on general income tab (not sub-tabs) */}
+      {!fixedCategory && !subTabTitle && categories && categories.length > 1 && (
         <div style={styles.filterRow}>
           {["All", ...(categories || [])].map((cat) => (
             <button
