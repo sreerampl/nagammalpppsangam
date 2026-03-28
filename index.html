@@ -1802,7 +1802,6 @@ function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelet
         <h2 style={styles.pageTitle}>{subTabTitle || t("income", lang)}</h2>
         <div style={{ display: "flex", gap: 8 }}>
           {income.length > 0 && (
-            <button onClick={exportIncomeCSV} style={{ ...styles.addBtn, background: "#f5f5f4", color: "#57534e", fontSize: 12 }}>{t("exportCSV", lang)}</button>
           )}
           {canEdit && (
             <button onClick={onAdd} style={styles.addBtn}>{t("add", lang)}</button>
@@ -1917,7 +1916,6 @@ function ExpensesView({ expenses, canEdit, isAdmin, onAdd, onEdit, onDelete, sho
         <h2 style={styles.pageTitle}>{t("expenses", lang)}</h2>
         <div style={{ display: "flex", gap: 8 }}>
           {expenses.length > 0 && (
-            <button onClick={exportExpensesCSV} style={{ ...styles.addBtn, background: "#f5f5f4", color: "#57534e", fontSize: 12 }}>{t("exportCSV", lang)}</button>
           )}
           {canEdit && (
             <button onClick={onAdd} style={styles.addBtn}>{t("add", lang)}</button>
@@ -2068,7 +2066,6 @@ function AuctionView({ auction, families, canEdit, isAdmin, email, onBid, onAddI
         <h2 style={styles.pageTitle}>{t("auctionTitle", lang)} ({auction.length} {t("itemsCount", lang)})</h2>
         <div style={{ display: "flex", gap: 8 }}>
           {auction.length > 0 && (
-            <button onClick={exportAuctionCSV} style={{ ...styles.addBtn, background: "#f5f5f4", color: "#57534e", fontSize: 12 }}>{t("exportCSV", lang)}</button>
           )}
           {isAdmin && (
             <button onClick={onAddItem} style={styles.addBtn}>{t("addItem", lang)}</button>
@@ -2408,7 +2405,6 @@ function FamiliesView({ families, isAdmin, canEdit, onAdd, showToast, lang: prop
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {families.length > 0 && (<>
             <button onClick={exportFamiliesPDF} style={{ ...styles.addBtn, background: "#f5f5f4", color: "#57534e", fontSize: 12 }}>{t("exportPDF", lang)}</button>
-            <button onClick={exportFamiliesCSV} style={{ ...styles.addBtn, background: "#f5f5f4", color: "#57534e", fontSize: 12 }}>{t("exportCSV", lang)}</button>
           </>)}
           {canEdit && (
             <button onClick={onAdd} style={styles.addBtn}>{t("add", lang)}</button>
@@ -2976,7 +2972,6 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
     <div style={styles.page}>
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>{t("reports", lang)}</h2>
-        <button onClick={exportAllData} style={{ ...styles.addBtn, background: "#292524", fontSize: 12 }}>{t("exportAll", lang)}</button>
       </div>
 
       {/* Report selector */}
@@ -2985,7 +2980,6 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
           { id: "address", label: t("addressBook", lang) },
           { id: "auction_balance", label: t("auctionBalance", lang) },
           { id: "loan_report", label: t("loanReport", lang) },
-          { id: "year_on_year", label: t("yearOnYear", lang) },
         ].map((r) => (
           <button
             key={r.id}
@@ -3017,17 +3011,6 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
       )}
       {activeReport === "loan_report" && (
         <LoanReport families={families} loans={loans} currentYear={currentYear} />
-      )}
-      {activeReport === "year_on_year" && (
-        <YearOnYearReport
-          ledger={ledger}
-          loans={loans}
-          currentYear={currentYear}
-          totalIncome={totalIncome}
-          totalExpenses={totalExpenses}
-          totalAuction={totalAuction}
-          balance={balance}
-        />
       )}
     </div>
   );
@@ -3314,12 +3297,54 @@ function MembershipReport({ families, income }) {
 // --- Address Report ---
 function AddressReport({ families }) {
   const lang = useLang();
+
+  const downloadPDF = () => {
+    const printWin = window.open("", "_blank");
+    if (!printWin) return;
+    const rows = families.map((f, i) =>
+      `<tr style="background:${i % 2 === 0 ? '#fff' : '#f5f5f4'}">
+        <td style="padding:6px 8px;border:1px solid #ccc;text-align:center;color:#999">${i + 1}</td>
+        <td style="padding:6px 8px;border:1px solid #ccc"><strong>${f.FamilyName}</strong><br/><span style="font-size:11px;color:#666">${f.Address || ''}</span></td>
+        <td style="padding:6px 8px;border:1px solid #ccc">${f.Phone || '—'}</td>
+        <td style="padding:6px 8px;border:1px solid #ccc">${f.WhatsApp || '—'}</td>
+      </tr>`
+    ).join("");
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Address Book</title>
+      <style>body{font-family:Arial,sans-serif;margin:20px}table{border-collapse:collapse;width:100%}
+      @media print{body{margin:10px}button{display:none!important}}</style></head><body>
+      <div style="text-align:center;margin-bottom:16px">
+        <h2 style="margin:0;color:#1B5E20">Nagammal PPP Sangam</h2>
+        <h3 style="margin:4px 0 0;color:#333">Family Address Directory</h3>
+        <p style="color:#999;font-size:12px">${families.length} families</p>
+      </div>
+      <table>
+        <thead>
+          <tr style="background:#1B5E20;color:#fff">
+            <th style="padding:8px 6px;border:1px solid #999;width:40px">Sl</th>
+            <th style="padding:8px 6px;border:1px solid #999;text-align:left">Name / Address</th>
+            <th style="padding:8px 6px;border:1px solid #999">Phone</th>
+            <th style="padding:8px 6px;border:1px solid #999">WhatsApp</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <button onclick="window.print()" style="margin-top:16px;padding:10px 24px;background:#1B5E20;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer">🖨️ Print / Save as PDF</button>
+      </body></html>`;
+    printWin.document.write(html);
+    printWin.document.close();
+  };
+
   return (
     <div>
       <div style={styles.reportHeader}>
         <h3 style={styles.reportTitle}>{t("familyAddressDir", lang)}</h3>
-        <p style={styles.reportSubtitle}>{families.length} {t("families", lang).toLowerCase()}</p>
+        <div>
+          <button onClick={downloadPDF} style={{ padding: "6px 16px", background: "#1B5E20", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+            📄 PDF
+          </button>
+        </div>
       </div>
+      <p style={styles.reportSubtitle}>{families.length} {t("families", lang).toLowerCase()}</p>
 
       {/* Table */}
       <div style={styles.tableWrapper}>
