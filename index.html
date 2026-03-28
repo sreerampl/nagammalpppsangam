@@ -210,6 +210,18 @@ const T = {
   auctionSeeded: { en: "auction items created!", ta: "ஏல பொருட்கள் உருவாக்கப்பட்டன!" },
   // Loans (Pangali Advances)
   navLoans: { en: "Loans", ta: "கடன்" },
+  navMore: { en: "More", ta: "மேலும்" },
+  // Income sub-tabs
+  generalIncome: { en: "General", ta: "பொது வரவு" },
+  pulliVari: { en: "Pulli Vari", ta: "புள்ளி வரி" },
+  penPulli: { en: "Pen Pulli", ta: "பெண் புள்ளி" },
+  nankodaiPanam: { en: "Cash Donation", ta: "நன்கொடை பணம்" },
+  nankodaiPorutkkal: { en: "Material Donation", ta: "நன்கொடை பொருட்கள்" },
+  pulliVariFull: { en: "Pulli Vari (Men Membership)", ta: "புள்ளி வரி (ஆண் உறுப்பினர்)" },
+  penPulliFull: { en: "Pen Pulli Varavu (Women Membership)", ta: "பெண் புள்ளி வரவு (பெண் உறுப்பினர்)" },
+  nankodaiPanamFull: { en: "Nankodai Panam (Cash Donation)", ta: "நன்கொடை பணம்" },
+  nankodaiPorutkkalFull: { en: "Nankodai Porutkkal (Material Donation)", ta: "நன்கொடை பொருட்கள்" },
+  donorNameOrDesc: { en: "Donor / Description", ta: "நன்கொடையாளர் / விவரம்" },
   loans: { en: "Pangali Advances", ta: "இனத்து கணக்கு" },
   addLoan: { en: "Issue Advance", ta: "முன்பணம் வழங்கு" },
   loanAmount: { en: "Advance Amount", ta: "முன்பணத் தொகை" },
@@ -307,7 +319,10 @@ const T = {
   catOther: { en: "Other", ta: "மற்றவை" },
   catTemple: { en: "Temple", ta: "கோவில்" },
   catSupplies: { en: "Supplies", ta: "பொருட்கள்" },
-  catPulliVari: { en: "Pulli vari", ta: "புள்ளி வரி" },
+  catPulliVari: { en: "Pulli Vari", ta: "புள்ளி வரி" },
+  catPenPulli: { en: "Pen Pulli Varavu", ta: "பெண் புள்ளி வரவு" },
+  catNankodaiPanam: { en: "Nankodai Panam", ta: "நன்கொடை பணம்" },
+  catNankodaiPorutkkal: { en: "Nankodai Porutkkal", ta: "நன்கொடை பொருட்கள்" },
   catDecorations: { en: "Decorations", ta: "அலங்காரம்" },
   catTransport: { en: "Transport", ta: "போக்குவரத்து" },
 };
@@ -327,7 +342,8 @@ const EXPENSE_CATEGORIES_EN = ["Food", "Temple", "Vegetables", "Groceries", "Sup
 const catKeyMap = {
   "Food": "catFood", "Temple Expenses": "catTempleExpenses", "Membership": "catMembership",
   "Prayer Objects": "catPrayerObjects", "Objects for Auction": "catAuctionObjects", "Groceries": "catGroceries", "Vegetables": "catVegetables",
-  "Other": "catOther", "Temple": "catTemple", "Supplies": "catSupplies", "Pulli vari": "catPulliVari",
+  "Other": "catOther", "Temple": "catTemple", "Supplies": "catSupplies", "Pulli Vari": "catPulliVari",
+  "Pen Pulli Varavu": "catPenPulli", "Nankodai Panam": "catNankodaiPanam", "Nankodai Porutkkal": "catNankodaiPorutkkal",
   "Decorations": "catDecorations", "Transport": "catTransport",
 };
 const tCat = (catVal, lang) => catKeyMap[catVal] ? t(catKeyMap[catVal], lang) : catVal;
@@ -468,6 +484,8 @@ function App() {
 
   // UI state
   const [activeTab, setActiveTab] = useState("dashboard");
+  const [incomeSubTab, setIncomeSubTab] = useState("general");
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [showForm, setShowForm] = useState(null);
   const [toast, setToast] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -1103,22 +1121,55 @@ function App() {
             families={families}
           />
         )}
-        {activeTab === "income" && (
-          <IncomeView
-            income={yearIncome}
-            families={families}
-            canEdit={canEdit}
-            isAdmin={isAdmin}
-            onAdd={() => setShowForm("income")}
-            onEdit={editIncome}
-            onDelete={deleteIncome}
-            showToast={showToast}
-            lang={lang}
-            categories={INCOME_CATS}
-            donorTypes={DONOR_TYPES}
-            day1Date={day1Date}
-          />
-        )}
+        {activeTab === "income" && (() => {
+          const specialCats = ["Pulli Vari", "Pen Pulli Varavu", "Nankodai Panam", "Nankodai Porutkkal"];
+          const subTabs = [
+            { id: "general", label: t("generalIncome", lang), icon: "💰" },
+            { id: "pulli", label: t("pulliVari", lang), icon: "👨", cat: "Pulli Vari" },
+            { id: "penpulli", label: t("penPulli", lang), icon: "👩", cat: "Pen Pulli Varavu" },
+            { id: "cashdon", label: t("nankodaiPanam", lang), icon: "💵", cat: "Nankodai Panam" },
+            { id: "matdon", label: t("nankodaiPorutkkal", lang), icon: "📦", cat: "Nankodai Porutkkal" },
+          ];
+          const activeSub = subTabs.find((s) => s.id === incomeSubTab) || subTabs[0];
+          const filteredIncome = activeSub.cat
+            ? yearIncome.filter((d) => d.Category === activeSub.cat)
+            : yearIncome.filter((d) => !specialCats.includes(d.Category));
+          const filteredCats = activeSub.cat ? [activeSub.cat] : INCOME_CATS.filter((c) => !specialCats.includes(c));
+          return (
+            <div>
+              {/* Sub-tab bar */}
+              <div style={{ display: "flex", gap: 4, padding: "8px 12px", overflowX: "auto", background: "#fafaf9", borderBottom: "1px solid #e7e5e4" }}>
+                {subTabs.map((st) => (
+                  <button key={st.id} onClick={() => setIncomeSubTab(st.id)} style={{
+                    padding: "6px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                    border: "none", whiteSpace: "nowrap", transition: "all 0.2s",
+                    background: incomeSubTab === st.id ? "#292524" : "#fff",
+                    color: incomeSubTab === st.id ? "#fff" : "#57534e",
+                    boxShadow: incomeSubTab === st.id ? "0 2px 4px rgba(0,0,0,0.15)" : "0 1px 2px rgba(0,0,0,0.05)",
+                  }}>
+                    {st.icon} {st.label}
+                  </button>
+                ))}
+              </div>
+              <IncomeView
+                income={filteredIncome}
+                families={families}
+                canEdit={canEdit}
+                isAdmin={isAdmin}
+                onAdd={() => setShowForm(activeSub.cat ? "income_" + incomeSubTab : "income")}
+                onEdit={editIncome}
+                onDelete={deleteIncome}
+                showToast={showToast}
+                lang={lang}
+                categories={filteredCats}
+                donorTypes={activeSub.cat ? ["Family", "External"] : DONOR_TYPES}
+                day1Date={day1Date}
+                subTabTitle={activeSub.cat ? t(activeSub.id === "pulli" ? "pulliVariFull" : activeSub.id === "penpulli" ? "penPulliFull" : activeSub.id === "cashdon" ? "nankodaiPanamFull" : "nankodaiPorutkkalFull", lang) : null}
+                fixedCategory={activeSub.cat || null}
+              />
+            </div>
+          );
+        })()}
         {activeTab === "expenses" && (
           <ExpensesView
             expenses={yearExpenses}
@@ -1206,6 +1257,22 @@ function App() {
           day1Date={day1Date}
         />
       )}
+      {showForm && showForm.startsWith("income_") && (
+        <IncomeForm
+          families={families}
+          onSubmit={addIncome}
+          onClose={() => setShowForm(null)}
+          categories={INCOME_CATS}
+          donorTypes={DONOR_TYPES}
+          day1Date={day1Date}
+          fixedCategory={
+            showForm === "income_pulli" ? "Pulli Vari" :
+            showForm === "income_penpulli" ? "Pen Pulli Varavu" :
+            showForm === "income_cashdon" ? "Nankodai Panam" :
+            showForm === "income_matdon" ? "Nankodai Porutkkal" : null
+          }
+        />
+      )}
       {showForm === "expense" && (
         <ExpenseForm
           onSubmit={addExpense}
@@ -1235,14 +1302,11 @@ function App() {
           { id: "income", icon: "💰", label: t("navDonate", lang) },
           { id: "expenses", icon: "💸", label: t("navExpense", lang) },
           { id: "auction", icon: "🔨", label: t("navAuction", lang) },
-          { id: "families", icon: "👨‍👩‍👧‍👦", label: t("navFamily", lang) },
           { id: "loans", icon: "🏦", label: t("navLoans", lang) },
-          { id: "reports", icon: "📋", label: t("navReports", lang) },
-          ...(isAdmin ? [{ id: "auditlog", icon: "📜", label: t("navAuditLog", lang) }] : []),
         ].map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => { setActiveTab(tab.id); setShowMoreMenu(false); }}
             style={{
               ...styles.navBtn,
               color: activeTab === tab.id ? "#b45309" : "#78716c",
@@ -1253,6 +1317,50 @@ function App() {
             <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5 }}>{tab.label}</span>
           </button>
         ))}
+        {/* More button */}
+        <div style={{ position: "relative" }}>
+          <button
+            onClick={() => setShowMoreMenu(!showMoreMenu)}
+            style={{
+              ...styles.navBtn,
+              color: ["families", "reports", "auditlog"].includes(activeTab) ? "#b45309" : "#78716c",
+              borderTop: ["families", "reports", "auditlog"].includes(activeTab) ? "3px solid #b45309" : "3px solid transparent",
+            }}
+          >
+            <span style={{ fontSize: 20 }}>⋯</span>
+            <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5 }}>{t("navMore", lang)}</span>
+          </button>
+          {showMoreMenu && (
+            <>
+            <div onClick={() => setShowMoreMenu(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 199 }} />
+            <div style={{
+              position: "absolute", bottom: "100%", right: 0, background: "#fff",
+              borderRadius: 12, boxShadow: "0 -4px 20px rgba(0,0,0,0.15)", border: "1px solid #e7e5e4",
+              padding: 8, minWidth: 160, zIndex: 200,
+            }}>
+              {[
+                { id: "families", icon: "👨‍👩‍👧‍👦", label: t("navFamily", lang) },
+                { id: "reports", icon: "📋", label: t("navReports", lang) },
+                ...(isAdmin ? [{ id: "auditlog", icon: "📜", label: t("navAuditLog", lang) }] : []),
+              ].map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => { setActiveTab(tab.id); setShowMoreMenu(false); }}
+                  style={{
+                    display: "flex", alignItems: "center", gap: 10, width: "100%",
+                    padding: "10px 12px", border: "none", borderRadius: 8, cursor: "pointer",
+                    background: activeTab === tab.id ? "#fef3c7" : "transparent",
+                    color: activeTab === tab.id ? "#b45309" : "#292524",
+                    fontSize: 14, fontWeight: 600, textAlign: "left",
+                  }}
+                >
+                  <span style={{ fontSize: 18 }}>{tab.icon}</span> {tab.label}
+                </button>
+              ))}
+            </div>
+            </>
+          )}
+        </div>
       </nav>
 
     </div>
@@ -1507,7 +1615,7 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
 // INCOME VIEW
 // ============================================================
 
-function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelete, showToast, lang: propLang, categories, donorTypes, day1Date }) {
+function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelete, showToast, lang: propLang, categories, donorTypes, day1Date, subTabTitle, fixedCategory }) {
   const lang = useLang();
   const [editingItem, setEditingItem] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -1524,7 +1632,7 @@ function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelet
   return (
     <div style={styles.page}>
       <div style={styles.pageHeader}>
-        <h2 style={styles.pageTitle}>{t("income", lang)}</h2>
+        <h2 style={styles.pageTitle}>{subTabTitle || t("income", lang)}</h2>
         <div style={{ display: "flex", gap: 8 }}>
           {income.length > 0 && (
             <button onClick={exportIncomeCSV} style={{ ...styles.addBtn, background: "#f5f5f4", color: "#57534e", fontSize: 12 }}>{t("exportCSV", lang)}</button>
@@ -2417,7 +2525,7 @@ function EditExpenseForm({ item, categories, onSubmit, onClose, day1Date }) {
 // ============================================================
 // INCOME FORM
 // ============================================================
-function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1Date }) {
+function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1Date, fixedCategory }) {
   const lang = useLang();
   const [saving, setSaving] = useState(false);
   const today = todayISO();
@@ -2425,10 +2533,10 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
   const dtypes = donorTypes && donorTypes.length > 0 ? donorTypes : ["Family", "External"];
   const [form, setForm] = useState({
     date: today,
-    donorType: dtypes[0],
+    donorType: fixedCategory ? "Family" : dtypes[0],
     familyId: "",
     donorName: "",
-    category: cats[0],
+    category: fixedCategory || cats[0],
     amount: "",
     description: "",
   });
@@ -2438,8 +2546,11 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
 
   const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
+  // Title based on fixedCategory
+  const formTitle = fixedCategory ? tCat(fixedCategory, lang) : t("recordIncome", lang);
+
   return (
-    <Modal title={t("recordIncome", lang)} onClose={onClose}>
+    <Modal title={formTitle} onClose={onClose}>
       <div style={styles.formGrid}>
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
           <label style={{ ...styles.label, flex: 1 }}>{t("date", lang)}
@@ -2447,11 +2558,13 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
           </label>
           <DayBadge day={autoDay} lang={lang} />
         </div>
-        <label style={styles.label}>{t("donorType", lang)}
-          <select value={form.donorType} onChange={(e) => set("donorType", e.target.value)} style={styles.input}>
-            {dtypes.map((tp) => <option key={tp} value={tp}>{tp === "Family" ? t("family", lang) : tp === "External" ? t("external", lang) : tp}</option>)}
-          </select>
-        </label>
+        {!fixedCategory && (
+          <label style={styles.label}>{t("donorType", lang)}
+            <select value={form.donorType} onChange={(e) => set("donorType", e.target.value)} style={styles.input}>
+              {dtypes.map((tp) => <option key={tp} value={tp}>{tp === "Family" ? t("family", lang) : tp === "External" ? t("external", lang) : tp}</option>)}
+            </select>
+          </label>
+        )}
         {form.donorType === "Family" && (
           <label style={styles.label}>{t("family", lang)}
             <select
@@ -2473,11 +2586,18 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
         <label style={styles.label}>{t("donorName", lang)}
           <input value={form.donorName} onChange={(e) => set("donorName", e.target.value)} style={styles.input} placeholder={t("nameOfDonor", lang)} />
         </label>
-        <label style={styles.label}>{t("category", lang)}
-          <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
-            {cats.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
+        {!fixedCategory && (
+          <label style={styles.label}>{t("category", lang)}
+            <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
+              {cats.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
           </select>
         </label>
+        )}
+        {fixedCategory && (
+          <div style={{ background: "#fef3c7", borderRadius: 8, padding: "8px 12px", fontSize: 13, fontWeight: 600, color: "#92400e" }}>
+            {tCat(fixedCategory, lang)}
+          </div>
+        )}
         {form.category !== "Objects for Auction" && (
           <label style={styles.label}>{t("amount", lang)} (₹)
             <input type="number" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} placeholder="0" />
