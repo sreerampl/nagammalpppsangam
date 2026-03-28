@@ -320,9 +320,9 @@ const T = {
   catTemple: { en: "Temple", ta: "கோவில்" },
   catSupplies: { en: "Supplies", ta: "பொருட்கள்" },
   catPulliVari: { en: "Pulli Vari", ta: "புள்ளி வரி" },
-  catPenPulli: { en: "Pen Pulli Varavu", ta: "பெண் புள்ளி வரவு" },
-  catNankodaiPanam: { en: "Nankodai Panam", ta: "நன்கொடை பணம்" },
-  catNankodaiPorutkkal: { en: "Nankodai Porutkkal", ta: "நன்கொடை பொருட்கள்" },
+  catPenPulli: { en: "Pen Pulli Varavu", ta: "பெண் புள்ளி வரி" },
+  catNankodaiPanam: { en: "Cash Donation", ta: "நன்கொடை பணம்" },
+  catNankodaiPorutkkal: { en: "Material Donation", ta: "நன்கொடை பொருட்கள்" },
   catDecorations: { en: "Decorations", ta: "அலங்காரம்" },
   catTransport: { en: "Transport", ta: "போக்குவரத்து" },
 };
@@ -343,7 +343,7 @@ const catKeyMap = {
   "Food": "catFood", "Temple Expenses": "catTempleExpenses", "Membership": "catMembership",
   "Prayer Objects": "catPrayerObjects", "Objects for Auction": "catAuctionObjects", "Groceries": "catGroceries", "Vegetables": "catVegetables",
   "Other": "catOther", "Temple": "catTemple", "Supplies": "catSupplies", "Pulli Vari": "catPulliVari",
-  "Pen Pulli Varavu": "catPenPulli", "Nankodai Panam": "catNankodaiPanam", "Nankodai Porutkkal": "catNankodaiPorutkkal",
+  "Pen Pulli Varavu": "catPenPulli", "Cash Donation": "catNankodaiPanam", "Material Donation": "catNankodaiPorutkkal",
   "Decorations": "catDecorations", "Transport": "catTransport",
 };
 const tCat = (catVal, lang) => catKeyMap[catVal] ? t(catKeyMap[catVal], lang) : catVal;
@@ -1122,19 +1122,19 @@ function App() {
           />
         )}
         {activeTab === "income" && (() => {
-          const specialCats = ["Pulli Vari", "Pen Pulli Vari", "Nankodai Panam", "Nankodai Porutkkal"];
+          const specialCats = ["Pulli Vari", "Pen Pulli Varavu", "Cash Donation", "Material Donation"];
           const subTabs = [
             { id: "general", label: t("generalIncome", lang), icon: "💰" },
             { id: "pulli", label: t("pulliVari", lang), icon: "👨", cat: "Pulli Vari" },
-            { id: "penpulli", label: t("penPulli", lang), icon: "👩", cat: "Pen Pulli Vari" },
-            { id: "cashdon", label: t("nankodaiPanam", lang), icon: "💵", cat: "Nankodai Panam" },
-            { id: "matdon", label: t("nankodaiPorutkkal", lang), icon: "📦", cat: "Nankodai Porutkkal" },
+            { id: "penpulli", label: t("penPulli", lang), icon: "👩", cat: "Pen Pulli Varavu" },
+            { id: "cashdon", label: t("nankodaiPanam", lang), icon: "💵", cat: "Cash Donation" },
+            { id: "matdon", label: t("nankodaiPorutkkal", lang), icon: "📦", cat: "Material Donation" },
           ];
           const activeSub = subTabs.find((s) => s.id === incomeSubTab) || subTabs[0];
           const filteredIncome = activeSub.cat
-            ? yearIncome.filter((d) => d.Category === activeSub.cat)
-            : yearIncome.filter((d) => !specialCats.includes(d.Category));
-          const filteredCats = activeSub.cat ? [activeSub.cat] : INCOME_CATS.filter((c) => !specialCats.includes(c));
+            ? yearIncome.filter((d) => String(d.Category || "").trim() === activeSub.cat)
+            : yearIncome.filter((d) => !specialCats.includes(String(d.Category || "").trim()));
+          const filteredCats = activeSub.cat ? [activeSub.cat] : INCOME_CATS.filter((c) => !specialCats.includes(String(c).trim()));
           const pulliDefault = Number((master["Pulli Vari Default"] || [])[0]) || 51;
           const penPulliDefault = Number((master["Pen Pulli Vari Default"] || [])[0]) || 2;
           return (
@@ -1287,8 +1287,8 @@ function App() {
           fixedCategory={
             showForm === "income_pulli" ? "Pulli Vari" :
             showForm === "income_penpulli" ? "Pen Pulli Varavu" :
-            showForm === "income_cashdon" ? "Nankodai Panam" :
-            showForm === "income_matdon" ? "Nankodai Porutkkal" : null
+            showForm === "income_cashdon" ? "Cash Donation" :
+            showForm === "income_matdon" ? "Material Donation" : null
           }
         />
       )}
@@ -1804,22 +1804,24 @@ function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelet
         </div>
       </div>
 
-      {/* Filter Pills */}
-      <div style={styles.filterRow}>
-        {["All", ...(categories || [])].map((cat) => (
-          <button
-            key={cat}
-            onClick={() => setFilter(cat)}
-            style={{
-              ...styles.filterPill,
-              background: filter === cat ? "#292524" : "#f5f5f4",
-              color: filter === cat ? "#fff" : "#57534e",
-            }}
-          >
-            {cat === "All" ? t("all", lang) : tCat(cat, lang)}
-          </button>
-        ))}
-      </div>
+      {/* Filter Pills - hide when fixed category or single category */}
+      {!fixedCategory && categories && categories.length > 1 && (
+        <div style={styles.filterRow}>
+          {["All", ...(categories || [])].map((cat) => (
+            <button
+              key={cat}
+              onClick={() => setFilter(cat)}
+              style={{
+                ...styles.filterPill,
+                background: filter === cat ? "#292524" : "#f5f5f4",
+                color: filter === cat ? "#fff" : "#57534e",
+              }}
+            >
+              {cat === "All" ? t("all", lang) : tCat(cat, lang)}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Total */}
       <div style={styles.inlineTotal}>
