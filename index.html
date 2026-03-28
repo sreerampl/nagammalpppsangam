@@ -1019,8 +1019,7 @@ function App() {
   const totalAuction = yearAuction
     .filter((a) => a.Status === "Confirmed")
     .reduce((s, a) => s + Number(a.BidAmount || 0), 0);
-  const totalLoanOutflow = yearLoans.reduce((s, l) => s + (Number(l.LoanAmount) || 0) + (Number(l.LastYearReceivable) || 0), 0);
-  const balance = totalIncome + totalAuction - totalExpenses - totalLoanOutflow;
+  const balance = totalIncome + totalAuction - totalExpenses;
 
   const canEdit = role === "Admin" || role === "Editor";
   const isAdmin = role === "Admin";
@@ -1115,7 +1114,6 @@ function App() {
             totalIncome={totalIncome}
             totalExpenses={totalExpenses}
             totalAuction={totalAuction}
-            totalLoanOutflow={totalLoanOutflow}
             balance={balance}
             income={yearIncome}
             expenses={yearExpenses}
@@ -1519,11 +1517,10 @@ function NoAccessScreen({ email, onLogout, error }) {
 // DASHBOARD
 // ============================================================
 
-function Dashboard({ totalIncome, totalExpenses, totalAuction, totalLoanOutflow, balance, income, expenses, auction, families }) {
+function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, expenses, auction, families }) {
   const lang = useLang();
   const confirmedAuctions = auction.filter((a) => a.Status === "Confirmed").length;
   const pendingAuctions = auction.filter((a) => a.Status === "Pending").length;
-  const combinedExpenses = totalExpenses + (totalLoanOutflow || 0);
 
   return (
     <div style={styles.page}>
@@ -1538,8 +1535,8 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, totalLoanOutflow,
         </div>
         <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #991b1b, #dc2626)" }}>
           <p style={styles.cardLabel}>{t("totalExpenses", lang)}</p>
-          <p style={styles.cardValue}>{formatCurrency(combinedExpenses)}</p>
-          <p style={styles.cardCount}>{totalLoanOutflow > 0 ? (lang === "ta" ? "செலவு + கடன்" : "Exp + Loans") : expenses.length + " " + t("entries", lang)}</p>
+          <p style={styles.cardValue}>{formatCurrency(totalExpenses)}</p>
+          <p style={styles.cardCount}>{expenses.length} {t("entries", lang)}</p>
         </div>
         <div style={{
           ...styles.summaryCard,
@@ -2938,7 +2935,7 @@ function AuctionItemForm({ onSubmit, onClose, currentYear }) {
 
 function ReportsView({ families, income, expenses, auction, loans, totalIncome, totalExpenses, totalAuction, balance, ledger, currentYear, showToast, lang: propLang }) {
   const lang = useLang();
-  const [activeReport, setActiveReport] = useState("membership");
+  const [activeReport, setActiveReport] = useState("address");
 
   const exportAllData = () => {
     // Export a comprehensive multi-section CSV
@@ -2985,7 +2982,6 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
       {/* Report selector */}
       <div style={styles.filterRow}>
         {[
-          { id: "membership", label: t("membershipReport", lang) },
           { id: "address", label: t("addressBook", lang) },
           { id: "auction_balance", label: t("auctionBalance", lang) },
           { id: "loan_report", label: t("loanReport", lang) },
@@ -3006,7 +3002,6 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
         ))}
       </div>
 
-      {activeReport === "membership" && <MembershipReport families={families} income={income} />}
       {activeReport === "address" && <AddressReport families={families} />}
       {activeReport === "auction_balance" && (
         <AuctionBalanceSheet
@@ -3485,53 +3480,6 @@ function AuctionBalanceSheet({ auction, families, income, expenses, totalIncome,
           <p style={styles.asAmount}>—</p>
         </div>
       </div>
-
-      {/* Auction by Bidder */}
-      {Object.keys(bidderTotals).length > 0 && (
-        <>
-          <div style={styles.reportHeader}>
-            <h3 style={{ ...styles.reportTitle, marginTop: 24 }}>{t("auctionByBidder", lang)}</h3>
-          </div>
-          <div style={styles.tableWrapper}>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>{t("bidder", lang)}</th>
-                  <th style={{ ...styles.th, textAlign: "center" }}>{t("itemsWon", lang)}</th>
-                  <th style={{ ...styles.th, textAlign: "right" }}>{t("totalAmount", lang)}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {Object.entries(bidderTotals)
-                  .sort((a, b) => b[1].total - a[1].total)
-                  .map(([key, data], i) => (
-                    <tr key={i} style={i % 2 === 0 ? styles.trEven : styles.trOdd}>
-                      <td style={styles.td}>
-                        <p style={styles.tableName}>{data.name}</p>
-                        <p style={styles.tableAddr}>
-                          {data.isExternal ? t("bidExternal", lang) : `🏠 ${key}`}
-                        </p>
-                      </td>
-                      <td style={{ ...styles.td, textAlign: "center", fontWeight: 700 }}>{data.items}</td>
-                      <td style={{ ...styles.td, textAlign: "right", fontWeight: 700, color: "#059669" }}>
-                        {formatCurrency(data.total)}
-                      </td>
-                    </tr>
-                  ))}
-                <tr style={styles.trTotal}>
-                  <td style={{ ...styles.td, fontWeight: 800 }}>{t("total", lang).toUpperCase()}</td>
-                  <td style={{ ...styles.td, textAlign: "center", fontWeight: 800 }}>
-                    {confirmedItems.length}
-                  </td>
-                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 800, color: "#059669" }}>
-                    {formatCurrency(totalAuction)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
 
       {/* Auction Item-wise Detail */}
       {confirmedItems.length > 0 && (
