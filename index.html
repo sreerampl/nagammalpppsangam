@@ -1089,72 +1089,27 @@ function App() {
             families={families}
           />
         )}
-        {activeTab === "income" && (() => {
-          const specialCats = ["Pulli Vari", "Pen Pulli Varavu", "Cash Donation", "Material Donation"];
-          const isSpecial = (cat) => specialCats.some((s) => String(cat || "").trim().toLowerCase() === s.toLowerCase());
-          const subTabs = [
-            { id: "general", label: t("generalIncome", lang), icon: "💰", cat: null },
-            { id: "pulli", label: t("pulliVari", lang), icon: "👨", cat: "Pulli Vari" },
-            { id: "penpulli", label: t("penPulli", lang), icon: "👩", cat: "Pen Pulli Varavu" },
-            { id: "cashdon", label: t("nankodaiPanam", lang), icon: "💵", cat: "Cash Donation" },
-            { id: "matdon", label: t("nankodaiPorutkkal", lang), icon: "📦", cat: "Material Donation" },
-          ];
-          const activeSub = subTabs.find((s) => s.id === incomeSubTab) || subTabs[0];
-          const filteredIncome = activeSub.cat
-            ? yearIncome.filter((d) => String(d.Category || "").trim().toLowerCase() === activeSub.cat.toLowerCase())
-            : yearIncome.filter((d) => !isSpecial(d.Category));
-          const filteredCats = activeSub.cat ? [activeSub.cat] : INCOME_CATS.filter((c) => !isSpecial(c));
-          const pulliDefault = Number((master["Pulli Vari Default"] || [])[0]) || 51;
-          return (
-            <div>
-              {/* Sub-tab bar */}
-              <div style={{ display: "flex", gap: 4, padding: "8px 12px", overflowX: "auto", background: "#fafaf9", borderBottom: "1px solid #e7e5e4" }}>
-                {subTabs.map((st) => (
-                  <button key={st.id} onClick={() => setIncomeSubTab(st.id)} style={{
-                    padding: "6px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
-                    border: "none", whiteSpace: "nowrap", transition: "all 0.2s",
-                    background: incomeSubTab === st.id ? "#292524" : "#fff",
-                    color: incomeSubTab === st.id ? "#fff" : "#57534e",
-                    boxShadow: incomeSubTab === st.id ? "0 2px 4px rgba(0,0,0,0.15)" : "0 1px 2px rgba(0,0,0,0.05)",
-                  }}>
-                    {st.icon} {st.label}
-                  </button>
-                ))}
-              </div>
-              {/* Pulli Vari - family checklist view */}
-              {incomeSubTab === "pulli" ? (
-                <PulliVariView
-                  families={families}
-                  income={yearIncome}
-                  category={activeSub.cat}
-                  defaultAmount={pulliDefault}
-                  onAdd={addIncome}
-                  onDelete={deleteIncome}
-                  isAdmin={isAdmin}
-                  canEdit={canEdit}
-                  day1Date={day1Date}
-                  currentYear={currentYear}
-                />
-              ) : (
-                <IncomeView
-                  income={filteredIncome}
-                  families={families}
-                  canEdit={canEdit}
-                  isAdmin={isAdmin}
-                  onAdd={() => setShowForm(activeSub.cat ? "income_" + incomeSubTab : "income")}
-                  onEdit={editIncome}
-                  onDelete={deleteIncome}
-                  showToast={showToast}
-                  lang={lang}
-                  categories={filteredCats}
-                  donorTypes={activeSub.cat ? ["Family", "External"] : DONOR_TYPES}
-                  day1Date={day1Date}
-                  fixedCategory={activeSub.cat || null}
-                />
-              )}
-            </div>
-          );
-        })()}
+        {activeTab === "income" && (
+          <IncomeTabView
+            yearIncome={yearIncome}
+            families={families}
+            canEdit={canEdit}
+            isAdmin={isAdmin}
+            incomeSubTab={incomeSubTab}
+            setIncomeSubTab={setIncomeSubTab}
+            setShowForm={setShowForm}
+            editIncome={editIncome}
+            deleteIncome={deleteIncome}
+            addIncome={addIncome}
+            showToast={showToast}
+            lang={lang}
+            INCOME_CATS={INCOME_CATS}
+            DONOR_TYPES={DONOR_TYPES}
+            day1Date={day1Date}
+            currentYear={currentYear}
+            master={master}
+          />
+        )}
         {activeTab === "expenses" && (
           <ExpensesView
             expenses={yearExpenses}
@@ -1592,6 +1547,78 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
             </div>
           ))}
       </div>
+    </div>
+  );
+}
+
+// ============================================================
+// ============================================================
+// INCOME TAB VIEW — Sub-tabs for income categories
+// ============================================================
+function IncomeTabView({ yearIncome, families, canEdit, isAdmin, incomeSubTab, setIncomeSubTab, setShowForm, editIncome, deleteIncome, addIncome, showToast, lang, INCOME_CATS, DONOR_TYPES, day1Date, currentYear, master }) {
+  const specialCats = ["Pulli Vari", "Pen Pulli Varavu", "Cash Donation", "Material Donation"];
+  const isSpecial = (cat) => specialCats.some((s) => String(cat || "").trim().toLowerCase() === s.toLowerCase());
+  const subTabs = [
+    { id: "general", label: t("generalIncome", lang), icon: "💰", cat: null },
+    { id: "pulli", label: t("pulliVari", lang), icon: "👨", cat: "Pulli Vari" },
+    { id: "penpulli", label: t("penPulli", lang), icon: "👩", cat: "Pen Pulli Varavu" },
+    { id: "cashdon", label: t("nankodaiPanam", lang), icon: "💵", cat: "Cash Donation" },
+    { id: "matdon", label: t("nankodaiPorutkkal", lang), icon: "📦", cat: "Material Donation" },
+  ];
+  const activeSub = subTabs.find((s) => s.id === incomeSubTab) || subTabs[0];
+  const filteredIncome = activeSub.cat
+    ? yearIncome.filter((d) => String(d.Category || "").trim().toLowerCase() === activeSub.cat.toLowerCase())
+    : yearIncome.filter((d) => !isSpecial(d.Category));
+  const filteredCats = activeSub.cat ? [activeSub.cat] : INCOME_CATS.filter((c) => !isSpecial(c));
+  const pulliDefault = Number((master["Pulli Vari Default"] || [])[0]) || 51;
+
+  return (
+    <div>
+      {/* Sub-tab bar */}
+      <div style={{ display: "flex", gap: 4, padding: "8px 12px", overflowX: "auto", background: "#fafaf9", borderBottom: "1px solid #e7e5e4" }}>
+        {subTabs.map((st) => (
+          <button key={st.id} onClick={() => setIncomeSubTab(st.id)} style={{
+            padding: "6px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
+            border: "none", whiteSpace: "nowrap", transition: "all 0.2s",
+            background: incomeSubTab === st.id ? "#292524" : "#fff",
+            color: incomeSubTab === st.id ? "#fff" : "#57534e",
+            boxShadow: incomeSubTab === st.id ? "0 2px 4px rgba(0,0,0,0.15)" : "0 1px 2px rgba(0,0,0,0.05)",
+          }}>
+            {st.icon} {st.label}
+          </button>
+        ))}
+      </div>
+      {/* Pulli Vari - family checklist view */}
+      {incomeSubTab === "pulli" ? (
+        <PulliVariView
+          families={families}
+          income={yearIncome}
+          category={activeSub.cat}
+          defaultAmount={pulliDefault}
+          onAdd={addIncome}
+          onDelete={deleteIncome}
+          isAdmin={isAdmin}
+          canEdit={canEdit}
+          day1Date={day1Date}
+          currentYear={currentYear}
+        />
+      ) : (
+        <IncomeView
+          income={filteredIncome}
+          families={families}
+          canEdit={canEdit}
+          isAdmin={isAdmin}
+          onAdd={() => setShowForm(activeSub.cat ? "income_" + incomeSubTab : "income")}
+          onEdit={editIncome}
+          onDelete={deleteIncome}
+          showToast={showToast}
+          lang={lang}
+          categories={filteredCats}
+          donorTypes={activeSub.cat ? ["Family", "External"] : DONOR_TYPES}
+          day1Date={day1Date}
+          fixedCategory={activeSub.cat || null}
+        />
+      )}
     </div>
   );
 }
