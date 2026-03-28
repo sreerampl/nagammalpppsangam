@@ -1731,11 +1731,6 @@ function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelet
 
   return (
     <div style={styles.page}>
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "8px 0" }}>
-          {canEdit && (
-            <button onClick={onAdd} style={styles.addBtn}>{t("add", lang)}</button>
-          )}
-      </div>
 
       {/* Filter Pills - only show on general income tab (not sub-tabs) */}
       {!fixedCategory && categories && categories.length > 1 && (
@@ -1816,12 +1811,13 @@ function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelet
           day1Date={day1Date}
         />
       )}
+      {/* Floating Add Button */}
+      {canEdit && (
+        <button onClick={onAdd} style={styles.fab}>+ {t("add", lang)}</button>
+      )}
     </div>
   );
 }
-
-// ============================================================
-// EXPENSES VIEW
 // ============================================================
 
 function ExpensesView({ expenses, canEdit, isAdmin, onAdd, onEdit, onDelete, showToast, lang: propLang, categories, day1Date }) {
@@ -1836,11 +1832,6 @@ function ExpensesView({ expenses, canEdit, isAdmin, onAdd, onEdit, onDelete, sho
     <div style={styles.page}>
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>{t("expenses", lang)}</h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          {canEdit && (
-            <button onClick={onAdd} style={styles.addBtn}>{t("add", lang)}</button>
-          )}
-        </div>
       </div>
 
       <div style={styles.filterRow}>
@@ -1912,6 +1903,9 @@ function ExpensesView({ expenses, canEdit, isAdmin, onAdd, onEdit, onDelete, sho
           day1Date={day1Date}
         />
       )}
+      {canEdit && (
+        <button onClick={onAdd} style={styles.fab}>+ {t("add", lang)}</button>
+      )}
     </div>
   );
 }
@@ -1977,11 +1971,6 @@ function AuctionView({ auction, families, canEdit, isAdmin, email, onBid, onAddI
 
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>{t("auctionTitle", lang)} ({auction.length} {t("itemsCount", lang)})</h2>
-        <div style={{ display: "flex", gap: 8 }}>
-          {isAdmin && (
-            <button onClick={onAddItem} style={styles.addBtn}>{t("addItem", lang)}</button>
-          )}
-        </div>
       </div>
 
       <div style={styles.filterRow}>
@@ -2183,6 +2172,9 @@ function AuctionView({ auction, families, canEdit, isAdmin, email, onBid, onAddI
           </div>
         </div>
       )}
+      {isAdmin && (
+        <button onClick={onAddItem} style={styles.fab}>+ {t("addItem", lang)}</button>
+      )}
     </div>
   );
 }
@@ -2310,9 +2302,6 @@ function FamiliesView({ families, isAdmin, canEdit, onAdd, showToast, lang: prop
           {families.length > 0 && (<>
             <button onClick={exportFamiliesPDF} style={{ ...styles.addBtn, background: "#f5f5f4", color: "#57534e", fontSize: 12 }}>{t("exportPDF", lang)}</button>
           </>)}
-          {canEdit && (
-            <button onClick={onAdd} style={styles.addBtn}>{t("add", lang)}</button>
-          )}
         </div>
       </div>
 
@@ -2342,6 +2331,9 @@ function FamiliesView({ families, isAdmin, canEdit, onAdd, showToast, lang: prop
           <p style={styles.empty}>{t("noFamilies", lang)}</p>
         )}
       </div>
+      {canEdit && (
+        <button onClick={onAdd} style={styles.fab}>+ {t("add", lang)}</button>
+      )}
     </div>
   );
 }
@@ -3174,7 +3166,6 @@ function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onR
     <div style={styles.page}>
       <div style={styles.pageHeader}>
         <h2 style={styles.pageTitle}>{t("loans", lang)}</h2>
-        {isAdmin && <button onClick={() => setShowAddForm(true)} style={styles.addBtn}>+ {t("addLoan", lang)}</button>}
       </div>
 
       {/* Summary cards */}
@@ -3287,6 +3278,9 @@ function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onR
             <button onClick={() => { onDelete(confirmDelete.LoanID); setConfirmDelete(null); }} style={{ ...styles.btnPrimary, flex: 1, background: "#dc2626" }}>{t("delete", lang)}</button>
           </div>
         </Modal>
+      )}
+      {isAdmin && (
+        <button onClick={() => setShowAddForm(true)} style={styles.fab}>+ {t("addLoan", lang)}</button>
       )}
     </div>
   );
@@ -4199,6 +4193,25 @@ const styles = {
     fontWeight: 600,
     cursor: "pointer",
     fontFamily: "'Outfit', sans-serif",
+  },
+  fab: {
+    position: "sticky",
+    bottom: 90,
+    left: "50%",
+    transform: "translateX(-50%)",
+    display: "block",
+    margin: "16px auto 0",
+    background: "#292524",
+    color: "#fff",
+    border: "none",
+    padding: "12px 28px",
+    borderRadius: 50,
+    fontSize: 15,
+    fontWeight: 700,
+    cursor: "pointer",
+    boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+    fontFamily: "'Outfit', sans-serif",
+    zIndex: 50,
   },
   btnPrimary: {
     background: "#b45309",
