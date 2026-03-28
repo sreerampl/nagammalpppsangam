@@ -1019,7 +1019,8 @@ function App() {
   const totalAuction = yearAuction
     .filter((a) => a.Status === "Confirmed")
     .reduce((s, a) => s + Number(a.BidAmount || 0), 0);
-  const balance = totalIncome + totalAuction - totalExpenses;
+  const totalLoanOutflow = yearLoans.reduce((s, l) => s + (Number(l.LoanAmount) || 0) + (Number(l.LastYearReceivable) || 0), 0);
+  const balance = totalIncome + totalAuction - totalExpenses - totalLoanOutflow;
 
   const canEdit = role === "Admin" || role === "Editor";
   const isAdmin = role === "Admin";
@@ -1114,6 +1115,7 @@ function App() {
             totalIncome={totalIncome}
             totalExpenses={totalExpenses}
             totalAuction={totalAuction}
+            totalLoanOutflow={totalLoanOutflow}
             balance={balance}
             income={yearIncome}
             expenses={yearExpenses}
@@ -1517,10 +1519,11 @@ function NoAccessScreen({ email, onLogout, error }) {
 // DASHBOARD
 // ============================================================
 
-function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, expenses, auction, families }) {
+function Dashboard({ totalIncome, totalExpenses, totalAuction, totalLoanOutflow, balance, income, expenses, auction, families }) {
   const lang = useLang();
   const confirmedAuctions = auction.filter((a) => a.Status === "Confirmed").length;
   const pendingAuctions = auction.filter((a) => a.Status === "Pending").length;
+  const combinedExpenses = totalExpenses + (totalLoanOutflow || 0);
 
   return (
     <div style={styles.page}>
@@ -1530,18 +1533,13 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
       <div style={styles.cardGrid}>
         <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #065f46, #059669)" }}>
           <p style={styles.cardLabel}>{t("totalIncome", lang)}</p>
-          <p style={styles.cardValue}>{formatCurrency(totalIncome)}</p>
-          <p style={styles.cardCount}>{income.length} {t("entries", lang)}</p>
-        </div>
-        <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #92400e, #b45309)" }}>
-          <p style={styles.cardLabel}>{t("auctionIncome", lang)}</p>
-          <p style={styles.cardValue}>{formatCurrency(totalAuction)}</p>
-          <p style={styles.cardCount}>{confirmedAuctions}/{auction.length} {t("confirmed", lang)}</p>
+          <p style={styles.cardValue}>{formatCurrency(totalIncome + totalAuction)}</p>
+          <p style={styles.cardCount}>{income.length} + {confirmedAuctions} {t("entries", lang)}</p>
         </div>
         <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #991b1b, #dc2626)" }}>
           <p style={styles.cardLabel}>{t("totalExpenses", lang)}</p>
-          <p style={styles.cardValue}>{formatCurrency(totalExpenses)}</p>
-          <p style={styles.cardCount}>{expenses.length} {t("entries", lang)}</p>
+          <p style={styles.cardValue}>{formatCurrency(combinedExpenses)}</p>
+          <p style={styles.cardCount}>{totalLoanOutflow > 0 ? (lang === "ta" ? "செலவு + கடன்" : "Exp + Loans") : expenses.length + " " + t("entries", lang)}</p>
         </div>
         <div style={{
           ...styles.summaryCard,
@@ -1552,6 +1550,11 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
           <p style={styles.cardLabel}>{t("netBalance", lang)}</p>
           <p style={styles.cardValue}>{formatCurrency(balance)}</p>
           <p style={styles.cardCount}>{balance >= 0 ? t("surplus", lang) : t("deficit", lang)}</p>
+        </div>
+        <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #92400e, #b45309)" }}>
+          <p style={styles.cardLabel}>{t("auctionIncome", lang)}</p>
+          <p style={styles.cardValue}>{formatCurrency(totalAuction)}</p>
+          <p style={styles.cardCount}>{confirmedAuctions}/{auction.length} {t("confirmed", lang)}</p>
         </div>
       </div>
 
