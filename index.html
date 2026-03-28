@@ -1267,16 +1267,21 @@ function App() {
       </main>
 
       {/* Forms (Modal) */}
-      {showForm === "income" && (
-        <IncomeForm
-          families={families}
-          onSubmit={addIncome}
-          onClose={() => setShowForm(null)}
-          categories={INCOME_CATS}
-          donorTypes={DONOR_TYPES}
-          day1Date={day1Date}
-        />
-      )}
+      {showForm === "income" && (() => {
+        const specialCatsForm = ["Pulli Vari", "Pen Pulli Varavu", "Cash Donation", "Material Donation"];
+        const isSpecialForm = (c) => specialCatsForm.some((s) => String(c || "").trim().toLowerCase() === s.toLowerCase());
+        const generalCats = INCOME_CATS.filter((c) => !isSpecialForm(c));
+        return (
+          <IncomeForm
+            families={families}
+            onSubmit={addIncome}
+            onClose={() => setShowForm(null)}
+            categories={generalCats}
+            donorTypes={DONOR_TYPES}
+            day1Date={day1Date}
+          />
+        );
+      })()}
       {showForm && showForm.startsWith("income_") && (
         <IncomeForm
           families={families}
