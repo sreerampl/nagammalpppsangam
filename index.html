@@ -1597,11 +1597,6 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
 }
 
 // ============================================================
-// INCOME VIEW
-// ============================================================
-
-// ============================================================
-// ============================================================
 // PULLI VARI VIEW — Family checklist with one-tap payment
 // ============================================================
 function PulliVariView({ families, income, category, defaultAmount, onAdd, onDelete, isAdmin, canEdit, day1Date, currentYear }) {
@@ -1609,10 +1604,9 @@ function PulliVariView({ families, income, category, defaultAmount, onAdd, onDel
   const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
   const [busy, setBusy] = useState(null);
 
-  // Find which families have paid
   const paidByFamily = {};
   (income || []).forEach((d) => {
-    if (String(d.Category || "").trim().toLowerCase() === String(category || "").trim().toLowerCase()) {
+    if (String(d.Category || "").trim().toLowerCase() === String(category).trim().toLowerCase()) {
       const fid = String(d.FamilyID || "").trim();
       if (fid) {
         if (!paidByFamily[fid]) paidByFamily[fid] = { amount: 0, txnId: d.TxnID };
@@ -1657,7 +1651,6 @@ function PulliVariView({ families, income, category, defaultAmount, onAdd, onDel
 
   return (
     <div style={styles.page}>
-      {/* Summary */}
       <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
         <div style={{ flex: 1, background: "#f0fdf4", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
           <div style={{ fontSize: 22, fontWeight: 700, color: "#166534" }}>{paidCount}</div>
@@ -1672,12 +1665,9 @@ function PulliVariView({ families, income, category, defaultAmount, onAdd, onDel
           <div style={{ fontSize: 11, color: "#78716c" }}>{lang === "ta" ? "வசூல்" : "Collected"}</div>
         </div>
       </div>
-
       <div style={{ fontSize: 12, color: "#78716c", marginBottom: 8 }}>
-        {lang === "ta" ? "இயல்பு தொகை" : "Default amount"}: <strong>{fmt(defaultAmount)}</strong> {lang === "ta" ? "/ குடும்பம்" : "/ family"}
+        {lang === "ta" ? "இயல்பு தொகை" : "Default"}: <strong>{fmt(defaultAmount)}</strong> / {lang === "ta" ? "குடும்பம்" : "family"}
       </div>
-
-      {/* Family list */}
       {rows.map((r) => (
         <div key={r.id} style={{
           display: "flex", justifyContent: "space-between", alignItems: "center",
@@ -2647,6 +2637,7 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
         <label style={styles.label}>{t("donorName", lang)}
           <input value={form.donorName} onChange={(e) => set("donorName", e.target.value)} style={styles.input} placeholder={t("nameOfDonor", lang)} />
         </label>
+        {!fixedCategory && (
         <label style={styles.label}>{t("category", lang)}
           <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
             {cats.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
