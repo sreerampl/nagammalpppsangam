@@ -2685,7 +2685,7 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
             setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear, amount: isAuctionObj ? "0" : form.amount }); 
           }
         }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: (saving || !autoDay) ? 0.6 : 1 }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: (saving || !autoDay || !form.donorName || (form.category !== "Objects for Auction" && !form.amount)) ? 0.4 : 1 }}
         disabled={saving || !autoDay || !form.donorName || (form.category !== "Objects for Auction" && !form.amount)}
       >
         {saving ? "⏳ Saving..." : t("saveIncome", lang)}
