@@ -361,7 +361,27 @@ const formatCurrency = (amt) =>
 const today = () => new Date().toISOString().split("T")[0];
 const now = () => new Date().toLocaleString("en-IN");
 const todayISO = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
-const formatDateDisplay = (iso) => { if (!iso) return ''; const [y,m,d] = iso.split('-'); return d+'/'+m+'/'+y; };
+const toISO = (raw) => {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.split('T')[0];
+  const d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+};
+const formatDateDisplay = (raw) => {
+  if (!raw) return '';
+  const s = String(raw).trim();
+  // Already DD/MM/YYYY
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+  // ISO format YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}/.test(s)) { const [y,m,d] = s.split('T')[0].split('-'); return d+'/'+m+'/'+y; }
+  // Any other parseable date
+  const dt = new Date(s);
+  if (!isNaN(dt.getTime())) return String(dt.getDate()).padStart(2,'0') + '/' + String(dt.getMonth()+1).padStart(2,'0') + '/' + dt.getFullYear();
+  return s;
+};
 const calcDay = (dateStr, day1Date) => {
   if (!dateStr || !day1Date) return null;
   const d = new Date(dateStr), d1 = new Date(day1Date);
@@ -2470,7 +2490,7 @@ function EditIncomeForm({ item, families, categories, donorTypes, onSubmit, onCl
   const cats = categories && categories.length > 0 ? categories : INCOME_CATEGORIES;
   const dtypes = donorTypes && donorTypes.length > 0 ? donorTypes : ["Family", "External"];
   const [form, setForm] = useState({
-    date: item.Date || todayISO(),
+    date: toISO(item.Date) || todayISO(),
     donorType: item.DonorType || dtypes[0],
     familyId: item.FamilyID || "",
     donorName: item.DonorName || "",
@@ -2538,7 +2558,7 @@ function EditExpenseForm({ item, categories, onSubmit, onClose, day1Date }) {
   const [saving, setSaving] = useState(false);
   const cats = categories && categories.length > 0 ? categories : EXPENSE_CATEGORIES;
   const [form, setForm] = useState({
-    date: item.Date || todayISO(),
+    date: toISO(item.Date) || todayISO(),
     category: item.Category || cats[0],
     description: item.Description || "",
     amount: String(item.Amount || ""),
