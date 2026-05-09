@@ -1364,7 +1364,7 @@ function App() {
             day1Date={day1Date}
           />
         )}
-        {activeTab === "reports" && (
+        {activeTab === "reports" && isAdmin && (
           <ReportsView
             families={families}
             income={yearIncomeRealized}
@@ -1490,7 +1490,7 @@ function App() {
             }}>
               {[
                 { id: "families", icon: "👨‍👩‍👧‍👦", label: t("navFamily", lang) },
-                { id: "reports", icon: "📋", label: t("navReports", lang) },
+                ...(isAdmin ? [{ id: "reports", icon: "📋", label: t("navReports", lang) }] : []),
                 ...(isAdmin ? [{ id: "auditlog", icon: "📜", label: t("navAuditLog", lang) }] : []),
               ].map((tab) => (
                 <button
@@ -4108,13 +4108,13 @@ function LoanReport({ families, loans, currentYear }) {
       <table>
         <thead>
           <tr style="background:#1a237e;color:#fdd835">
-            <th style="padding:8px 6px;border:1px solid #999;width:40px">Sl.<br>No.</th>
-            <th style="padding:8px 6px;border:1px solid #999;text-align:left">Name</th>
-            <th style="padding:8px 6px;border:1px solid #999;text-align:right">Last Year<br>Receivable</th>
-            <th style="padding:8px 6px;border:1px solid #999;text-align:right">Amount</th>
-            <th style="padding:8px 6px;border:1px solid #999;text-align:right">Int @${defaultRate}%</th>
-            <th style="padding:8px 6px;border:1px solid #999;text-align:right">Total</th>
-            <th style="padding:8px 6px;border:1px solid #999;text-align:right;background:#16a34a;color:#fff">Rec.<br>Amt</th>
+            <th style="padding:8px 6px;border:1px solid #999;width:40px;text-align:center">Sl.<br>No.</th>
+            <th style="padding:8px 6px;border:1px solid #999;text-align:center">Name</th>
+            <th style="padding:8px 6px;border:1px solid #999;text-align:center">Last Year<br>Receivable</th>
+            <th style="padding:8px 6px;border:1px solid #999;text-align:center">Amount</th>
+            <th style="padding:8px 6px;border:1px solid #999;text-align:center">Int @${defaultRate}%</th>
+            <th style="padding:8px 6px;border:1px solid #999;text-align:center">Total</th>
+            <th style="padding:8px 6px;border:1px solid #999;text-align:center;background:#16a34a;color:#fff">Rec.<br>Amt</th>
             <th style="padding:8px 6px;border:1px solid #999;text-align:center;background:#16a34a;color:#fff">Rec.<br>Status</th>
           </tr>
         </thead>
@@ -4155,12 +4155,12 @@ function LoanReport({ families, loans, currentYear }) {
           <thead>
             <tr>
               <th style={{ ...headStyle, textAlign: "center", width: 28 }}>Sl.<br/>No.</th>
-              <th style={headStyle}>Name</th>
-              <th style={{ ...headStyle, textAlign: "right" }}>Last Year<br/>Receivable</th>
-              <th style={{ ...headStyle, textAlign: "right" }}>Amount</th>
-              <th style={{ ...headStyle, textAlign: "right" }}>Int @{defaultRate}%</th>
-              <th style={{ ...headStyle, textAlign: "right" }}>Total</th>
-              <th style={{ ...greenHead, textAlign: "right" }}>Rec.<br/>Amt</th>
+              <th style={{ ...headStyle, textAlign: "center" }}>Name</th>
+              <th style={{ ...headStyle, textAlign: "center" }}>Last Year<br/>Receivable</th>
+              <th style={{ ...headStyle, textAlign: "center" }}>Amount</th>
+              <th style={{ ...headStyle, textAlign: "center" }}>Int @{defaultRate}%</th>
+              <th style={{ ...headStyle, textAlign: "center" }}>Total</th>
+              <th style={{ ...greenHead, textAlign: "center" }}>Rec.<br/>Amt</th>
               <th style={{ ...greenHead, textAlign: "center" }}>Rec.<br/>Status</th>
             </tr>
           </thead>
