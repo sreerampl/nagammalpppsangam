@@ -170,7 +170,6 @@ const T = {
   // Reports
   reports: { en: "Reports", ta: "அறிக்கைகள்" },
   addressBook: { en: "📒 Address Book", ta: "📒 முகவரி புத்தகம்" },
-  auctionBalance: { en: "🔨 Auction Balance", ta: "🔨 ஏல இருப்பு" },
   balanceSheetTab: { en: "📜 Balance Sheet", ta: "📜 ஐந்தொகை" },
   // Balance Sheet / ஐந்தொகை (cash reconciliation)
   balanceSheetTitle: { en: "Balance Sheet", ta: "ஐந்தொகை" },
@@ -198,6 +197,27 @@ const T = {
   bsReconciliationTitle: { en: "Reconciliation entries", ta: "சரிபார்ப்பு பதிவுகள்" },
   bsReconciliationSaved: { en: "Reconciliation saved", ta: "சரிபார்ப்பு சேமிக்கப்பட்டது" },
   bsReconciliationHelp: { en: "Enter the cash deposited to bank and the petty cash kept on hand. Any remaining difference shows as discrepancy.", ta: "வங்கியில் வைப்பு செய்த தொகை மற்றும் கையில் உள்ள பட்டியல் பணத்தை உள்ளிடுங்கள். மீதமுள்ள வேறுபாடு திட்டக்குறையாக காட்டப்படும்." },
+  // FY rollover
+  addFYYear: { en: "+ Add FY Year", ta: "+ புதிய ஆண்டு சேர்" },
+  rolloverTitle: { en: "Create new financial year", ta: "புதிய நிதியாண்டு உருவாக்கு" },
+  rolloverConfirm: { en: "This will create FY", ta: "இது உருவாக்கும் — நிதியாண்டு" },
+  rolloverDetail: { en: "Pre-populated as 'Expected to collect' — totals are not affected until confirmed.", ta: "'வசூலிக்க எதிர்பார்க்கப்படுகிறது' என முன்-நிரப்பப்படும் — உறுதிப்படுத்தும் வரை மொத்தத்தில் சேராது." },
+  rolloverFamilies: { en: "families", ta: "குடும்பங்கள்" },
+  rolloverWithLoans: { en: "with outstanding loans", ta: "நிலுவை கடனுடன்" },
+  rolloverProceed: { en: "Create FY", ta: "உருவாக்கு" },
+  toastFYCreated: { en: "Financial year created", ta: "நிதியாண்டு உருவாக்கப்பட்டது" },
+  // Receivable categories
+  catCashReceivable: { en: "Cash Receivable", ta: "வசூல் பாக்கி" },
+  catInterestReceivable: { en: "Interest Receivable", ta: "வட்டி பாக்கி" },
+  cashReceivableTab: { en: "Cash Receivable", ta: "வசூல் பாக்கி" },
+  interestReceivableTab: { en: "Interest Receivable", ta: "வட்டி பாக்கி" },
+  // Status
+  statusExpected: { en: "Expected", ta: "எதிர்பார்க்கிறது" },
+  statusConfirmed: { en: "Confirmed", ta: "உறுதி" },
+  confirmCollection: { en: "Confirm collection", ta: "வசூல் உறுதி" },
+  toastConfirmed: { en: "Collection confirmed", ta: "வசூல் உறுதி செய்யப்பட்டது" },
+  expectedTotal: { en: "Expected total", ta: "எதிர்பார்க்கப்படும் மொத்தம்" },
+  collectedTotal: { en: "Collected total", ta: "வசூலிக்கப்பட்ட மொத்தம்" },
   bsNotesLabel: { en: "Notes", ta: "குறிப்புகள்" },
   bsNotesPlaceholder: { en: "Optional — discrepancy reason, items in petty cash list, etc.", ta: "விருப்பத்தேர்வு — திட்டக்குறை காரணம், பட்டியல் விவரங்கள் முதலியவை" },
   edit: { en: "Edit", ta: "திருத்து" },
@@ -354,6 +374,7 @@ const catKeyMap = {
   "Prayer Objects": "catPrayerObjects", "Groceries": "catGroceries", "Vegetables": "catVegetables",
   "Other": "catOther", "Temple": "catTemple", "Supplies": "catSupplies", "Pulli Vari": "catPulliVari",
   "Pen Pulli Varavu": "catPenPulli", "Cash Donation": "catNankodaiPanam", "Material Donation": "catNankodaiPorutkkal",
+  "Cash Receivable": "catCashReceivable", "Interest Receivable": "catInterestReceivable",
   "Decorations": "catDecorations", "Transport": "catTransport",
 };
 const tCat = (catVal, lang) => catKeyMap[catVal] ? t(catKeyMap[catVal], lang) : catVal;
@@ -506,6 +527,7 @@ function App() {
   const [toast, setToast] = useState(null);
   const [busy, setBusy] = useState(false);
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
+  const [showAddFYModal, setShowAddFYModal] = useState(false);
 
   // Derive Day1 date from Ledger for current year
   const currentLedgerEntry = (ledger || []).find((r) => String(r.Year) === String(currentYear));
@@ -923,6 +945,52 @@ function App() {
     }
   };
 
+  // Create new financial year (FY rollover) — admin only
+  const createFinancialYear = async () => {
+    setBusy(true);
+    try {
+      const pulliDefault = Number((master["Pulli Vari Default"] || [])[0]) || 51;
+      const penPulliDefault = Number((master["Pen Pulli Default"] || [])[0]) || pulliDefault;
+      const result = await backendRef.current.post("createFinancialYear", {
+        prevYear: currentYear,
+        pulliDefault: pulliDefault,
+        penPulliDefault: penPulliDefault,
+      });
+      // Refresh full data so new ledger row + income rows flow in
+      const fresh = await backendRef.current.post("loadAll", {});
+      if (fresh) {
+        if (fresh.ledger) setLedger(fresh.ledger);
+        if (fresh.income) setIncome(fresh.income);
+      }
+      const newYear = result && result.newYear;
+      showToast(t("toastFYCreated", lang) + (newYear ? " · " + newYear : ""));
+      // Per user preference: stay on previous year so admin can verify what was carried over
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Confirm a pre-populated Expected income row → Confirmed
+  const confirmIncome = async (txnId) => {
+    setBusy(true);
+    try {
+      await backendRef.current.post("confirmIncome", { txnId });
+      const todayStr = todayISO();
+      setIncome((prev) => prev.map((r) =>
+        String(r.TxnID) === String(txnId)
+          ? { ...r, Status: "Confirmed", Date: r.Date || todayStr }
+          : r
+      ));
+      showToast(t("toastConfirmed", lang));
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Seed standard 48 auction items for a year
   const seedAuctionItems = async (year) => {
     setBusy(true);
@@ -1042,7 +1110,11 @@ function App() {
   const yearExpenses = expenses.filter((e) => String(e.Year) === yearStr);
   const yearLoans = loans.filter((l) => String(l.Year) === yearStr);
   const yearAuction = auction.filter((a) => String(a.Year) === yearStr);
-  const totalIncome = yearIncome.reduce((s, d) => s + Number(d.Amount || 0), 0);
+  // "Realized" income = excluding rows pre-populated as Expected (not yet collected)
+  // Legacy rows without a Status field are treated as Confirmed for backward compatibility.
+  const isIncomeConfirmed = (d) => !d.Status || d.Status === "Confirmed";
+  const yearIncomeRealized = yearIncome.filter(isIncomeConfirmed);
+  const totalIncome = yearIncomeRealized.reduce((s, d) => s + Number(d.Amount || 0), 0);
   const totalExpenses = yearExpenses.reduce((s, e) => s + Number(e.Amount || 0), 0);
   const totalAuction = yearAuction
     .filter((a) => a.Status === "Confirmed")
@@ -1073,12 +1145,24 @@ function App() {
               <p style={styles.headerSubtitle}>
                 <select
                   value={currentYear}
-                  onChange={(e) => setCurrentYear(Number(e.target.value))}
+                  onChange={(e) => {
+                    if (e.target.value === "__add_fy__") {
+                      setShowAddFYModal(true);
+                      return;
+                    }
+                    setCurrentYear(Number(e.target.value));
+                  }}
                   style={{ background: "transparent", color: "inherit", border: "1px solid rgba(255,255,255,0.4)", borderRadius: 4, padding: "1px 4px", fontSize: "inherit", fontFamily: "inherit", cursor: "pointer" }}
                 >
-                  {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((y) => (
-                    <option key={y} value={y} style={{ color: "#1a1a1a" }}>{y}</option>
-                  ))}
+                  {(() => {
+                    var ledgerYears = (ledger || []).map((r) => Number(r.Year)).filter((y) => y > 0);
+                    if (ledgerYears.length === 0) ledgerYears = [new Date().getFullYear()];
+                    ledgerYears.sort((a, b) => a - b);
+                    return ledgerYears.map((y) => (
+                      <option key={y} value={y} style={{ color: "#1a1a1a" }}>{y}</option>
+                    ));
+                  })()}
+                  {isAdmin && <option value="__add_fy__" style={{ color: "#7c3aed", fontWeight: 600 }}>{t("addFYYear", lang)}</option>}
                 </select>
               </p>
             </div>
@@ -1143,7 +1227,7 @@ function App() {
             totalExpenses={totalExpenses}
             totalAuction={totalAuction}
             balance={balance}
-            income={yearIncome}
+            income={yearIncomeRealized}
             expenses={yearExpenses}
             auction={yearAuction}
             families={families}
@@ -1157,7 +1241,9 @@ function App() {
                 { id: "general", label: t("generalIncome", lang), icon: "💰" },
                 { id: "pulli", label: t("pulliVari", lang), icon: "👨" },
                 { id: "penpulli", label: t("penPulli", lang), icon: "👩" },
-                { id: "cashdon", label: t("nankodaiPanam", lang), icon: "💵" },
+                { id: "cashrec", label: t("cashReceivableTab", lang), icon: "💵" },
+                { id: "intrec", label: t("interestReceivableTab", lang), icon: "📈" },
+                { id: "cashdon", label: t("nankodaiPanam", lang), icon: "💸" },
                 { id: "matdon", label: t("nankodaiPorutkkal", lang), icon: "📦" },
               ].map((st) => (
                 <button key={st.id} onClick={() => setIncomeSubTab(st.id)} style={{
@@ -1178,6 +1264,7 @@ function App() {
                 category="Pulli Vari"
                 defaultAmount={Number((master["Pulli Vari Default"] || [])[0]) || 51}
                 onAdd={addIncome}
+                onConfirm={confirmIncome}
                 onDelete={deleteIncome}
                 isAdmin={isAdmin}
                 canEdit={canEdit}
@@ -1185,9 +1272,33 @@ function App() {
                 currentYear={currentYear}
               />
             )}
+            {incomeSubTab === "cashrec" && (
+              <ReceivableView
+                families={families}
+                income={yearIncome}
+                category="Cash Receivable"
+                currentYear={currentYear}
+                onConfirm={confirmIncome}
+                onDelete={deleteIncome}
+                isAdmin={isAdmin}
+                canEdit={canEdit}
+              />
+            )}
+            {incomeSubTab === "intrec" && (
+              <ReceivableView
+                families={families}
+                income={yearIncome}
+                category="Interest Receivable"
+                currentYear={currentYear}
+                onConfirm={confirmIncome}
+                onDelete={deleteIncome}
+                isAdmin={isAdmin}
+                canEdit={canEdit}
+              />
+            )}
             {incomeSubTab === "general" && (
               <IncomeView
-                income={yearIncome.filter((d) => !["Pulli Vari","Pen Pulli Varavu","Cash Donation","Material Donation"].some((s) => s.toLowerCase() === String(d.Category||"").trim().toLowerCase()))}
+                income={yearIncome.filter((d) => isIncomeConfirmed(d) && !["Pulli Vari","Pen Pulli Varavu","Cash Donation","Material Donation"].some((s) => s.toLowerCase() === String(d.Category||"").trim().toLowerCase()))}
                 families={families} canEdit={canEdit} isAdmin={isAdmin}
                 onAdd={() => setShowForm("income")}
                 onEdit={editIncome} onDelete={deleteIncome} showToast={showToast} lang={lang}
@@ -1196,18 +1307,23 @@ function App() {
               />
             )}
             {incomeSubTab === "penpulli" && (
-              <IncomeView
-                income={yearIncome.filter((d) => String(d.Category||"").trim().toLowerCase() === "pen pulli varavu")}
-                families={families} canEdit={canEdit} isAdmin={isAdmin}
-                onAdd={() => setShowForm("income_penpulli")}
-                onEdit={editIncome} onDelete={deleteIncome} showToast={showToast} lang={lang}
-                categories={["Pen Pulli Varavu"]} donorTypes={["Family","External"]} day1Date={day1Date}
-                fixedCategory="Pen Pulli Varavu"
+              <PulliVariView
+                families={families}
+                income={yearIncome}
+                category="Pen Pulli Varavu"
+                defaultAmount={Number((master["Pen Pulli Default"] || [])[0]) || Number((master["Pulli Vari Default"] || [])[0]) || 51}
+                onAdd={addIncome}
+                onConfirm={confirmIncome}
+                onDelete={deleteIncome}
+                isAdmin={isAdmin}
+                canEdit={canEdit}
+                day1Date={day1Date}
+                currentYear={currentYear}
               />
             )}
             {incomeSubTab === "cashdon" && (
               <IncomeView
-                income={yearIncome.filter((d) => String(d.Category||"").trim().toLowerCase() === "cash donation")}
+                income={yearIncome.filter((d) => isIncomeConfirmed(d) && String(d.Category||"").trim().toLowerCase() === "cash donation")}
                 families={families} canEdit={canEdit} isAdmin={isAdmin}
                 onAdd={() => setShowForm("income_cashdon")}
                 onEdit={editIncome} onDelete={deleteIncome} showToast={showToast} lang={lang}
@@ -1217,7 +1333,7 @@ function App() {
             )}
             {incomeSubTab === "matdon" && (
               <IncomeView
-                income={yearIncome.filter((d) => String(d.Category||"").trim().toLowerCase() === "material donation")}
+                income={yearIncome.filter((d) => isIncomeConfirmed(d) && String(d.Category||"").trim().toLowerCase() === "material donation")}
                 families={families} canEdit={canEdit} isAdmin={isAdmin}
                 onAdd={() => setShowForm("income_matdon")}
                 onEdit={editIncome} onDelete={deleteIncome} showToast={showToast} lang={lang}
@@ -1284,14 +1400,10 @@ function App() {
         {activeTab === "reports" && (
           <ReportsView
             families={families}
-            income={yearIncome}
+            income={yearIncomeRealized}
             expenses={yearExpenses}
             auction={yearAuction}
             loans={loans}
-            totalIncome={totalIncome}
-            totalExpenses={totalExpenses}
-            totalAuction={totalAuction}
-            balance={balance}
             ledger={ledger}
             currentYear={currentYear}
             isAdmin={isAdmin}
@@ -1306,6 +1418,18 @@ function App() {
       </main>
 
       {/* Forms (Modal) */}
+      {showAddFYModal && (
+        <AddFYConfirmModal
+          currentYear={currentYear}
+          families={families}
+          loans={loans}
+          onConfirm={async () => {
+            setShowAddFYModal(false);
+            await createFinancialYear();
+          }}
+          onClose={() => setShowAddFYModal(false)}
+        />
+      )}
       {showForm === "income" && (
         <IncomeForm
           families={families}
@@ -1674,27 +1798,260 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
 // ============================================================
 // PULLI VARI VIEW — Family checklist with one-tap payment
 // ============================================================
-function PulliVariView({ families, income, category, defaultAmount, onAdd, onDelete, isAdmin, canEdit, day1Date, currentYear }) {
+// ============================================================
+// ADD FY CONFIRM MODAL
+// ============================================================
+// Admin-only modal that confirms creation of next financial year.
+// Shows a preview of what will be carried over before commit.
+// ============================================================
+function AddFYConfirmModal({ currentYear, families, loans, onConfirm, onClose }) {
+  const lang = useLang();
+  const [submitting, setSubmitting] = useState(false);
+  const newYear = currentYear + 1;
+  const famCount = (families || []).length;
+  const loansThisYear = (loans || []).filter((l) => String(l.Year) === String(currentYear));
+  const loanCount = loansThisYear.length;
+  const cashRecTotal = loansThisYear.reduce((s, l) =>
+    s + (Number(l.LastYearReceivable) || 0) + (Number(l.LoanAmount) || 0), 0);
+  const intRecTotal = loansThisYear.reduce((s, l) => s + (Number(l.InterestAmount) || 0), 0);
+  const pulliDefault = 51;
+
+  return (
+    <Modal title={t("rolloverTitle", lang)} onClose={onClose}>
+      <p style={{ fontSize: 13, color: "#292524", marginBottom: 12 }}>
+        {t("rolloverConfirm", lang)} <strong style={{ color: "#7c3aed" }}>{newYear}</strong>
+      </p>
+      <div style={{ background: "#fafaf9", border: "1px solid #e7e5e4", borderRadius: 8, padding: 12, fontSize: 12, marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed #e7e5e4" }}>
+          <span>👨 {t("catPulliVari", lang)}</span>
+          <strong>{famCount} × {formatCurrency(pulliDefault)}</strong>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed #e7e5e4" }}>
+          <span>👩 {t("catPenPulli", lang)}</span>
+          <strong>{famCount} × {formatCurrency(pulliDefault)}</strong>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed #e7e5e4" }}>
+          <span>💰 {t("catCashReceivable", lang)}</span>
+          <strong>{loanCount} × ~{formatCurrency(loanCount > 0 ? Math.round(cashRecTotal / loanCount) : 0)}</strong>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
+          <span>📈 {t("catInterestReceivable", lang)}</span>
+          <strong>{loanCount} × ~{formatCurrency(loanCount > 0 ? Math.round(intRecTotal / loanCount) : 0)}</strong>
+        </div>
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #d6d3d1", display: "flex", justifyContent: "space-between", color: "#7c3aed" }}>
+          <strong>{t("expectedTotal", lang)}</strong>
+          <strong>{formatCurrency(famCount * pulliDefault * 2 + cashRecTotal + intRecTotal)}</strong>
+        </div>
+      </div>
+      <p style={{ fontSize: 11, color: "#78716c", marginBottom: 16, lineHeight: 1.4 }}>
+        💡 {t("rolloverDetail", lang)}
+      </p>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={onClose} disabled={submitting} style={{ ...styles.btnPrimary, flex: 1, background: "#a8a29e" }}>
+          {t("cancel", lang)}
+        </button>
+        <button
+          onClick={async () => {
+            if (submitting) return;
+            setSubmitting(true);
+            await onConfirm();
+          }}
+          disabled={submitting}
+          style={{ ...styles.btnPrimary, flex: 1, background: "#7c3aed", opacity: submitting ? 0.6 : 1 }}
+        >
+          {submitting ? "⏳ " + (lang === "ta" ? "உருவாக்கப்படுகிறது..." : "Creating...") : "✨ " + t("rolloverProceed", lang) + " " + newYear}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ============================================================
+// RECEIVABLE VIEW (Cash Receivable / Interest Receivable)
+// ============================================================
+// Per-family list — shows each family's expected amount from the
+// pre-populated row in Income (Status="Expected"), with a Confirm
+// button that flips it to Status="Confirmed". After confirming, the
+// row counts as real income.
+// ============================================================
+function ReceivableView({ families, income, category, currentYear, onConfirm, onDelete, isAdmin, canEdit }) {
   const lang = useLang();
   const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
   const [busy, setBusy] = useState(null);
 
-  const paidByFamily = {};
+  const isConfirmed = (row) => !row.Status || row.Status === "Confirmed";
+  const isExpected = (row) => row.Status === "Expected";
+
+  // Build family → row map (1 row per family per category for current year)
+  const rowsByFamily = {};
+  (income || []).forEach((d) => {
+    if (String(d.Category || "").trim().toLowerCase() === String(category).trim().toLowerCase() &&
+        String(d.Year) === String(currentYear)) {
+      const fid = String(d.FamilyID || "").trim();
+      if (fid && !rowsByFamily[fid]) rowsByFamily[fid] = d;
+    }
+  });
+
+  const rows = (families || [])
+    .map((f) => {
+      const fid = String(f.FamilyID || "").trim();
+      const r = rowsByFamily[fid];
+      return { id: fid, name: f.FamilyName, row: r };
+    })
+    .filter((r) => r.row) // only show families that have a receivable row
+    .sort((a, b) => {
+      const numA = parseInt(String(a.id).replace(/\D/g, "")) || 0;
+      const numB = parseInt(String(b.id).replace(/\D/g, "")) || 0;
+      return numA - numB;
+    });
+
+  const expectedRows = rows.filter((r) => isExpected(r.row));
+  const confirmedRows = rows.filter((r) => isConfirmed(r.row));
+  const expectedTotal = expectedRows.reduce((s, r) => s + Number(r.row.Amount || 0), 0);
+  const collectedTotal = confirmedRows.reduce((s, r) => s + Number(r.row.Amount || 0), 0);
+
+  const doConfirm = async (row) => {
+    if (busy) return;
+    setBusy(row.row.TxnID);
+    await onConfirm(row.row.TxnID);
+    setBusy(null);
+  };
+
+  const doDelete = async (row) => {
+    if (busy) return;
+    if (!window.confirm(lang === "ta" ? "நீக்கு?" : "Delete this entry?")) return;
+    setBusy(row.row.TxnID);
+    await onDelete(row.row.TxnID);
+    setBusy(null);
+  };
+
+  return (
+    <div style={styles.page}>
+      {/* Summary header */}
+      <div style={{ display: "flex", gap: 8, padding: "8px 12px", background: "#fafaf9", borderBottom: "1px solid #e7e5e4" }}>
+        <div style={{ flex: 1, padding: 10, background: "#fef3c7", borderRadius: 8, fontSize: 12 }}>
+          <div style={{ color: "#92400e", fontWeight: 600 }}>⏳ {t("expectedTotal", lang)}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#92400e", marginTop: 2 }}>{fmt(expectedTotal)}</div>
+          <div style={{ fontSize: 10, color: "#78716c" }}>{expectedRows.length} {lang === "ta" ? "பாக்கி" : "pending"}</div>
+        </div>
+        <div style={{ flex: 1, padding: 10, background: "#d1fae5", borderRadius: 8, fontSize: 12 }}>
+          <div style={{ color: "#065f46", fontWeight: 600 }}>✓ {t("collectedTotal", lang)}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#065f46", marginTop: 2 }}>{fmt(collectedTotal)}</div>
+          <div style={{ fontSize: 10, color: "#78716c" }}>{confirmedRows.length} {lang === "ta" ? "வசூல்" : "collected"}</div>
+        </div>
+      </div>
+
+      {/* Per-family list */}
+      {rows.length === 0 ? (
+        <p style={styles.empty}>{lang === "ta" ? "பாக்கி இல்லை" : "No receivables for this year"}</p>
+      ) : (
+        <div style={{ padding: 8 }}>
+          {rows.map((r) => {
+            const expected = isExpected(r.row);
+            return (
+              <div key={r.id} style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: "10px 12px",
+                marginBottom: 6,
+                background: "#fff",
+                border: "1px solid " + (expected ? "#fde68a" : "#a7f3d0"),
+                borderRadius: 8,
+                borderLeft: "4px solid " + (expected ? "#f59e0b" : "#10b981"),
+              }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#292524" }}>{r.name}</div>
+                  <div style={{ fontSize: 11, color: "#78716c", marginTop: 2 }}>
+                    {expected ? (
+                      <span style={{ color: "#92400e" }}>⏳ {t("statusExpected", lang)}</span>
+                    ) : (
+                      <span style={{ color: "#065f46" }}>✓ {t("statusConfirmed", lang)}</span>
+                    )}
+                    {r.row.Date && <span style={{ marginLeft: 6 }}>· {r.row.Date}</span>}
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8 }}>
+                  <strong style={{ fontSize: 14, fontFamily: "'Outfit', sans-serif", color: "#292524" }}>{fmt(r.row.Amount)}</strong>
+                  {expected && canEdit && (
+                    <button
+                      onClick={() => doConfirm(r)}
+                      disabled={busy === r.row.TxnID}
+                      style={{
+                        padding: "6px 10px",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        background: "#10b981",
+                        color: "#fff",
+                        border: "none",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                        opacity: busy === r.row.TxnID ? 0.6 : 1,
+                        whiteSpace: "nowrap",
+                      }}
+                      title={t("confirmCollection", lang)}
+                    >
+                      {busy === r.row.TxnID ? "⏳" : "✓"}
+                    </button>
+                  )}
+                  {isAdmin && (
+                    <button
+                      onClick={() => doDelete(r)}
+                      disabled={busy === r.row.TxnID}
+                      style={{
+                        padding: "6px 8px",
+                        fontSize: 11,
+                        background: "transparent",
+                        color: "#dc2626",
+                        border: "1px solid #fecaca",
+                        borderRadius: 6,
+                        cursor: "pointer",
+                      }}
+                      title={t("deleteBtn", lang)}
+                    >
+                      🗑
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PulliVariView({ families, income, category, defaultAmount, onAdd, onConfirm, onDelete, isAdmin, canEdit, day1Date, currentYear }) {
+  const lang = useLang();
+  const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
+  const [busy, setBusy] = useState(null);
+
+  const isConfirmed = (row) => !row.Status || row.Status === "Confirmed";
+
+  const rowByFamily = {};
   (income || []).forEach((d) => {
     if (String(d.Category || "").trim().toLowerCase() === String(category).trim().toLowerCase()) {
       const fid = String(d.FamilyID || "").trim();
-      if (fid) {
-        if (!paidByFamily[fid]) paidByFamily[fid] = { amount: 0, txnId: d.TxnID };
-        paidByFamily[fid].amount += Number(d.Amount) || 0;
-        paidByFamily[fid].txnId = d.TxnID;
+      if (fid && !rowByFamily[fid]) {
+        rowByFamily[fid] = d;
       }
     }
   });
 
   const rows = (families || []).map((f) => {
     const fid = String(f.FamilyID || "").trim();
-    const paid = paidByFamily[fid];
-    return { id: fid, name: f.FamilyName, paid: !!paid, amount: paid ? paid.amount : 0, txnId: paid ? paid.txnId : null };
+    const r = rowByFamily[fid];
+    const paid = !!r && isConfirmed(r);
+    const expected = !!r && !isConfirmed(r);
+    return {
+      id: fid,
+      name: f.FamilyName,
+      paid: paid,
+      expected: expected,
+      amount: r ? Number(r.Amount) || 0 : 0,
+      txnId: r ? r.TxnID : null,
+    };
   }).sort((a, b) => {
     const numA = parseInt(String(a.id).replace(/\D/g, "")) || 0;
     const numB = parseInt(String(b.id).replace(/\D/g, "")) || 0;
@@ -1702,18 +2059,23 @@ function PulliVariView({ families, income, category, defaultAmount, onAdd, onDel
   });
 
   const paidCount = rows.filter((r) => r.paid).length;
-  const totalCollected = rows.reduce((s, r) => s + r.amount, 0);
+  const totalCollected = rows.filter((r) => r.paid).reduce((s, r) => s + r.amount, 0);
 
   const quickPay = async (fam) => {
     if (busy) return;
     setBusy(fam.id);
-    const dateToUse = day1Date || todayISO();
-    const autoDay = calcDay(dateToUse, day1Date) || "1";
-    await onAdd({
-      date: dateToUse, day: autoDay, year: String(currentYear),
-      donorType: "Family", familyId: fam.id, donorName: fam.name,
-      category: category, amount: String(defaultAmount), description: "",
-    });
+    // If a pre-populated Expected row exists, confirm it (no new row created)
+    if (fam.expected && fam.txnId && onConfirm) {
+      await onConfirm(fam.txnId);
+    } else {
+      const dateToUse = day1Date || todayISO();
+      const autoDay = calcDay(dateToUse, day1Date) || "1";
+      await onAdd({
+        date: dateToUse, day: autoDay, year: String(currentYear),
+        donorType: "Family", familyId: fam.id, donorName: fam.name,
+        category: category, amount: String(defaultAmount), description: "",
+      });
+    }
     setBusy(null);
   };
 
@@ -1746,31 +2108,38 @@ function PulliVariView({ families, income, category, defaultAmount, onAdd, onDel
       {rows.map((r) => (
         <div key={r.id} style={{
           display: "flex", justifyContent: "space-between", alignItems: "center",
-          background: r.paid ? "#f0fdf4" : "#fff", borderRadius: 10, padding: "10px 14px",
-          marginBottom: 6, border: "1px solid " + (r.paid ? "#bbf7d0" : "#e7e5e4"),
+          background: r.paid ? "#f0fdf4" : (r.expected ? "#fffbeb" : "#fff"),
+          borderRadius: 10, padding: "10px 14px",
+          marginBottom: 6,
+          border: "1px solid " + (r.paid ? "#bbf7d0" : (r.expected ? "#fde68a" : "#e7e5e4")),
+          borderLeft: r.expected ? "4px solid #f59e0b" : (r.paid ? "4px solid #16a34a" : "1px solid #e7e5e4"),
         }}>
           <div>
             <div style={{ fontWeight: 600, fontSize: 14 }}>{r.name}</div>
-            <div style={{ fontSize: 11, color: "#a8a29e" }}>{r.id}</div>
+            <div style={{ fontSize: 11, color: r.expected ? "#92400e" : "#a8a29e" }}>
+              {r.expected ? "⏳ " + t("statusExpected", lang) : r.id}
+            </div>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             {r.paid && <span style={{ fontSize: 13, fontWeight: 600, color: "#16a34a" }}>{fmt(r.amount)}</span>}
+            {r.expected && <span style={{ fontSize: 13, fontWeight: 600, color: "#92400e" }}>{fmt(r.amount)}</span>}
             {canEdit && !r.paid && (
               <button onClick={() => quickPay(r)} disabled={!!busy} style={{
-                background: "#16a34a", color: "#fff", border: "none", borderRadius: 8,
+                background: r.expected ? "#f59e0b" : "#16a34a",
+                color: "#fff", border: "none", borderRadius: 8,
                 padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer",
                 opacity: busy === r.id ? 0.5 : 1,
               }}>
-                {busy === r.id ? "⏳" : "✅"} {fmt(defaultAmount)}
+                {busy === r.id ? "⏳" : (r.expected ? "✓" : "✅ " + fmt(defaultAmount))}
               </button>
             )}
             {r.paid && <span style={{ fontSize: 18, color: "#16a34a" }}>✅</span>}
-            {isAdmin && r.paid && (
+            {isAdmin && (r.paid || r.expected) && (
               <button onClick={() => quickUnpay(r)} disabled={!!busy} style={{
                 background: "none", border: "1px solid #fecaca", borderRadius: 6,
                 padding: "3px 8px", fontSize: 11, cursor: "pointer", color: "#dc2626",
                 opacity: busy === r.id ? 0.5 : 1,
-              }}>↩</button>
+              }}>{r.expected ? "🗑" : "↩"}</button>
             )}
           </div>
         </div>
@@ -3249,7 +3618,7 @@ function ReconciliationEditForm({ currentYear, initialBankDeposit, initialPettyC
 // REPORTS VIEW
 // ============================================================
 
-function ReportsView({ families, income, expenses, auction, loans, totalIncome, totalExpenses, totalAuction, balance, ledger, currentYear, isAdmin, saveReconciliation, showToast, lang: propLang }) {
+function ReportsView({ families, income, expenses, auction, loans, ledger, currentYear, isAdmin, saveReconciliation, showToast, lang: propLang }) {
   const lang = useLang();
   const [activeReport, setActiveReport] = useState("balance_sheet");
 
@@ -3263,7 +3632,6 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
       <div style={styles.filterRow}>
         {[
           { id: "balance_sheet", label: t("balanceSheetTab", lang) },
-          { id: "auction_balance", label: t("auctionBalance", lang) },
           { id: "loan_report", label: t("loanReport", lang) },
         ].map((r) => (
           <button
@@ -3281,18 +3649,6 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
         ))}
       </div>
 
-      {activeReport === "auction_balance" && (
-        <AuctionBalanceSheet
-          auction={auction}
-          families={families}
-          income={income}
-          expenses={expenses}
-          totalIncome={totalIncome}
-          totalExpenses={totalExpenses}
-          totalAuction={totalAuction}
-          balance={balance}
-        />
-      )}
       {activeReport === "balance_sheet" && (
         <BalanceSheetView
           income={income}
@@ -3407,174 +3763,6 @@ function AddressReport({ families }) {
       </div>
 
       {families.length === 0 && <p style={styles.empty}>{t("noFamilies", lang)}</p>}
-    </div>
-  );
-}
-
-// --- Auction Balance Sheet ---
-function AuctionBalanceSheet({ auction, families, income, expenses, totalIncome, totalExpenses, totalAuction, balance }) {
-  const lang = useLang();
-  const confirmedItems = auction.filter((a) => a.Status === "Confirmed");
-  const pendingItems = auction.filter((a) => a.Status === "Pending");
-  const unsoldItems = auction.filter((a) => !a.Status);
-  const pendingTotal = pendingItems.reduce((s, a) => s + Number(a.BidAmount || 0), 0);
-
-  // Group auction by family / external
-  const bidderTotals = {};
-  confirmedItems.forEach((item) => {
-    const key = item.WinnerFamilyID || `EXT-${item.WinnerName}`;
-    if (!bidderTotals[key]) {
-      bidderTotals[key] = {
-        name: item.WinnerName,
-        isExternal: !item.WinnerFamilyID,
-        items: 0,
-        total: 0,
-      };
-    }
-    bidderTotals[key].items += 1;
-    bidderTotals[key].total += Number(item.BidAmount || 0);
-  });
-
-  return (
-    <div>
-      {/* Overall Event Summary */}
-      <div style={styles.reportHeader}>
-        <h3 style={styles.reportTitle}>{t("eventBalanceSheet", lang)}</h3>
-      </div>
-
-      <div style={styles.balanceSheet}>
-        {/* Income side */}
-        <div style={styles.bsSection}>
-          <div style={styles.bsSectionHeader}>
-            <span style={styles.bsSectionIcon}>↓</span>
-            <span style={styles.bsSectionTitle}>{t("income", lang)}</span>
-          </div>
-          <div style={styles.bsRow}>
-            <span>{t("income", lang)}</span>
-            <span style={styles.bsAmount}>{formatCurrency(totalIncome)}</span>
-          </div>
-          <div style={styles.bsRow}>
-            <span>{t("auctionConfirmed", lang)}</span>
-            <span style={styles.bsAmount}>{formatCurrency(totalAuction)}</span>
-          </div>
-          {pendingTotal > 0 && (
-            <div style={{ ...styles.bsRow, color: "#b45309" }}>
-              <span>{t("auctionPending", lang)}</span>
-              <span style={styles.bsAmount}>{formatCurrency(pendingTotal)}</span>
-            </div>
-          )}
-          <div style={styles.bsTotalRow}>
-            <span>{t("totalIncome", lang)}</span>
-            <span style={{ ...styles.bsAmount, fontWeight: 800 }}>
-              {formatCurrency(totalIncome + totalAuction)}
-            </span>
-          </div>
-        </div>
-
-        {/* Expense side */}
-        <div style={styles.bsSection}>
-          <div style={styles.bsSectionHeader}>
-            <span style={{ ...styles.bsSectionIcon, background: "#fee2e2", color: "#dc2626" }}>↑</span>
-            <span style={styles.bsSectionTitle}>{t("expensesLabel", lang)}</span>
-          </div>
-          <div style={styles.bsRow}>
-            <span>{t("totalExpenses", lang)}</span>
-            <span style={styles.bsAmount}>{formatCurrency(totalExpenses)}</span>
-          </div>
-          <div style={styles.bsTotalRow}>
-            <span>{t("totalOutflow", lang)}</span>
-            <span style={{ ...styles.bsAmount, fontWeight: 800 }}>
-              {formatCurrency(totalExpenses)}
-            </span>
-          </div>
-        </div>
-
-        {/* Net */}
-        <div style={{
-          ...styles.bsNetRow,
-          background: balance >= 0
-            ? "linear-gradient(135deg, #065f46, #059669)"
-            : "linear-gradient(135deg, #991b1b, #dc2626)",
-        }}>
-          <span>{t("netBalanceLabel", lang)}</span>
-          <span style={{ fontSize: 20, fontWeight: 800 }}>{formatCurrency(balance)}</span>
-        </div>
-      </div>
-
-      {/* Auction Status Summary */}
-      <div style={styles.reportHeader}>
-        <h3 style={{...styles.reportTitle, marginTop: 24}}>{t("auctionSummary", lang)}</h3>
-      </div>
-
-      <div style={styles.auctionSummaryGrid}>
-        <div style={{ ...styles.auctionSummaryCard, borderLeft: "4px solid #059669" }}>
-          <p style={styles.asStat}>{confirmedItems.length}</p>
-          <p style={styles.asLabel}>{t("confirmedLabel", lang)}</p>
-          <p style={styles.asAmount}>{formatCurrency(totalAuction)}</p>
-        </div>
-        <div style={{ ...styles.auctionSummaryCard, borderLeft: "4px solid #f59e0b" }}>
-          <p style={styles.asStat}>{pendingItems.length}</p>
-          <p style={styles.asLabel}>{t("pendingLabel", lang)}</p>
-          <p style={styles.asAmount}>{formatCurrency(pendingTotal)}</p>
-        </div>
-        <div style={{ ...styles.auctionSummaryCard, borderLeft: "4px solid #d6d3d1" }}>
-          <p style={styles.asStat}>{unsoldItems.length}</p>
-          <p style={styles.asLabel}>{t("unsoldLabel", lang)}</p>
-          <p style={styles.asAmount}>—</p>
-        </div>
-      </div>
-
-      {/* Auction Item-wise Detail */}
-      {confirmedItems.length > 0 && (
-        <>
-          <div style={styles.reportHeader}>
-            <h3 style={{ ...styles.reportTitle, marginTop: 24 }}>{t("auctionItemDetails", lang)}</h3>
-          </div>
-          <div style={styles.tableWrapper}>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={{ ...styles.th, width: "10%" }}>#</th>
-                  <th style={styles.th}>{t("item", lang)}</th>
-                  <th style={styles.th}>{t("winner", lang)}</th>
-                  <th style={{ ...styles.th, textAlign: "right" }}>{t("amount", lang)}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {confirmedItems.map((item, i) => (
-                  <tr key={i} style={i % 2 === 0 ? styles.trEven : styles.trOdd}>
-                    <td style={{ ...styles.td, fontWeight: 700, color: "#b45309" }}>{item.ItemNo}</td>
-                    <td style={styles.td}>{item.ItemDescription}</td>
-                    <td style={styles.td}>
-                      <p style={styles.tableName}>{item.WinnerName}</p>
-                      <p style={styles.tableAddr}>
-                        {item.WinnerFamilyID ? `🏠 ${item.WinnerFamilyID}` : t("bidExternal", lang)}
-                      </p>
-                    </td>
-                    <td style={{ ...styles.td, textAlign: "right", fontWeight: 700, color: "#059669" }}>
-                      {formatCurrency(item.BidAmount)}
-                    </td>
-                  </tr>
-                ))}
-                <tr style={styles.trTotal}>
-                  <td style={styles.td}></td>
-                  <td style={{ ...styles.td, fontWeight: 800 }}>{t("total", lang).toUpperCase()}</td>
-                  <td style={styles.td}></td>
-                  <td style={{ ...styles.td, textAlign: "right", fontWeight: 800, color: "#059669", fontSize: 15 }}>
-                    {formatCurrency(totalAuction)}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </>
-      )}
-
-      {pendingTotal > 0 && (
-        <p style={{ ...styles.txnMeta, marginTop: 12, color: "#b45309", fontStyle: "italic" }}>
-          {t("pendingDisclaimer", lang).replace("{amount}", formatCurrency(pendingTotal))}
-        </p>
-      )}
     </div>
   );
 }

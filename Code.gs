@@ -114,6 +114,11 @@ function handleRequest(e) {
       case "saveReconciliation":
         return requireRole(userRole, "Admin", function() { return handleSaveReconciliation(params.data, email); });
 
+      case "createFinancialYear":
+        return requireRole(userRole, "Admin", function() { return handleCreateFinancialYear(params.data, email); });
+      case "confirmIncome":
+        return requireRole(userRole, "Editor", function() { return handleConfirmIncome(params.data, email); });
+
       case "seedAuctionItems":
         return requireRole(userRole, "Admin", function() { return handleSeedAuctionItems(params.data, email); });
 
@@ -266,6 +271,13 @@ function handleAddIncome(data, email) {
     ts
   ];
   sheet.appendRow(row);
+
+  // If Status column exists, mark as Confirmed (the default for manual entries)
+  var statusIdx = getHeaderIndex(sheet, "Status");
+  if (statusIdx >= 0) {
+    sheet.getRange(sheet.getLastRow(), statusIdx + 1).setValue("Confirmed");
+  }
+
   writeAudit("CREATE", "Income", txnId + " ₹" + data.amount + " " + data.category + " by " + data.donorName, email);
 
   var result = { txnId: txnId };
@@ -715,6 +727,263 @@ function handleSaveReconciliation(data, email) {
     "Balance Sheet reconciliation " + year + " (new row): BankDeposit=" + bankDeposit + ", PettyCash=" + pettyCash,
     email);
   return jsonResponse({ success: true, data: { year: year, bankDeposit: bankDeposit, pettyCash: pettyCash, notes: notes || "" } });
+}
+
+// ============================================================
+// CREATE FINANCIAL YEAR (FY rollover)
+// ============================================================
+// Creates a new Ledger row for max(year)+1 and pre-populates
+// Income rows for each family:
+//   - Pulli Vari (Amount = pulliDefault, Status = Expected)
+//   - Pen Pulli Varavu (Amount = penPulliDefault, Status = Expected)
+// And for each family with an outstanding loan from previous year:
+//   - Cash Receivable (Amount = LastYearReceivable + LoanAmount)
+//   - Interest Receivable (Amount = InterestAmount)
+//
+// All rolled-over rows are marked Status="Expected" so they do NOT
+// inflate income totals until an admin confirms collection via the
+// confirmIncome action.
+// ============================================================
+
+function handleCreateFinancialYear(data, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ledgerSh = ss.getSheetByName(SHEETS.LEDGER);
+  var incomeSh = ss.getSheetByName(SHEETS.INCOME);
+  var familiesSh = ss.getSheetByName(SHEETS.FAMILIES);
+  var loansSh = ss.getSheetByName(SHEETS.LOANS);
+  if (!ledgerSh || !incomeSh || !familiesSh || !loansSh) throw new Error("Required sheet missing");
+
+  // Determine new year
+  var prevYear = Number(data.prevYear) || (new Date().getFullYear());
+  var ledgerData = ledgerSh.getDataRange().getValues();
+  var ledgerHeaders = ledgerData[0];
+  var yearIdx = ledgerHeaders.indexOf("Year");
+  if (yearIdx === -1) throw new Error("Ledger sheet missing Year column");
+
+  var maxYear = prevYear;
+  for (var i = 1; i < ledgerData.length; i++) {
+    var y = Number(ledgerData[i][yearIdx]) || 0;
+    if (y > maxYear) maxYear = y;
+  }
+  var newYear = maxYear + 1;
+
+  // Validate that newYear isn't already in Ledger
+  for (var j = 1; j < ledgerData.length; j++) {
+    if (Number(ledgerData[j][yearIdx]) === newYear) {
+      throw new Error("FY " + newYear + " already exists in Ledger");
+    }
+  }
+
+  // Ensure Status column exists on Income sheet
+  ensureColumn(incomeSh, "Status");
+
+  // Default amounts (passed from frontend; falls back to 51)
+  var pulliDefault = Number(data.pulliDefault) || 51;
+  var penPulliDefault = Number(data.penPulliDefault) || 51;
+
+  // Read families
+  var families = readSheetRows(familiesSh);
+  // Read previous year's loans, indexed by FamilyID
+  var loans = readSheetRows(loansSh);
+  var prevLoansByFamily = {};
+  loans.forEach(function(l) {
+    if (Number(l.Year) === prevYear) {
+      var fid = String(l.FamilyID || "").trim();
+      if (fid) prevLoansByFamily[fid] = l;
+    }
+  });
+
+  // Build new rows for Income sheet
+  var incomeHeaders = incomeSh.getRange(1, 1, 1, incomeSh.getLastColumn()).getValues()[0];
+  var ts = now();
+  var newRows = [];
+  var counts = { pulli: 0, penPulli: 0, cashRec: 0, intRec: 0, families: families.length };
+
+  families.forEach(function(f) {
+    var fid = String(f.FamilyID || "").trim();
+    var fname = String(f.FamilyName || "").trim();
+    if (!fid) return;
+
+    // Pulli Vari (men's membership) — Expected
+    newRows.push(buildIncomeRow(incomeHeaders, {
+      TxnID: generateId("DON"), Year: String(newYear), Day: "", Date: "",
+      DonorType: "Family", FamilyID: fid, DonorName: fname,
+      Category: "Pulli Vari", Amount: pulliDefault, Description: "",
+      EnteredBy: email, Timestamp: ts, Status: "Expected",
+    }));
+    counts.pulli++;
+
+    // Pen Pulli Varavu — Expected
+    newRows.push(buildIncomeRow(incomeHeaders, {
+      TxnID: generateId("DON"), Year: String(newYear), Day: "", Date: "",
+      DonorType: "Family", FamilyID: fid, DonorName: fname,
+      Category: "Pen Pulli Varavu", Amount: penPulliDefault, Description: "",
+      EnteredBy: email, Timestamp: ts, Status: "Expected",
+    }));
+    counts.penPulli++;
+
+    // Cash Receivable + Interest Receivable from prev year loan
+    var prevLoan = prevLoansByFamily[fid];
+    if (prevLoan) {
+      var lastYrRec = Number(prevLoan.LastYearReceivable) || 0;
+      var loanAmt = Number(prevLoan.LoanAmount) || 0;
+      var intAmt = Number(prevLoan.InterestAmount) || 0;
+      var cashRecAmt = lastYrRec + loanAmt;
+
+      if (cashRecAmt > 0) {
+        newRows.push(buildIncomeRow(incomeHeaders, {
+          TxnID: generateId("DON"), Year: String(newYear), Day: "", Date: "",
+          DonorType: "Family", FamilyID: fid, DonorName: fname,
+          Category: "Cash Receivable", Amount: cashRecAmt, Description: "From " + prevYear + " loan",
+          EnteredBy: email, Timestamp: ts, Status: "Expected",
+        }));
+        counts.cashRec++;
+      }
+      if (intAmt > 0) {
+        newRows.push(buildIncomeRow(incomeHeaders, {
+          TxnID: generateId("DON"), Year: String(newYear), Day: "", Date: "",
+          DonorType: "Family", FamilyID: fid, DonorName: fname,
+          Category: "Interest Receivable", Amount: intAmt, Description: "From " + prevYear + " loan",
+          EnteredBy: email, Timestamp: ts, Status: "Expected",
+        }));
+        counts.intRec++;
+      }
+    }
+  });
+
+  // Bulk write all new income rows in one batch
+  if (newRows.length > 0) {
+    var startRow = incomeSh.getLastRow() + 1;
+    incomeSh.getRange(startRow, 1, newRows.length, incomeHeaders.length).setValues(newRows);
+  }
+
+  // Create Ledger row for new year (Day1 blank — admin sets via Event Setup)
+  var ledgerNewRow = [];
+  for (var k = 0; k < ledgerHeaders.length; k++) {
+    ledgerNewRow.push(ledgerHeaders[k] === "Year" ? newYear : "");
+  }
+  ledgerSh.appendRow(ledgerNewRow);
+
+  writeAudit("CREATE_FY", "Ledger",
+    "FY " + newYear + " created from " + prevYear +
+    " · Families: " + counts.families +
+    " · PulliVari: " + counts.pulli +
+    " · PenPulli: " + counts.penPulli +
+    " · CashRec: " + counts.cashRec +
+    " · IntRec: " + counts.intRec, email);
+
+  return jsonResponse({ success: true, data: { newYear: newYear, prevYear: prevYear, counts: counts } });
+}
+
+// ============================================================
+// CONFIRM INCOME (flip Expected → Confirmed)
+// ============================================================
+// Used to mark a pre-populated receivable row as actually
+// collected. Sets Status=Confirmed and updates Date/Day to today
+// (with Day computed relative to the row's year Day1 from Ledger).
+// ============================================================
+
+function handleConfirmIncome(data, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.INCOME);
+  if (!sheet) throw new Error("Income sheet not found");
+
+  var txnId = String(data.txnId || "").trim();
+  if (!txnId) throw new Error("txnId required");
+
+  // Ensure Status column exists
+  ensureColumn(sheet, "Status");
+
+  var rows = sheet.getDataRange().getValues();
+  var headers = rows[0];
+  var txnIdx = headers.indexOf("TxnID");
+  var statusIdx = headers.indexOf("Status");
+  var dateIdx = headers.indexOf("Date");
+  var dayIdx = headers.indexOf("Day");
+  var yearIdx = headers.indexOf("Year");
+  if (txnIdx === -1) throw new Error("Income sheet missing TxnID column");
+
+  var todayDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  var found = -1;
+  var rowYear = "";
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][txnIdx]) === txnId) {
+      found = i + 1; // 1-indexed
+      rowYear = String(rows[i][yearIdx]);
+      break;
+    }
+  }
+  if (found === -1) throw new Error("Income row not found: " + txnId);
+
+  // Set Status=Confirmed
+  sheet.getRange(found, statusIdx + 1).setValue("Confirmed");
+  // Update Date if blank
+  if (dateIdx >= 0) sheet.getRange(found, dateIdx + 1).setValue(todayDate);
+  // Compute and update Day (relative to Ledger Day1 for this year)
+  if (dayIdx >= 0 && rowYear) {
+    var day = computeDayFromLedger(ss, rowYear, todayDate);
+    if (day) sheet.getRange(found, dayIdx + 1).setValue(day);
+  }
+
+  writeAudit("CONFIRM", "Income", "Confirmed " + txnId + " on " + todayDate, email);
+  return jsonResponse({ success: true, data: { txnId: txnId, date: todayDate } });
+}
+
+// Helpers used by FY rollover and confirmIncome
+function ensureColumn(sheet, headerName) {
+  var lastCol = sheet.getLastColumn();
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  if (headers.indexOf(headerName) === -1) {
+    sheet.getRange(1, lastCol + 1).setValue(headerName);
+  }
+}
+
+function getHeaderIndex(sheet, headerName) {
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  return headers.indexOf(headerName);
+}
+
+function readSheetRows(sheet) {
+  var data = sheet.getDataRange().getValues();
+  if (data.length < 2) return [];
+  var headers = data[0];
+  var out = [];
+  for (var i = 1; i < data.length; i++) {
+    var obj = {};
+    for (var j = 0; j < headers.length; j++) {
+      obj[headers[j]] = data[i][j];
+    }
+    out.push(obj);
+  }
+  return out;
+}
+
+function buildIncomeRow(headers, dataObj) {
+  return headers.map(function(h) {
+    return dataObj.hasOwnProperty(h) ? dataObj[h] : "";
+  });
+}
+
+function computeDayFromLedger(ss, yearStr, dateStr) {
+  var lsh = ss.getSheetByName(SHEETS.LEDGER);
+  if (!lsh) return "";
+  var data = lsh.getDataRange().getValues();
+  var headers = data[0];
+  var yIdx = headers.indexOf("Year");
+  var d1Idx = headers.indexOf("Day1");
+  if (yIdx === -1 || d1Idx === -1) return "";
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][yIdx]) === String(yearStr)) {
+      var day1 = data[i][d1Idx];
+      if (!day1) return "";
+      var day1Date = (day1 instanceof Date) ? day1 : new Date(day1);
+      var inputDate = new Date(dateStr);
+      var diffDays = Math.round((inputDate - day1Date) / (1000 * 60 * 60 * 24));
+      if (diffDays >= 0 && diffDays < 3) return String(diffDays + 1);
+      return "";
+    }
+  }
+  return "";
 }
 
 // ============================================================
