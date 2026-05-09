@@ -183,8 +183,8 @@ const T = {
   bsAuctionConfirmed: { en: "Auction (confirmed)", ta: "ஏலம் வரவு" },
   bsCashDonation: { en: "Cash donation", ta: "நன்கொடை வரவு" },
   bsTotalVaravu: { en: "Total income", ta: "மொத்த வரவு" },
-  bsInaththu: { en: "Loans (total receivable)", ta: "இனத்து கணக்கு" },
-  bsInaththuSub: { en: "Sum of TotalReceivable for the year", ta: "ஆண்டின் மொத்த வசூல் கூட்டுத்தொகை" },
+  bsInaththu: { en: "Loans (cash advanced)", ta: "இனத்து கணக்கு" },
+  bsInaththuSub: { en: "Last year receivable + this year loan (excl. interest)", ta: "முந்தைய ஆண்டு வசூல் + நடப்பாண்டு கடன் (வட்டி தவிர)" },
   bsExpenses: { en: "Expenses", ta: "செலவு கணக்கு" },
   bsBankDeposit: { en: "Bank deposit", ta: "வங்கி வைப்பு" },
   bsPettyCash: { en: "Petty cash on hand", ta: "பட்டியலுடன் வைத்தது" },
@@ -2925,11 +2925,11 @@ function EventBalanceSheetInthugai({ income, expenses, auction, loans, ledger, c
   const totalVaravu = generalIncome + pulliVari + penPulli + auctionConfirmed + cashDonation;
 
   // --- OUTFLOW (செலவு) side ---
-  // Inaththu Kanakku = sum of TotalReceivable for current-year loans
-  // (includes LastYearReceivable + LoanAmount + InterestAmount per the data model)
+  // Inaththu Kanakku = cash physically advanced this year = LastYearReceivable + LoanAmount
+  // (Interest is excluded — it's an accrual, no cash leaves the till for interest)
   const inaththu = (loans || [])
     .filter((l) => String(l.Year) === String(currentYear))
-    .reduce((s, l) => s + (Number(l.TotalReceivable) || 0), 0);
+    .reduce((s, l) => s + (Number(l.LastYearReceivable) || 0) + (Number(l.LoanAmount) || 0), 0);
 
   const expensesTotal = expenses.reduce((s, e) => s + (Number(e.Amount) || 0), 0);
 
@@ -2986,7 +2986,7 @@ function EventBalanceSheetInthugai({ income, expenses, auction, loans, ledger, c
         <tr class="total-row"><td>மொத்த வரவு / Total income</td><td class="amt">₹ ${fmt(totalVaravu)}</td></tr>
 
         <tr class="header-row"><td colspan="2" class="selavu">செலவு கணக்கு / Outflow side</td></tr>
-        <tr><td><div class="ta">இனத்து கணக்கு</div><div class="en">Loans — total receivable (LastYrRec + Loan + Interest)</div></td><td class="amt">${fmt(inaththu)}</td></tr>
+        <tr><td><div class="ta">இனத்து கணக்கு</div><div class="en">Loans — cash advanced (LastYrRec + LoanAmount, excl. interest)</div></td><td class="amt">${fmt(inaththu)}</td></tr>
         <tr><td><div class="ta">செலவு கணக்கு</div><div class="en">Event expenses</div></td><td class="amt">${fmt(expensesTotal)}</td></tr>
         <tr><td><div class="ta">வங்கி வைப்பு / Bank deposit</div><div class="en">Cash deposited to bank</div></td><td class="amt">${fmt(bankDeposit)}</td></tr>
         <tr><td><div class="ta">பட்டியலுடன் வைத்தது</div><div class="en">Petty cash on hand (with itemized list)</div></td><td class="amt">${fmt(pettyCash)}</td></tr>
