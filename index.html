@@ -4155,18 +4155,24 @@ function LoanReport({ families, loans, currentYear }) {
   const currYearLoans = (loans || []).filter((l) => String(l.Year) === yearStr);
   const defaultRate = currYearLoans.length > 0 ? (Number(currYearLoans[0].InterestRate) || 9) : 9;
 
-  const rows = (families || []).map((f, idx) => {
+  const allRows = (families || []).map((f, idx) => {
     const fid = String(f.FamilyID || "").trim();
     const prev = prevByFamily[fid] || 0;
     const d = currByFamily[fid] || { amount: 0, interest: 0, total: 0, received: 0, status: "—" };
     return { sl: idx + 1, id: fid, name: f.FamilyName, prevOutstanding: prev, ...d };
   });
 
-  rows.sort((a, b) => {
+  allRows.sort((a, b) => {
     const numA = parseInt(String(a.id).replace(/\D/g, "")) || 0;
     const numB = parseInt(String(b.id).replace(/\D/g, "")) || 0;
     return numA - numB;
   });
+
+  // Filter out families with zero across ALL fields (no loan activity)
+  // and re-number SL sequentially among the visible rows.
+  const rows = allRows
+    .filter((r) => r.prevOutstanding > 0 || r.amount > 0 || r.interest > 0 || r.received > 0)
+    .map((r, idx) => ({ ...r, sl: idx + 1 }));
 
   const totals = rows.reduce((s, r) => ({
     prevOutstanding: s.prevOutstanding + r.prevOutstanding,
@@ -4181,7 +4187,7 @@ function LoanReport({ families, loans, currentYear }) {
     const printWin = window.open("", "_blank");
     if (!printWin) return;
     const htmlRows = rows.map((r) => {
-      const statusText = r.amount > 0 ? (r.status === "Received" ? "✅ Received" : r.status === "Partial" ? "🔶 Partial" : "⏳ Pending") : "";
+      const statusText = r.status === "Received" ? "✅ Received" : r.status === "Partial" ? "🔶 Partial" : "";
       return `<tr style="background:${r.amount > 0 || r.prevOutstanding > 0 ? '#fefce8' : '#fff'}">
         <td style="text-align:center;padding:4px 6px;border:1px solid #999">${r.sl}</td>
         <td style="padding:4px 6px;border:1px solid #999">${r.name}</td>
@@ -4272,10 +4278,10 @@ function LoanReport({ families, loans, currentYear }) {
                   <td style={{ ...cellStyle, textAlign: "right", fontWeight: 600 }}>{r.total > 0 ? fmtNum(r.total) : "0"}</td>
                   <td style={{ ...cellStyle, textAlign: "right", color: r.received > 0 ? "#16a34a" : "#78716c" }}>{r.received > 0 ? fmtNum(r.received) : "0"}</td>
                   <td style={{ ...cellStyle, textAlign: "center" }}>
-                    {r.amount > 0 ? (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: r.status === "Received" ? "#16a34a" : r.status === "Partial" ? "#d97706" : "#dc2626" }}>
-                        {r.status === "Received" ? "✅" : r.status === "Partial" ? "🔶" : "⏳"}
-                      </span>
+                    {r.status === "Received" ? (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#16a34a" }}>✅</span>
+                    ) : r.status === "Partial" ? (
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#d97706" }}>🔶</span>
                     ) : ""}
                   </td>
                 </tr>
