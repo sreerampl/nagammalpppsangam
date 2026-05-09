@@ -171,10 +171,10 @@ const T = {
   reports: { en: "Reports", ta: "அறிக்கைகள்" },
   addressBook: { en: "📒 Address Book", ta: "📒 முகவரி புத்தகம்" },
   auctionBalance: { en: "🔨 Auction Balance", ta: "🔨 ஏல இருப்பு" },
-  inthugaiTab: { en: "📜 Inthugai", ta: "📜 இந்துகை" },
-  // Inthugai (cash reconciliation balance sheet)
-  inthugaiTitle: { en: "Event Balance Sheet (Inthugai)", ta: "இந்துகை — நிகழ்வு இருப்புநிலை" },
-  inthugaiSubtitle: { en: "Cash reconciliation — both sides must equal", ta: "ரொக்க சரிபார்ப்பு — இரு பக்கமும் சமம்" },
+  balanceSheetTab: { en: "📜 Balance Sheet", ta: "📜 ஐந்தொகை" },
+  // Balance Sheet / ஐந்தொகை (cash reconciliation)
+  balanceSheetTitle: { en: "Balance Sheet", ta: "ஐந்தொகை" },
+  balanceSheetSubtitle: { en: "Cash reconciliation — both sides must equal", ta: "ரொக்க சரிபார்ப்பு — இரு பக்கமும் சமம்" },
   varavuTitle: { en: "Income / Receipts", ta: "வரவு" },
   selavuTitle: { en: "Outflow / Disbursement", ta: "செலவு" },
   bsGeneralIncome: { en: "General income", ta: "வரவு கணக்கு" },
@@ -891,7 +891,7 @@ function App() {
     }
   };
 
-  // Save Inthugai reconciliation (BankDeposit, PettyCash, Notes) to Ledger sheet
+  // Save Balance Sheet reconciliation (BankDeposit, PettyCash, Notes) to Ledger sheet
   const saveReconciliation = async (data) => {
     setBusy(true);
     try {
@@ -2882,11 +2882,11 @@ function AuctionItemForm({ onSubmit, onClose, currentYear }) {
 }
 
 // ============================================================
-// EVENT BALANCE SHEET — INTHUGAI (CASH RECONCILIATION)
+// EVENT BALANCE SHEET — ஐந்தொகை / BALANCE SHEET (CASH RECONCILIATION)
 // Two-column traditional Tamil ledger: வரவு | செலவு
 // Both sides must balance. Discrepancy is auto-computed.
 // ============================================================
-function EventBalanceSheetInthugai({ income, expenses, auction, loans, ledger, currentYear, isAdmin, saveReconciliation, showToast }) {
+function BalanceSheetView({ income, expenses, auction, loans, ledger, currentYear, isAdmin, saveReconciliation, showToast }) {
   const lang = useLang();
   const [editing, setEditing] = useState(false);
 
@@ -2947,7 +2947,7 @@ function EventBalanceSheetInthugai({ income, expenses, auction, loans, ledger, c
       ? `${day1.getDate()}-${day1.getDate() + 2}/${day1.getMonth() + 1}/${day1.getFullYear()}`
       : String(currentYear);
 
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Inthugai ${currentYear}</title>
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Balance Sheet ${currentYear}</title>
       <style>
         body { font-family: 'Latha', 'Noto Sans Tamil', Arial, sans-serif; margin: 24px; color: #292524; }
         h2 { text-align: center; margin: 0; color: #1B5E20; }
@@ -2966,7 +2966,7 @@ function EventBalanceSheetInthugai({ income, expenses, auction, loans, ledger, c
         @media print { body { margin: 12mm; } button { display: none !important; } }
       </style></head><body>
       <h2>Nagammal PPP Sangam</h2>
-      <h3>இந்துகை — Event Balance Sheet</h3>
+      <h3>ஐந்தொகை — Balance Sheet</h3>
       <div class="meta">${dayRange} · Year ${currentYear}</div>
 
       <table>
@@ -3004,12 +3004,12 @@ function EventBalanceSheetInthugai({ income, expenses, auction, loans, ledger, c
   return (
     <div>
       <div style={styles.reportHeader}>
-        <h3 style={styles.reportTitle}>{t("inthugaiTitle", lang)}</h3>
+        <h3 style={styles.reportTitle}>{t("balanceSheetTitle", lang)}</h3>
         <button onClick={downloadPDF} style={{ padding: "6px 14px", background: "#1B5E20", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
           📄 PDF
         </button>
       </div>
-      <p style={styles.reportSubtitle}>{t("inthugaiSubtitle", lang)}</p>
+      <p style={styles.reportSubtitle}>{t("balanceSheetSubtitle", lang)}</p>
 
       <div style={styles.balanceSheet}>
         {/* === வரவு (Income) side === */}
@@ -3021,11 +3021,11 @@ function EventBalanceSheetInthugai({ income, expenses, auction, loans, ledger, c
           </div>
         </div>
 
-        <InthugaiRow ta="வரவு கணக்கு" en={t("bsGeneralIncome", lang)} amount={generalIncome} lang={lang} />
-        <InthugaiRow ta="புள்ளி வரி வரவு" en={t("bsPulliVari", lang)} amount={pulliVari} lang={lang} />
-        <InthugaiRow ta="பெண் புள்ளி வரவு" en={t("bsPenPulli", lang)} amount={penPulli} lang={lang} />
-        <InthugaiRow ta="ஏலம் வரவு" en={t("bsAuctionConfirmed", lang)} amount={auctionConfirmed} lang={lang} />
-        <InthugaiRow ta="நன்கொடை வரவு" en={t("bsCashDonation", lang)} amount={cashDonation} lang={lang} last />
+        <BalanceSheetRow ta="வரவு கணக்கு" en={t("bsGeneralIncome", lang)} amount={generalIncome} lang={lang} />
+        <BalanceSheetRow ta="புள்ளி வரி வரவு" en={t("bsPulliVari", lang)} amount={pulliVari} lang={lang} />
+        <BalanceSheetRow ta="பெண் புள்ளி வரவு" en={t("bsPenPulli", lang)} amount={penPulli} lang={lang} />
+        <BalanceSheetRow ta="ஏலம் வரவு" en={t("bsAuctionConfirmed", lang)} amount={auctionConfirmed} lang={lang} />
+        <BalanceSheetRow ta="நன்கொடை வரவு" en={t("bsCashDonation", lang)} amount={cashDonation} lang={lang} last />
 
         <div style={{ padding: "10px 14px", background: "#d1fae5", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e7e5e4" }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: "#065f46" }}>{t("bsTotalVaravu", lang)}</span>
@@ -3043,11 +3043,11 @@ function EventBalanceSheetInthugai({ income, expenses, auction, loans, ledger, c
           </div>
         </div>
 
-        <InthugaiRow ta="இனத்து கணக்கு" en={t("bsInaththu", lang)} amount={inaththu} lang={lang} sub={t("bsInaththuSub", lang)} />
-        <InthugaiRow ta="செலவு கணக்கு" en={t("bsExpenses", lang)} amount={expensesTotal} lang={lang} />
-        <InthugaiRow ta="வங்கி வைப்பு" en={t("bsBankDeposit", lang)} amount={bankDeposit} lang={lang} sub={t("bsAdminEntry", lang)} editable={isAdmin} onEdit={() => setEditing(true)} />
-        <InthugaiRow ta="பட்டியலுடன் வைத்தது" en={t("bsPettyCash", lang)} amount={pettyCash} lang={lang} sub={t("bsAdminEntry", lang)} editable={isAdmin} onEdit={() => setEditing(true)} />
-        <InthugaiRow ta="திட்டக்குறை" en={t("bsDiscrepancy", lang)} amount={discrepancy} lang={lang} sub={t("bsDiscrepancySub", lang)} alert={Math.abs(discrepancy) > 0.5} last />
+        <BalanceSheetRow ta="இனத்து கணக்கு" en={t("bsInaththu", lang)} amount={inaththu} lang={lang} sub={t("bsInaththuSub", lang)} />
+        <BalanceSheetRow ta="செலவு கணக்கு" en={t("bsExpenses", lang)} amount={expensesTotal} lang={lang} />
+        <BalanceSheetRow ta="வங்கி வைப்பு" en={t("bsBankDeposit", lang)} amount={bankDeposit} lang={lang} sub={t("bsAdminEntry", lang)} editable={isAdmin} onEdit={() => setEditing(true)} />
+        <BalanceSheetRow ta="பட்டியலுடன் வைத்தது" en={t("bsPettyCash", lang)} amount={pettyCash} lang={lang} sub={t("bsAdminEntry", lang)} editable={isAdmin} onEdit={() => setEditing(true)} />
+        <BalanceSheetRow ta="திட்டக்குறை" en={t("bsDiscrepancy", lang)} amount={discrepancy} lang={lang} sub={t("bsDiscrepancySub", lang)} alert={Math.abs(discrepancy) > 0.5} last />
 
         <div style={{ padding: "10px 14px", background: "#fee2e2", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e7e5e4" }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: "#991b1b" }}>{t("bsTotalSelavu", lang)}</span>
@@ -3124,8 +3124,8 @@ function EventBalanceSheetInthugai({ income, expenses, auction, loans, ledger, c
   );
 }
 
-// Helper row component for the Inthugai table
-function InthugaiRow({ ta, en, amount, sub, last, alert, editable, onEdit, lang }) {
+// Helper row component for the Balance Sheet table
+function BalanceSheetRow({ ta, en, amount, sub, last, alert, editable, onEdit, lang }) {
   return (
     <div style={{
       display: "flex",
@@ -3251,7 +3251,7 @@ function ReconciliationEditForm({ currentYear, initialBankDeposit, initialPettyC
 
 function ReportsView({ families, income, expenses, auction, loans, totalIncome, totalExpenses, totalAuction, balance, ledger, currentYear, isAdmin, saveReconciliation, showToast, lang: propLang }) {
   const lang = useLang();
-  const [activeReport, setActiveReport] = useState("inthugai");
+  const [activeReport, setActiveReport] = useState("balance_sheet");
 
   return (
     <div style={styles.page}>
@@ -3262,7 +3262,7 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
       {/* Report selector */}
       <div style={styles.filterRow}>
         {[
-          { id: "inthugai", label: t("inthugaiTab", lang) },
+          { id: "balance_sheet", label: t("balanceSheetTab", lang) },
           { id: "auction_balance", label: t("auctionBalance", lang) },
           { id: "loan_report", label: t("loanReport", lang) },
         ].map((r) => (
@@ -3293,8 +3293,8 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
           balance={balance}
         />
       )}
-      {activeReport === "inthugai" && (
-        <EventBalanceSheetInthugai
+      {activeReport === "balance_sheet" && (
+        <BalanceSheetView
           income={income}
           expenses={expenses}
           auction={auction}

@@ -644,7 +644,7 @@ function handleSaveEventConfig(data, email) {
 }
 
 // ============================================================
-// SAVE RECONCILIATION (Inthugai — Bank Deposit + Petty Cash)
+// SAVE RECONCILIATION (Balance Sheet / ஐந்தொகை — Bank Deposit + Petty Cash)
 // ============================================================
 // Writes admin-entered Bank Deposit and Petty Cash figures to
 // the Ledger sheet for the given year. Auto-creates the
@@ -695,7 +695,7 @@ function handleSaveReconciliation(data, email) {
       sheet.getRange(i + 1, pcCol + 1).setValue(pettyCash);
       if (notes !== null) sheet.getRange(i + 1, notesCol + 1).setValue(notes);
       writeAudit("UPDATE", "Ledger",
-        "Inthugai reconciliation " + year + ": BankDeposit=" + bankDeposit + ", PettyCash=" + pettyCash + (notes !== null ? ", Notes updated" : ""),
+        "Balance Sheet reconciliation " + year + ": BankDeposit=" + bankDeposit + ", PettyCash=" + pettyCash + (notes !== null ? ", Notes updated" : ""),
         email);
       return jsonResponse({ success: true, data: { year: year, bankDeposit: bankDeposit, pettyCash: pettyCash, notes: notes || "" } });
     }
@@ -712,7 +712,7 @@ function handleSaveReconciliation(data, email) {
   }
   sheet.appendRow(newRow);
   writeAudit("CREATE", "Ledger",
-    "Inthugai reconciliation " + year + " (new row): BankDeposit=" + bankDeposit + ", PettyCash=" + pettyCash,
+    "Balance Sheet reconciliation " + year + " (new row): BankDeposit=" + bankDeposit + ", PettyCash=" + pettyCash,
     email);
   return jsonResponse({ success: true, data: { year: year, bankDeposit: bankDeposit, pettyCash: pettyCash, notes: notes || "" } });
 }
