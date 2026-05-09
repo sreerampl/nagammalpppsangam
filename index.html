@@ -1199,6 +1199,7 @@ function App() {
             expenses={yearExpenses}
             auction={yearAuction}
             families={families}
+            isAdmin={isAdmin}
           />
         )}
         {activeTab === "income" && (
@@ -1452,7 +1453,10 @@ function App() {
           { id: "income", icon: "💰", label: t("navDonate", lang) },
           { id: "expenses", icon: "💸", label: t("navExpense", lang) },
           { id: "auction", icon: "🔨", label: t("navAuction", lang) },
-          ...(isAdmin ? [{ id: "loans", icon: "🏦", label: t("navLoans", lang) }] : []),
+          ...(isAdmin
+            ? [{ id: "loans", icon: "🏦", label: t("navLoans", lang) }]
+            : [{ id: "families", icon: "👨‍👩‍👧‍👦", label: t("navFamily", lang) }]
+          ),
         ].map((tab) => (
           <button
             key={tab.id}
@@ -1467,7 +1471,8 @@ function App() {
             <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5 }}>{tab.label}</span>
           </button>
         ))}
-        {/* More button */}
+        {/* More button (Admin only — Editor/Viewer get Family directly in main nav) */}
+        {isAdmin && (
         <div style={{ position: "relative" }}>
           <button
             onClick={() => setShowMoreMenu(!showMoreMenu)}
@@ -1511,6 +1516,7 @@ function App() {
             </>
           )}
         </div>
+        )}
       </nav>
 
     </div>
@@ -1642,7 +1648,7 @@ function NoAccessScreen({ email, onLogout, error }) {
 // DASHBOARD
 // ============================================================
 
-function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, expenses, auction, families }) {
+function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, expenses, auction, families, isAdmin }) {
   const lang = useLang();
   const confirmedAuctions = auction.filter((a) => a.Status === "Confirmed").length;
   const pendingAuctions = auction.filter((a) => a.Status === "Pending").length;
@@ -1651,7 +1657,8 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
     <div style={styles.page}>
       <h2 style={styles.pageTitle}>{t("dashboard", lang)}</h2>
 
-      {/* Summary Cards */}
+      {/* Summary Cards — Admin only */}
+      {isAdmin && (
       <div style={styles.cardGrid}>
         <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #065f46, #059669)" }}>
           <p style={styles.cardLabel}>{t("totalIncome", lang)}</p>
@@ -1679,6 +1686,7 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
           <p style={styles.cardCount}>{confirmedAuctions}/{auction.length} {t("confirmed", lang)}</p>
         </div>
       </div>
+      )}
 
       {/* Quick Stats */}
       <div style={styles.statsRow}>
@@ -1696,7 +1704,9 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
         </div>
       </div>
 
-      {/* Day-wise Breakdown */}
+      {/* Day-wise Breakdown — Admin only */}
+      {isAdmin && (
+      <>
       <h3 style={styles.sectionTitle}>{t("daySummary", lang)}</h3>
       <div style={styles.dayGrid}>
         {[1, 2, 3].map((day) => {
@@ -1725,6 +1735,8 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
           );
         })}
       </div>
+      </>
+      )}
 
       {/* Recent Transactions */}
       <h3 style={styles.sectionTitle}>{t("recentTxns", lang)}</h3>
