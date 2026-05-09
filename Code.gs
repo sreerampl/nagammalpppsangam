@@ -125,8 +125,6 @@ function handleRequest(e) {
       // --- LOANS (Pangali Advances) ---
       case "addLoan":
         return requireRole(userRole, "Admin", function() { return handleAddLoan(params.data, email); });
-      case "receiveLoan":
-        return requireRole(userRole, "Admin", function() { return handleReceiveLoan(params.data, email); });
       case "editLoan":
         return requireRole(userRole, "Admin", function() { return handleEditLoan(params.data, email); });
       case "deleteLoan":
@@ -280,26 +278,7 @@ function handleAddIncome(data, email) {
 
   writeAudit("CREATE", "Income", txnId + " ₹" + data.amount + " " + data.category + " by " + data.donorName, email);
 
-  var result = { txnId: txnId };
-
-  // Auto-add to auction if "Objects for Auction"
-  if (data.category === "Objects for Auction" && data.description) {
-    var auctionSheet = ss.getSheetByName(SHEETS.AUCTION);
-    var nextItemNo = auctionSheet.getLastRow(); // includes header, so this = item count + 1
-    var auctionRow = [
-      nextItemNo,
-      year,
-      data.description,
-      data.donorName,
-      "", "", "", "", "", "", "", ""
-    ];
-    auctionSheet.appendRow(auctionRow);
-    writeAudit("CREATE", "Auction", "Auto-added \"" + data.description + "\" from income by " + data.donorName, email);
-    result.auctionItemAdded = true;
-    result.auctionItemNo = nextItemNo;
-  }
-
-  return jsonResponse({ success: true, data: result });
+  return jsonResponse({ success: true, data: { txnId: txnId } });
 }
 
 // ============================================================
@@ -1088,6 +1067,8 @@ function handleAddLoan(data, email) {
   var interestOnLoan = Math.round(loanAmt * rate / 100);
 
   // Use manually entered lastYearReceivable if provided, else auto-calculate
+  // from previous year's principal carry-forward (LastYearReceivable + LoanAmount).
+  // Interest is tracked separately as Interest Receivable income line.
   var lastYearRec = 0;
   if (data.lastYearReceivable && Number(data.lastYearReceivable) > 0) {
     lastYearRec = Number(data.lastYearReceivable);
@@ -1097,12 +1078,12 @@ function handleAddLoan(data, email) {
     var headers = allRows[0];
     var yearCol = headers.indexOf("Year");
     var fidCol = headers.indexOf("FamilyID");
-    var totalRecCol = headers.indexOf("TotalReceivable");
-    var recAmtCol = headers.indexOf("ReceivedAmount");
+    var lyrCol = headers.indexOf("LastYearReceivable");
+    var loanAmtCol = headers.indexOf("LoanAmount");
     for (var i = 1; i < allRows.length; i++) {
       if (String(allRows[i][yearCol]) === prevYear && String(allRows[i][fidCol]).trim() === String(data.familyId).trim()) {
-        var due = (Number(allRows[i][totalRecCol]) || 0) - (Number(allRows[i][recAmtCol]) || 0);
-        if (due > 0) lastYearRec += due;
+        var principal = (Number(allRows[i][lyrCol]) || 0) + (Number(allRows[i][loanAmtCol]) || 0);
+        if (principal > 0) lastYearRec += principal;
       }
     }
   }
@@ -1111,6 +1092,9 @@ function handleAddLoan(data, email) {
   var interestAmt = interestOnLoan + interestOnPrev;
   var totalRec = lastYearRec + loanAmt + interestAmt;
 
+  // ReceivedAmount, RecStatus, ReceivedBy, ReceivedDate columns are no longer
+  // maintained — written as empty so legacy sheets keep their column positions
+  // but existing data isn't touched.
   var row = [
     loanId,
     year,
@@ -1121,8 +1105,8 @@ function handleAddLoan(data, email) {
     rate,
     interestAmt,
     totalRec,
-    0,
-    "Pending",
+    "",
+    "",
     email,
     data.issuedDate || ts,
     "",
@@ -1132,38 +1116,6 @@ function handleAddLoan(data, email) {
   sheet.appendRow(row);
   writeAudit("CREATE", "Loan", loanId + " ₹" + loanAmt + " to " + data.familyName + " @" + rate + "% (prev:" + lastYearRec + ")", email);
   return jsonResponse({ success: true, data: { loanId: loanId, lastYearReceivable: lastYearRec } });
-}
-
-function handleReceiveLoan(data, email) {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(SHEETS.LOANS);
-  var rows = sheet.getDataRange().getValues();
-  var headers = rows[0];
-  var idCol = headers.indexOf("LoanID");
-
-  for (var i = 1; i < rows.length; i++) {
-    if (String(rows[i][idCol]).trim() === String(data.loanId).trim()) {
-      var recAmtCol = headers.indexOf("ReceivedAmount");
-      var statusCol = headers.indexOf("RecStatus");
-      var recByCol = headers.indexOf("ReceivedBy");
-      var recDateCol = headers.indexOf("ReceivedDate");
-      var totalRecCol = headers.indexOf("TotalReceivable");
-      var receivedAmt = Number(data.receivedAmount) || 0;
-      var totalRec = Number(rows[i][totalRecCol]) || 0;
-      var prevReceived = Number(rows[i][recAmtCol]) || 0;
-      var newTotal = prevReceived + receivedAmt;
-      var newStatus = newTotal >= totalRec ? "Received" : "Partial";
-
-      sheet.getRange(i + 1, recAmtCol + 1).setValue(newTotal);
-      sheet.getRange(i + 1, statusCol + 1).setValue(newStatus);
-      sheet.getRange(i + 1, recByCol + 1).setValue(email);
-      sheet.getRange(i + 1, recDateCol + 1).setValue(now());
-
-      writeAudit("UPDATE", "Loan", data.loanId + " received ₹" + receivedAmt + " (total ₹" + newTotal + "/" + totalRec + ") → " + newStatus, email);
-      return jsonResponse({ success: true, data: { loanId: data.loanId, status: newStatus, receivedAmount: newTotal } });
-    }
-  }
-  return jsonResponse({ success: false, error: "Loan not found: " + data.loanId });
 }
 
 function handleEditLoan(data, email) {

@@ -267,23 +267,13 @@ const T = {
   interestRate: { en: "Interest Rate (%)", ta: "வட்டி விகிதம் (%)" },
   interestAmount: { en: "Interest", ta: "வட்டி" },
   totalReceivable: { en: "Total Receivable", ta: "மொத்த வசூல்" },
-  receivedAmount: { en: "Received", ta: "வசூலானது" },
-  recStatus: { en: "Status", ta: "நிலை" },
   issuedDate: { en: "Issued Date", ta: "வழங்கிய தேதி" },
-  receiveLoan: { en: "Record Payment", ta: "வசூல் பதிவு" },
-  receiveAmount: { en: "Amount Received", ta: "வசூலான தொகை" },
-  loanPending: { en: "Pending", ta: "நிலுவை" },
-  loanPartial: { en: "Partial", ta: "பகுதி" },
-  loanReceived: { en: "Received", ta: "வசூலானது" },
   loanSaved: { en: "Advance recorded!", ta: "முன்பணம் பதிவு செய்யப்பட்டது!" },
-  loanPaymentSaved: { en: "Payment recorded!", ta: "வசூல் பதிவு செய்யப்பட்டது!" },
   loanReport: { en: "🏦 Pangali Advances", ta: "🏦 இனத்து கணக்கு" },
   loanDeleted: { en: "Advance deleted", ta: "முன்பணம் நீக்கப்பட்டது" },
   loanEdited: { en: "Advance updated", ta: "முன்பணம் புதுப்பிக்கப்பட்டது" },
-  pendingLoans: { en: "Pending", ta: "நிலுவை" },
   totalAdvanced: { en: "Total Advanced", ta: "மொத்த முன்பணம்" },
   totalDue: { en: "Total Due", ta: "மொத்த வசூல்" },
-  totalReceived: { en: "Total Received", ta: "மொத்தம் வசூலானது" },
   balance: { en: "Balance", ta: "இருப்பு" },
   invalidEventDate: { en: "Date must be one of the 3 event days", ta: "தேதி 3 நிகழ்வு நாட்களில் ஒன்றாக இருக்க வேண்டும்" },
   growth: { en: "Growth", ta: "வளர்ச்சி" },
@@ -1032,34 +1022,12 @@ function App() {
         InterestRate: rate,
         InterestAmount: intAmt,
         TotalReceivable: lastYrRec + loanAmt + intAmt,
-        ReceivedAmount: 0,
-        RecStatus: "Pending",
         IssuedBy: user.email,
         IssuedDate: data.issuedDate || now(),
-        ReceivedBy: "",
-        ReceivedDate: "",
         Notes: data.notes || "",
       };
       setLoans((prev) => [...prev, row]);
       showToast(t("loanSaved", lang));
-    } catch (e) {
-      showToast("Error: " + e.message, "error");
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  const receiveLoan = async (data) => {
-    setBusy(true);
-    try {
-      const result = await backendRef.current.post("receiveLoan", data);
-      setLoans((prev) => prev.map((l) => {
-        if (l.LoanID === data.loanId) {
-          return { ...l, ReceivedAmount: result.receivedAmount, RecStatus: result.status, ReceivedBy: user.email, ReceivedDate: now() };
-        }
-        return l;
-      }));
-      showToast(t("loanPaymentSaved", lang));
     } catch (e) {
       showToast("Error: " + e.message, "error");
     } finally {
@@ -1382,7 +1350,7 @@ function App() {
             lang={lang}
           />
         )}
-        {activeTab === "loans" && (
+        {activeTab === "loans" && isAdmin && (
           <LoansView
             loans={yearLoans}
             allLoans={loans}
@@ -1390,7 +1358,6 @@ function App() {
             currentYear={currentYear}
             isAdmin={isAdmin}
             onAdd={addLoan}
-            onReceive={receiveLoan}
             onEdit={editLoan}
             onDelete={deleteLoan}
             showToast={showToast}
@@ -1485,7 +1452,7 @@ function App() {
           { id: "income", icon: "💰", label: t("navDonate", lang) },
           { id: "expenses", icon: "💸", label: t("navExpense", lang) },
           { id: "auction", icon: "🔨", label: t("navAuction", lang) },
-          { id: "loans", icon: "🏦", label: t("navLoans", lang) },
+          ...(isAdmin ? [{ id: "loans", icon: "🏦", label: t("navLoans", lang) }] : []),
         ].map((tab) => (
           <button
             key={tab.id}
@@ -3632,7 +3599,7 @@ function ReportsView({ families, income, expenses, auction, loans, ledger, curre
       <div style={styles.filterRow}>
         {[
           { id: "balance_sheet", label: t("balanceSheetTab", lang) },
-          { id: "loan_report", label: t("loanReport", lang) },
+          ...(isAdmin ? [{ id: "loan_report", label: t("loanReport", lang) }] : []),
         ].map((r) => (
           <button
             key={r.id}
@@ -3662,7 +3629,7 @@ function ReportsView({ families, income, expenses, auction, loans, ledger, curre
           showToast={showToast}
         />
       )}
-      {activeReport === "loan_report" && (
+      {activeReport === "loan_report" && isAdmin && (
         <LoanReport families={families} loans={loans} currentYear={currentYear} />
       )}
     </div>
@@ -3770,11 +3737,10 @@ function AddressReport({ families }) {
 // ============================================================
 // LOANS VIEW (Pangali Advances / இனத்து கணக்கு)
 // ============================================================
-function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onReceive, onEdit, onDelete, showToast, day1Date }) {
+function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onEdit, onDelete, showToast, day1Date }) {
   const lang = useLang();
   const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
   const [showAddForm, setShowAddForm] = useState(false);
-  const [receiveModal, setReceiveModal] = useState(null);
   const [editModal, setEditModal] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
 
@@ -3792,12 +3758,7 @@ function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onR
 
   const totalAdvanced = loans.reduce((s, l) => s + (Number(l.LoanAmount) || 0), 0);
   const totalDue = loans.reduce((s, l) => s + (Number(l.TotalReceivable) || 0), 0);
-  const totalRec = loans.reduce((s, l) => s + (Number(l.ReceivedAmount) || 0), 0);
   const totalPrevOutstanding = Object.values(prevYearOutstanding).reduce((s, v) => s + v, 0);
-  const pendingCount = loans.filter((l) => l.RecStatus !== "Received").length;
-
-  const statusColor = (s) => s === "Received" ? "#16a34a" : s === "Partial" ? "#d97706" : "#dc2626";
-  const statusLabel = (s) => s === "Received" ? t("loanReceived", lang) : s === "Partial" ? t("loanPartial", lang) : t("loanPending", lang);
 
   return (
     <div style={styles.page}>
@@ -3821,14 +3782,6 @@ function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onR
           <div style={{ fontSize: 18, fontWeight: 700, color: "#991b1b" }}>{fmt(totalDue)}</div>
           <div style={{ fontSize: 10, color: "#78716c" }}>{t("totalDue", lang)}</div>
         </div>
-        <div style={{ background: "#dcfce7", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#166534" }}>{fmt(totalRec)}</div>
-          <div style={{ fontSize: 10, color: "#78716c" }}>{t("totalReceived", lang)}</div>
-        </div>
-        <div style={{ background: "#fef9c3", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#854d0e" }}>{pendingCount}</div>
-          <div style={{ fontSize: 10, color: "#78716c" }}>{t("pendingLoans", lang)}</div>
-        </div>
       </div>
 
       {/* Loan list */}
@@ -3836,7 +3789,7 @@ function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onR
         <div style={{ textAlign: "center", padding: 40, color: "#a8a29e" }}>{lang === "ta" ? "இந்த ஆண்டு கடன்கள் இல்லை" : "No advances for this year"}</div>
       ) : (
         loans.map((l) => (
-          <div key={l.LoanID} style={{ ...styles.card, marginBottom: 10, borderLeft: `4px solid ${statusColor(l.RecStatus)}` }}>
+          <div key={l.LoanID} style={{ ...styles.card, marginBottom: 10, borderLeft: "4px solid #d97706" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
                 <div style={{ fontWeight: 700, fontSize: 15 }}>{l.FamilyName} <span style={{ color: "#a8a29e", fontSize: 12 }}>({l.FamilyID})</span></div>
@@ -3849,21 +3802,13 @@ function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onR
                   {t("loanAmount", lang)}: {fmt(l.LoanAmount)} · {t("interestRate", lang).replace(" (%)", "")}: {l.InterestRate}% · {t("interestAmount", lang)}: {fmt(l.InterestAmount)}
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4 }}>
-                  {t("totalReceivable", lang)}: {fmt(l.TotalReceivable)} · {t("receivedAmount", lang)}: {fmt(l.ReceivedAmount)}
+                  {t("totalReceivable", lang)}: {fmt(l.TotalReceivable)}
                 </div>
                 {l.Notes && <div style={{ fontSize: 11, color: "#78716c", marginTop: 2 }}>📝 {l.Notes}</div>}
               </div>
               <div style={{ textAlign: "right" }}>
-                <span style={{ background: statusColor(l.RecStatus), color: "#fff", borderRadius: 6, padding: "3px 8px", fontSize: 11, fontWeight: 700 }}>
-                  {statusLabel(l.RecStatus)}
-                </span>
-                {isAdmin && l.RecStatus !== "Received" && (
-                  <div style={{ marginTop: 6 }}>
-                    <button onClick={() => setReceiveModal(l)} style={{ ...styles.addBtn, fontSize: 11, padding: "4px 10px", background: "#16a34a" }}>💰 {t("receiveLoan", lang)}</button>
-                  </div>
-                )}
                 {isAdmin && (
-                  <div style={{ marginTop: 4, display: "flex", gap: 4, justifyContent: "flex-end" }}>
+                  <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
                     <button onClick={() => setEditModal(l)} style={{ fontSize: 11, background: "none", border: "1px solid #d6d3d1", borderRadius: 6, padding: "2px 8px", cursor: "pointer" }}>✏️</button>
                     <button onClick={() => setConfirmDelete(l)} style={{ fontSize: 11, background: "none", border: "1px solid #fecaca", borderRadius: 6, padding: "2px 8px", cursor: "pointer", color: "#dc2626" }}>🗑️</button>
                   </div>
@@ -3883,15 +3828,6 @@ function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onR
           day1Date={day1Date}
           onSubmit={(data) => { onAdd(data); setShowAddForm(false); }}
           onClose={() => setShowAddForm(false)}
-        />
-      )}
-
-      {/* Receive Payment Modal */}
-      {receiveModal && (
-        <LoanReceiveForm
-          loan={receiveModal}
-          onSubmit={(data) => { onReceive(data); setReceiveModal(null); }}
-          onClose={() => setReceiveModal(null)}
         />
       )}
 
@@ -3939,13 +3875,14 @@ function LoanAddForm({ families, allLoans, currentYear, onSubmit, onClose, day1D
   const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
   // Calculate previous year outstanding for a given family
+  // (matches backend handleAddLoan: principal carry-forward = LastYearReceivable + LoanAmount)
   const prevYear = String(Number(currentYear) - 1);
   const calcPrevOutstanding = (familyId) => {
     let due = 0;
     (allLoans || []).forEach((l) => {
       if (String(l.Year) === prevYear && String(l.FamilyID || "").trim() === String(familyId).trim()) {
-        const d = (Number(l.TotalReceivable) || 0) - (Number(l.ReceivedAmount) || 0);
-        if (d > 0) due += d;
+        const principal = (Number(l.LastYearReceivable) || 0) + (Number(l.LoanAmount) || 0);
+        if (principal > 0) due += principal;
       }
     });
     return due;
@@ -4015,40 +3952,6 @@ function LoanAddForm({ families, allLoans, currentYear, onSubmit, onClose, day1D
         disabled={saving || !autoDay || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)}
       >
         {saving ? "⏳ Saving..." : t("addLoan", lang)}
-      </button>
-    </Modal>
-  );
-}
-
-// --- Loan Receive Form ---
-function LoanReceiveForm({ loan, onSubmit, onClose }) {
-  const lang = useLang();
-  const [saving, setSaving] = useState(false);
-  const remaining = (Number(loan.TotalReceivable) || 0) - (Number(loan.ReceivedAmount) || 0);
-  const [amount, setAmount] = useState(String(remaining));
-  const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
-
-  return (
-    <Modal title={t("receiveLoan", lang)} onClose={onClose}>
-      <div style={{ background: "#f5f5f4", borderRadius: 8, padding: 12, marginBottom: 12 }}>
-        <div style={{ fontWeight: 700, fontSize: 15 }}>{loan.FamilyName} <span style={{ color: "#a8a29e", fontSize: 12 }}>({loan.FamilyID})</span></div>
-        <div style={{ fontSize: 13, marginTop: 4 }}>
-          {t("loanAmount", lang)}: {fmt(loan.LoanAmount)} · {t("interestRate", lang).replace(" (%)", "")}: {loan.InterestRate}%
-        </div>
-        <div style={{ fontSize: 13 }}>{t("totalReceivable", lang)}: {fmt(loan.TotalReceivable)} · {t("receivedAmount", lang)}: {fmt(loan.ReceivedAmount)}</div>
-        <div style={{ fontWeight: 700, color: "#b45309", marginTop: 4 }}>{lang === "ta" ? "நிலுவை" : "Balance Due"}: {fmt(remaining)}</div>
-      </div>
-      <div style={styles.formGrid}>
-        <label style={styles.label}>{t("receiveAmount", lang)} (₹)
-          <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} style={styles.input} max={remaining} />
-        </label>
-      </div>
-      <button
-        onClick={() => { if (!saving && amount && Number(amount) > 0) { setSaving(true); onSubmit({ loanId: loan.LoanID, receivedAmount: amount }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#16a34a", opacity: (saving || !amount || Number(amount) <= 0) ? 0.6 : 1 }}
-        disabled={saving || !amount || Number(amount) <= 0}
-      >
-        {saving ? "⏳ Saving..." : t("receiveLoan", lang)}
       </button>
     </Modal>
   );
@@ -4143,12 +4046,10 @@ function LoanReport({ families, loans, currentYear }) {
   (loans || []).forEach((l) => {
     if (String(l.Year) === yearStr) {
       const fid = String(l.FamilyID || "").trim();
-      if (!currByFamily[fid]) currByFamily[fid] = { amount: 0, interest: 0, total: 0, received: 0, status: "—" };
+      if (!currByFamily[fid]) currByFamily[fid] = { amount: 0, interest: 0, total: 0 };
       currByFamily[fid].amount += Number(l.LoanAmount) || 0;
       currByFamily[fid].interest += Number(l.InterestAmount) || 0;
       currByFamily[fid].total += Number(l.TotalReceivable) || 0;
-      currByFamily[fid].received += Number(l.ReceivedAmount) || 0;
-      currByFamily[fid].status = l.RecStatus || "Pending";
     }
   });
 
@@ -4158,7 +4059,7 @@ function LoanReport({ families, loans, currentYear }) {
   const allRows = (families || []).map((f, idx) => {
     const fid = String(f.FamilyID || "").trim();
     const prev = prevByFamily[fid] || 0;
-    const d = currByFamily[fid] || { amount: 0, interest: 0, total: 0, received: 0, status: "—" };
+    const d = currByFamily[fid] || { amount: 0, interest: 0, total: 0 };
     return { sl: idx + 1, id: fid, name: f.FamilyName, prevOutstanding: prev, ...d };
   });
 
@@ -4171,7 +4072,7 @@ function LoanReport({ families, loans, currentYear }) {
   // Filter out families with zero across ALL fields (no loan activity)
   // and re-number SL sequentially among the visible rows.
   const rows = allRows
-    .filter((r) => r.prevOutstanding > 0 || r.amount > 0 || r.interest > 0 || r.received > 0)
+    .filter((r) => r.prevOutstanding > 0 || r.amount > 0 || r.interest > 0)
     .map((r, idx) => ({ ...r, sl: idx + 1 }));
 
   const totals = rows.reduce((s, r) => ({
@@ -4179,15 +4080,13 @@ function LoanReport({ families, loans, currentYear }) {
     amount: s.amount + r.amount,
     interest: s.interest + r.interest,
     total: s.total + r.total,
-    received: s.received + r.received,
-  }), { prevOutstanding: 0, amount: 0, interest: 0, total: 0, received: 0 });
+  }), { prevOutstanding: 0, amount: 0, interest: 0, total: 0 });
 
   // --- PDF Download ---
   const downloadPDF = () => {
     const printWin = window.open("", "_blank");
     if (!printWin) return;
     const htmlRows = rows.map((r) => {
-      const statusText = r.status === "Received" ? "✅ Received" : r.status === "Partial" ? "🔶 Partial" : "";
       return `<tr style="background:${r.amount > 0 || r.prevOutstanding > 0 ? '#fefce8' : '#fff'}">
         <td style="text-align:center;padding:4px 6px;border:1px solid #999">${r.sl}</td>
         <td style="padding:4px 6px;border:1px solid #999">${r.name}</td>
@@ -4195,8 +4094,8 @@ function LoanReport({ families, loans, currentYear }) {
         <td style="text-align:right;padding:4px 6px;border:1px solid #999">${r.amount > 0 ? fmtNum(r.amount) : '0'}</td>
         <td style="text-align:right;padding:4px 6px;border:1px solid #999">${r.interest > 0 ? fmtNum(r.interest) : '0'}</td>
         <td style="text-align:right;padding:4px 6px;border:1px solid #999;font-weight:bold">${r.total > 0 ? fmtNum(r.total) : '0'}</td>
-        <td style="text-align:right;padding:4px 6px;border:1px solid #999;color:green">${r.received > 0 ? fmtNum(r.received) : '0'}</td>
-        <td style="text-align:center;padding:4px 6px;border:1px solid #999">${statusText}</td>
+        <td style="text-align:right;padding:4px 6px;border:1px solid #999"></td>
+        <td style="text-align:center;padding:4px 6px;border:1px solid #999"></td>
       </tr>`;
     }).join("");
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${titleYear} Inaththu Kanakku</title>
@@ -4227,7 +4126,7 @@ function LoanReport({ families, loans, currentYear }) {
             <td style="text-align:right;padding:6px;border:1px solid #999">${fmtNum(totals.amount)}</td>
             <td style="text-align:right;padding:6px;border:1px solid #999">${fmtNum(totals.interest)}</td>
             <td style="text-align:right;padding:6px;border:1px solid #999">${fmtNum(totals.total)}</td>
-            <td style="text-align:right;padding:6px;border:1px solid #999">${fmtNum(totals.received)}</td>
+            <td style="padding:6px;border:1px solid #999"></td>
             <td style="padding:6px;border:1px solid #999"></td>
           </tr>
         </tfoot>
@@ -4276,14 +4175,8 @@ function LoanReport({ families, loans, currentYear }) {
                   <td style={{ ...cellStyle, textAlign: "right", fontWeight: r.amount > 0 ? 600 : 400 }}>{r.amount > 0 ? fmtNum(r.amount) : "0"}</td>
                   <td style={{ ...cellStyle, textAlign: "right" }}>{r.interest > 0 ? fmtNum(r.interest) : "0"}</td>
                   <td style={{ ...cellStyle, textAlign: "right", fontWeight: 600 }}>{r.total > 0 ? fmtNum(r.total) : "0"}</td>
-                  <td style={{ ...cellStyle, textAlign: "right", color: r.received > 0 ? "#16a34a" : "#78716c" }}>{r.received > 0 ? fmtNum(r.received) : "0"}</td>
-                  <td style={{ ...cellStyle, textAlign: "center" }}>
-                    {r.status === "Received" ? (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#16a34a" }}>✅</span>
-                    ) : r.status === "Partial" ? (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: "#d97706" }}>🔶</span>
-                    ) : ""}
-                  </td>
+                  <td style={{ ...cellStyle, textAlign: "right" }}></td>
+                  <td style={{ ...cellStyle, textAlign: "center" }}></td>
                 </tr>
               );
             })}
@@ -4295,7 +4188,7 @@ function LoanReport({ families, loans, currentYear }) {
               <td style={{ ...cellStyle, textAlign: "right", color: "#fff" }}>{fmtNum(totals.amount)}</td>
               <td style={{ ...cellStyle, textAlign: "right", color: "#fff" }}>{fmtNum(totals.interest)}</td>
               <td style={{ ...cellStyle, textAlign: "right", color: "#fff" }}>{fmtNum(totals.total)}</td>
-              <td style={{ ...cellStyle, textAlign: "right", color: "#4ade80" }}>{fmtNum(totals.received)}</td>
+              <td style={cellStyle}></td>
               <td style={cellStyle}></td>
             </tr>
           </tfoot>
