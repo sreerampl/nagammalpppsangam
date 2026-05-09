@@ -171,6 +171,33 @@ const T = {
   reports: { en: "Reports", ta: "அறிக்கைகள்" },
   addressBook: { en: "📒 Address Book", ta: "📒 முகவரி புத்தகம்" },
   auctionBalance: { en: "🔨 Auction Balance", ta: "🔨 ஏல இருப்பு" },
+  inthugaiTab: { en: "📜 Inthugai", ta: "📜 இந்துகை" },
+  // Inthugai (cash reconciliation balance sheet)
+  inthugaiTitle: { en: "Event Balance Sheet (Inthugai)", ta: "இந்துகை — நிகழ்வு இருப்புநிலை" },
+  inthugaiSubtitle: { en: "Cash reconciliation — both sides must equal", ta: "ரொக்க சரிபார்ப்பு — இரு பக்கமும் சமம்" },
+  varavuTitle: { en: "Income / Receipts", ta: "வரவு" },
+  selavuTitle: { en: "Outflow / Disbursement", ta: "செலவு" },
+  bsGeneralIncome: { en: "General income", ta: "வரவு கணக்கு" },
+  bsPulliVari: { en: "Pulli Vari", ta: "புள்ளி வரி வரவு" },
+  bsPenPulli: { en: "Pen Pulli Varavu", ta: "பெண் புள்ளி வரவு" },
+  bsAuctionConfirmed: { en: "Auction (confirmed)", ta: "ஏலம் வரவு" },
+  bsCashDonation: { en: "Cash donation", ta: "நன்கொடை வரவு" },
+  bsTotalVaravu: { en: "Total income", ta: "மொத்த வரவு" },
+  bsInaththu: { en: "Loans (total receivable)", ta: "இனத்து கணக்கு" },
+  bsInaththuSub: { en: "Sum of TotalReceivable for the year", ta: "ஆண்டின் மொத்த வசூல் கூட்டுத்தொகை" },
+  bsExpenses: { en: "Expenses", ta: "செலவு கணக்கு" },
+  bsBankDeposit: { en: "Bank deposit", ta: "வங்கி வைப்பு" },
+  bsPettyCash: { en: "Petty cash on hand", ta: "பட்டியலுடன் வைத்தது" },
+  bsDiscrepancy: { en: "Discrepancy", ta: "திட்டக்குறை" },
+  bsDiscrepancySub: { en: "Auto plug — to be reconciled", ta: "தானியங்கி — சரிபார்க்க" },
+  bsTotalSelavu: { en: "Total outflow", ta: "மொத்த செலவு" },
+  bsAdminEntry: { en: "Admin entry", ta: "நிர்வாகி பதிவு" },
+  bsBalanced: { en: "Balanced — both sides equal", ta: "சமநிலை — இரு பக்கமும் சமம்" },
+  bsUnbalanced: { en: "Unbalanced — difference of", ta: "சமநிலை இல்லை — வேறுபாடு" },
+  bsEditReconciliation: { en: "Edit reconciliation", ta: "சரிபார்ப்பை திருத்து" },
+  bsReconciliationTitle: { en: "Reconciliation entries", ta: "சரிபார்ப்பு பதிவுகள்" },
+  bsReconciliationSaved: { en: "Reconciliation saved", ta: "சரிபார்ப்பு சேமிக்கப்பட்டது" },
+  bsReconciliationHelp: { en: "Enter the cash deposited to bank and the petty cash kept on hand. Any remaining difference shows as discrepancy.", ta: "வங்கியில் வைப்பு செய்த தொகை மற்றும் கையில் உள்ள பட்டியல் பணத்தை உள்ளிடுங்கள். மீதமுள்ள வேறுபாடு திட்டக்குறையாக காட்டப்படும்." },
   edit: { en: "Edit", ta: "திருத்து" },
   deleteBtn: { en: "Delete", ta: "நீக்கு" },
   confirmDeleteTitle: { en: "Confirm Delete", ta: "நீக்க உறுதிப்படுத்தவும்" },
@@ -884,6 +911,36 @@ function App() {
     }
   };
 
+  // Save Inthugai reconciliation (BankDeposit, PettyCash) to Ledger sheet
+  const saveReconciliation = async (data) => {
+    setBusy(true);
+    try {
+      await backendRef.current.post("saveReconciliation", data);
+      setLedger((prev) => {
+        const exists = prev.findIndex((r) => String(r.Year) === String(data.year));
+        if (exists >= 0) {
+          const updated = [...prev];
+          updated[exists] = {
+            ...updated[exists],
+            BankDeposit: Number(data.bankDeposit) || 0,
+            PettyCash: Number(data.pettyCash) || 0,
+          };
+          return updated;
+        }
+        return [...prev, {
+          Year: data.year,
+          BankDeposit: Number(data.bankDeposit) || 0,
+          PettyCash: Number(data.pettyCash) || 0,
+        }];
+      });
+      showToast(t("bsReconciliationSaved", lang));
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Seed standard 48 auction items for a year
   const seedAuctionItems = async (year) => {
     setBusy(true);
@@ -1255,6 +1312,8 @@ function App() {
             balance={balance}
             ledger={ledger}
             currentYear={currentYear}
+            isAdmin={isAdmin}
+            saveReconciliation={saveReconciliation}
             showToast={showToast}
             lang={lang}
           />
@@ -2831,10 +2890,338 @@ function AuctionItemForm({ onSubmit, onClose, currentYear }) {
 }
 
 // ============================================================
+// EVENT BALANCE SHEET — INTHUGAI (CASH RECONCILIATION)
+// Two-column traditional Tamil ledger: வரவு | செலவு
+// Both sides must balance. Discrepancy is auto-computed.
+// ============================================================
+function EventBalanceSheetInthugai({ income, expenses, auction, loans, ledger, currentYear, isAdmin, saveReconciliation, showToast }) {
+  const lang = useLang();
+  const [editing, setEditing] = useState(false);
+
+  const norm = (s) => String(s || "").trim().toLowerCase();
+  const SPECIAL_CATS = ["pulli vari", "pen pulli varavu", "cash donation", "material donation"];
+
+  // --- INCOME (வரவு) side ---
+  const generalIncome = income
+    .filter((d) => !SPECIAL_CATS.includes(norm(d.Category)))
+    .reduce((s, d) => s + (Number(d.Amount) || 0), 0);
+
+  const pulliVari = income
+    .filter((d) => norm(d.Category) === "pulli vari")
+    .reduce((s, d) => s + (Number(d.Amount) || 0), 0);
+
+  const penPulli = income
+    .filter((d) => norm(d.Category) === "pen pulli varavu")
+    .reduce((s, d) => s + (Number(d.Amount) || 0), 0);
+
+  const auctionConfirmed = (auction || [])
+    .filter((a) => a.Status === "Confirmed")
+    .reduce((s, a) => s + (Number(a.BidAmount) || 0), 0);
+
+  const cashDonation = income
+    .filter((d) => norm(d.Category) === "cash donation")
+    .reduce((s, d) => s + (Number(d.Amount) || 0), 0);
+
+  const totalVaravu = generalIncome + pulliVari + penPulli + auctionConfirmed + cashDonation;
+
+  // --- OUTFLOW (செலவு) side ---
+  // Inaththu Kanakku = sum of TotalReceivable for current-year loans
+  // (includes LastYearReceivable + LoanAmount + InterestAmount per the data model)
+  const inaththu = (loans || [])
+    .filter((l) => String(l.Year) === String(currentYear))
+    .reduce((s, l) => s + (Number(l.TotalReceivable) || 0), 0);
+
+  const expensesTotal = expenses.reduce((s, e) => s + (Number(e.Amount) || 0), 0);
+
+  // Bank deposit + Petty cash from Ledger sheet for current year
+  const ledgerRow = (ledger || []).find((r) => String(r.Year) === String(currentYear)) || {};
+  const bankDeposit = Number(ledgerRow.BankDeposit) || 0;
+  const pettyCash = Number(ledgerRow.PettyCash) || 0;
+
+  // Discrepancy = plug figure (so both sides always balance)
+  const discrepancy = totalVaravu - (inaththu + expensesTotal + bankDeposit + pettyCash);
+  const totalSelavu = inaththu + expensesTotal + bankDeposit + pettyCash + discrepancy;
+
+  const isBalanced = Math.abs(totalVaravu - totalSelavu) < 0.5;
+
+  // --- PDF download (HTML print window — Tamil renders correctly) ---
+  const downloadPDF = () => {
+    const printWin = window.open("", "_blank");
+    if (!printWin) return;
+    const fmt = (n) => Number(n || 0).toLocaleString("en-IN");
+    const day1 = ledgerRow.Day1 ? new Date(ledgerRow.Day1) : null;
+    const dayRange = day1
+      ? `${day1.getDate()}-${day1.getDate() + 2}/${day1.getMonth() + 1}/${day1.getFullYear()}`
+      : String(currentYear);
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Inthugai ${currentYear}</title>
+      <style>
+        body { font-family: 'Latha', 'Noto Sans Tamil', Arial, sans-serif; margin: 24px; color: #292524; }
+        h2 { text-align: center; margin: 0; color: #1B5E20; }
+        h3 { text-align: center; margin: 4px 0 4px; }
+        .meta { text-align: center; color: #666; font-size: 12px; margin-bottom: 18px; }
+        table { width: 100%; border-collapse: collapse; margin: 0; }
+        td { padding: 8px 12px; border-bottom: 1px dashed #ccc; vertical-align: top; }
+        td.amt { text-align: right; font-weight: 600; width: 35%; }
+        .ta { font-size: 14px; }
+        .en { font-size: 11px; color: #777; }
+        .header-row td { background: #f5f5f4; font-weight: 700; font-size: 13px; border-bottom: 2px solid #999; }
+        .header-row td.varavu { background: #d1fae5; color: #065f46; }
+        .header-row td.selavu { background: #fee2e2; color: #991b1b; }
+        .total-row td { background: #f5f5f4; font-weight: 700; font-size: 14px; border-top: 2px solid #292524; border-bottom: 2px solid #292524; }
+        .signature { margin-top: 40px; display: flex; justify-content: space-between; font-size: 12px; color: #666; }
+        @media print { body { margin: 12mm; } button { display: none !important; } }
+      </style></head><body>
+      <h2>Nagammal PPP Sangam</h2>
+      <h3>இந்துகை — Event Balance Sheet</h3>
+      <div class="meta">${dayRange} · Year ${currentYear}</div>
+
+      <table>
+        <tr class="header-row"><td colspan="2" class="varavu">வரவு கணக்கு / Income side</td></tr>
+        <tr><td><div class="ta">வரவு கணக்கு</div><div class="en">General income</div></td><td class="amt">${fmt(generalIncome)}</td></tr>
+        <tr><td><div class="ta">புள்ளி வரி வரவு</div><div class="en">Pulli Vari (men membership)</div></td><td class="amt">${fmt(pulliVari)}</td></tr>
+        <tr><td><div class="ta">பெண் புள்ளி வரவு</div><div class="en">Pen Pulli Varavu (women membership)</div></td><td class="amt">${fmt(penPulli)}</td></tr>
+        <tr><td><div class="ta">ஏலம் வரவு</div><div class="en">Auction (confirmed bids)</div></td><td class="amt">${fmt(auctionConfirmed)}</td></tr>
+        <tr><td><div class="ta">நன்கொடை வரவு</div><div class="en">Cash donation (Nankodai Panam)</div></td><td class="amt">${fmt(cashDonation)}</td></tr>
+        <tr class="total-row"><td>மொத்த வரவு / Total income</td><td class="amt">₹ ${fmt(totalVaravu)}</td></tr>
+
+        <tr class="header-row"><td colspan="2" class="selavu">செலவு கணக்கு / Outflow side</td></tr>
+        <tr><td><div class="ta">இனத்து கணக்கு</div><div class="en">Loans — total receivable (LastYrRec + Loan + Interest)</div></td><td class="amt">${fmt(inaththu)}</td></tr>
+        <tr><td><div class="ta">செலவு கணக்கு</div><div class="en">Event expenses</div></td><td class="amt">${fmt(expensesTotal)}</td></tr>
+        <tr><td><div class="ta">வங்கி வைப்பு / Bank deposit</div><div class="en">Cash deposited to bank</div></td><td class="amt">${fmt(bankDeposit)}</td></tr>
+        <tr><td><div class="ta">பட்டியலுடன் வைத்தது</div><div class="en">Petty cash on hand (with itemized list)</div></td><td class="amt">${fmt(pettyCash)}</td></tr>
+        <tr><td><div class="ta" style="color:${Math.abs(discrepancy) > 0 ? '#991b1b' : '#292524'}">திட்டக்குறை</div><div class="en">Discrepancy (to be reconciled)</div></td><td class="amt" style="color:${Math.abs(discrepancy) > 0 ? '#991b1b' : '#292524'}">${fmt(discrepancy)}</td></tr>
+        <tr class="total-row"><td>மொத்த செலவு / Total outflow</td><td class="amt">₹ ${fmt(totalSelavu)}</td></tr>
+      </table>
+
+      <div class="signature">
+        <div>Prepared by: __________________</div>
+        <div>Verified by: __________________</div>
+        <div>Date: ${new Date().toLocaleDateString("en-IN")}</div>
+      </div>
+
+      <button onclick="window.print()" style="margin-top:24px;padding:10px 24px;background:#1B5E20;color:#fff;border:none;border-radius:6px;font-size:14px;cursor:pointer">🖨️ Print / Save as PDF</button>
+      </body></html>`;
+    printWin.document.write(html);
+    printWin.document.close();
+  };
+
+  return (
+    <div>
+      <div style={styles.reportHeader}>
+        <h3 style={styles.reportTitle}>{t("inthugaiTitle", lang)}</h3>
+        <button onClick={downloadPDF} style={{ padding: "6px 14px", background: "#1B5E20", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
+          📄 PDF
+        </button>
+      </div>
+      <p style={styles.reportSubtitle}>{t("inthugaiSubtitle", lang)}</p>
+
+      <div style={styles.balanceSheet}>
+        {/* === வரவு (Income) side === */}
+        <div style={{ ...styles.bsSectionHeader, padding: "10px 14px", background: "#d1fae5", borderBottom: "1px solid #e7e5e4", margin: 0 }}>
+          <span style={{ ...styles.bsSectionIcon, background: "#a7f3d0", color: "#065f46" }}>↓</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#065f46" }}>{t("varavuTitle", lang)}</div>
+            <div style={{ fontSize: 10, color: "#059669" }}>வரவு / Receipts</div>
+          </div>
+        </div>
+
+        <InthugaiRow ta="வரவு கணக்கு" en={t("bsGeneralIncome", lang)} amount={generalIncome} lang={lang} />
+        <InthugaiRow ta="புள்ளி வரி வரவு" en={t("bsPulliVari", lang)} amount={pulliVari} lang={lang} />
+        <InthugaiRow ta="பெண் புள்ளி வரவு" en={t("bsPenPulli", lang)} amount={penPulli} lang={lang} />
+        <InthugaiRow ta="ஏலம் வரவு" en={t("bsAuctionConfirmed", lang)} amount={auctionConfirmed} lang={lang} />
+        <InthugaiRow ta="நன்கொடை வரவு" en={t("bsCashDonation", lang)} amount={cashDonation} lang={lang} last />
+
+        <div style={{ padding: "10px 14px", background: "#d1fae5", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e7e5e4" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#065f46" }}>{t("bsTotalVaravu", lang)}</span>
+          <span style={{ fontSize: 15, fontWeight: 800, color: "#065f46", fontFamily: "'Outfit', sans-serif" }}>{formatCurrency(totalVaravu)}</span>
+        </div>
+
+        {/* === செலவு (Outflow) side === */}
+        <div style={{ height: 6, background: "#f5f5f4" }} />
+
+        <div style={{ ...styles.bsSectionHeader, padding: "10px 14px", background: "#fee2e2", borderBottom: "1px solid #e7e5e4", margin: 0 }}>
+          <span style={{ ...styles.bsSectionIcon, background: "#fecaca", color: "#991b1b" }}>↑</span>
+          <div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#991b1b" }}>{t("selavuTitle", lang)}</div>
+            <div style={{ fontSize: 10, color: "#dc2626" }}>செலவு / Outflow</div>
+          </div>
+        </div>
+
+        <InthugaiRow ta="இனத்து கணக்கு" en={t("bsInaththu", lang)} amount={inaththu} lang={lang} sub={t("bsInaththuSub", lang)} />
+        <InthugaiRow ta="செலவு கணக்கு" en={t("bsExpenses", lang)} amount={expensesTotal} lang={lang} />
+        <InthugaiRow ta="வங்கி வைப்பு" en={t("bsBankDeposit", lang)} amount={bankDeposit} lang={lang} sub={t("bsAdminEntry", lang)} editable={isAdmin} onEdit={() => setEditing(true)} />
+        <InthugaiRow ta="பட்டியலுடன் வைத்தது" en={t("bsPettyCash", lang)} amount={pettyCash} lang={lang} sub={t("bsAdminEntry", lang)} editable={isAdmin} onEdit={() => setEditing(true)} />
+        <InthugaiRow ta="திட்டக்குறை" en={t("bsDiscrepancy", lang)} amount={discrepancy} lang={lang} sub={t("bsDiscrepancySub", lang)} alert={Math.abs(discrepancy) > 0.5} last />
+
+        <div style={{ padding: "10px 14px", background: "#fee2e2", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e7e5e4" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#991b1b" }}>{t("bsTotalSelavu", lang)}</span>
+          <span style={{ fontSize: 15, fontWeight: 800, color: "#991b1b", fontFamily: "'Outfit', sans-serif" }}>{formatCurrency(totalSelavu)}</span>
+        </div>
+      </div>
+
+      {/* Reconciliation status */}
+      <div style={{
+        marginTop: 12,
+        padding: "10px 14px",
+        background: isBalanced ? "#d1fae5" : "#fee2e2",
+        color: isBalanced ? "#065f46" : "#991b1b",
+        borderRadius: 8,
+        fontSize: 13,
+        fontWeight: 600,
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        fontFamily: "'Outfit', sans-serif",
+      }}>
+        <span style={{ fontSize: 16 }}>{isBalanced ? "✓" : "⚠"}</span>
+        <span>
+          {isBalanced
+            ? `${t("bsBalanced", lang)} ${formatCurrency(totalVaravu)}`
+            : `${t("bsUnbalanced", lang)} ${formatCurrency(Math.abs(totalVaravu - totalSelavu))}`}
+        </span>
+      </div>
+
+      {/* Edit reconciliation button (Admin only) */}
+      {isAdmin && (
+        <button
+          onClick={() => setEditing(true)}
+          style={{ ...styles.btnPrimary, width: "100%", marginTop: 12, background: "#7c3aed" }}
+        >
+          ✏️ {t("bsEditReconciliation", lang)}
+        </button>
+      )}
+
+      {/* Edit reconciliation modal */}
+      {editing && (
+        <ReconciliationEditForm
+          currentYear={currentYear}
+          initialBankDeposit={bankDeposit}
+          initialPettyCash={pettyCash}
+          autoDiscrepancy={totalVaravu - inaththu - expensesTotal}
+          onSave={(values) => {
+            saveReconciliation({ year: currentYear, bankDeposit: values.bankDeposit, pettyCash: values.pettyCash });
+            setEditing(false);
+          }}
+          onClose={() => setEditing(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Helper row component for the Inthugai table
+function InthugaiRow({ ta, en, amount, sub, last, alert, editable, onEdit, lang }) {
+  return (
+    <div style={{
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      padding: "10px 14px",
+      borderBottom: last ? "none" : "1px dashed #e7e5e4",
+      background: "#fff",
+    }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: alert ? "#991b1b" : "#292524", fontWeight: 500 }}>
+          <span>{lang === "ta" ? ta : ta}</span>
+          {editable && (
+            <button onClick={onEdit} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#2563eb", fontSize: 11, padding: 0 }}>
+              ✏️
+            </button>
+          )}
+        </div>
+        <div style={{ fontSize: 10, color: "#78716c", marginTop: 2 }}>{en}{sub ? ` · ${sub}` : ""}</div>
+      </div>
+      <span style={{
+        fontSize: 13,
+        fontWeight: 700,
+        fontFamily: "'Outfit', sans-serif",
+        color: alert ? "#991b1b" : "#292524",
+        whiteSpace: "nowrap",
+      }}>
+        {formatCurrency(amount)}
+      </span>
+    </div>
+  );
+}
+
+// Modal: edit Bank Deposit + Petty Cash
+function ReconciliationEditForm({ currentYear, initialBankDeposit, initialPettyCash, autoDiscrepancy, onSave, onClose }) {
+  const lang = useLang();
+  const [bankDeposit, setBankDeposit] = useState(String(initialBankDeposit || ""));
+  const [pettyCash, setPettyCash] = useState(String(initialPettyCash || ""));
+  const [saving, setSaving] = useState(false);
+
+  const projectedDiscrepancy = autoDiscrepancy - (Number(bankDeposit) || 0) - (Number(pettyCash) || 0);
+
+  return (
+    <Modal title={`${t("bsReconciliationTitle", lang)} · ${currentYear}`} onClose={onClose}>
+      <p style={{ fontSize: 12, color: "#78716c", marginBottom: 16 }}>{t("bsReconciliationHelp", lang)}</p>
+
+      <div style={{ marginBottom: 12 }}>
+        <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 4 }}>
+          {t("bsBankDeposit", lang)} (வங்கி வைப்பு)
+        </label>
+        <input
+          type="number"
+          value={bankDeposit}
+          onChange={(e) => setBankDeposit(e.target.value)}
+          placeholder="0"
+          style={{ width: "100%", padding: "10px 12px", border: "1px solid #d6d3d1", borderRadius: 8, fontSize: 14, fontFamily: "'Outfit', sans-serif" }}
+        />
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 4 }}>
+          {t("bsPettyCash", lang)} (பட்டியலுடன் வைத்தது)
+        </label>
+        <input
+          type="number"
+          value={pettyCash}
+          onChange={(e) => setPettyCash(e.target.value)}
+          placeholder="0"
+          style={{ width: "100%", padding: "10px 12px", border: "1px solid #d6d3d1", borderRadius: 8, fontSize: 14, fontFamily: "'Outfit', sans-serif" }}
+        />
+      </div>
+
+      <div style={{
+        background: Math.abs(projectedDiscrepancy) < 0.5 ? "#d1fae5" : "#fef3c7",
+        color: Math.abs(projectedDiscrepancy) < 0.5 ? "#065f46" : "#92400e",
+        padding: 10,
+        borderRadius: 8,
+        fontSize: 12,
+        marginBottom: 12,
+        fontFamily: "'Outfit', sans-serif",
+      }}>
+        <strong>திட்டக்குறை / {t("bsDiscrepancy", lang)}: </strong>
+        {formatCurrency(projectedDiscrepancy)}
+      </div>
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button onClick={onClose} style={{ ...styles.btnPrimary, flex: 1, background: "#a8a29e" }}>
+          {t("cancel", lang)}
+        </button>
+        <button
+          onClick={() => {
+            if (saving) return;
+            setSaving(true);
+            onSave({ bankDeposit: Number(bankDeposit) || 0, pettyCash: Number(pettyCash) || 0 });
+          }}
+          disabled={saving}
+          style={{ ...styles.btnPrimary, flex: 1, opacity: saving ? 0.6 : 1 }}
+        >
+          {saving ? "⏳" : "💾 " + t("save", lang)}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
+// ============================================================
 // REPORTS VIEW
 // ============================================================
 
-function ReportsView({ families, income, expenses, auction, loans, totalIncome, totalExpenses, totalAuction, balance, ledger, currentYear, showToast, lang: propLang }) {
+function ReportsView({ families, income, expenses, auction, loans, totalIncome, totalExpenses, totalAuction, balance, ledger, currentYear, isAdmin, saveReconciliation, showToast, lang: propLang }) {
   const lang = useLang();
   const [activeReport, setActiveReport] = useState("auction_balance");
 
@@ -2848,6 +3235,7 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
       <div style={styles.filterRow}>
         {[
           { id: "auction_balance", label: t("auctionBalance", lang) },
+          { id: "inthugai", label: t("inthugaiTab", lang) },
           { id: "loan_report", label: t("loanReport", lang) },
         ].map((r) => (
           <button
@@ -2875,6 +3263,19 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
           totalExpenses={totalExpenses}
           totalAuction={totalAuction}
           balance={balance}
+        />
+      )}
+      {activeReport === "inthugai" && (
+        <EventBalanceSheetInthugai
+          income={income}
+          expenses={expenses}
+          auction={auction}
+          loans={loans}
+          ledger={ledger}
+          currentYear={currentYear}
+          isAdmin={isAdmin}
+          saveReconciliation={saveReconciliation}
+          showToast={showToast}
         />
       )}
       {activeReport === "loan_report" && (

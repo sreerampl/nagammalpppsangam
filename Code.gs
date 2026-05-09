@@ -111,6 +111,9 @@ function handleRequest(e) {
       case "saveEventConfig":
         return requireRole(userRole, "Admin", function() { return handleSaveEventConfig(params.data, email); });
 
+      case "saveReconciliation":
+        return requireRole(userRole, "Admin", function() { return handleSaveReconciliation(params.data, email); });
+
       case "seedAuctionItems":
         return requireRole(userRole, "Admin", function() { return handleSeedAuctionItems(params.data, email); });
 
@@ -641,6 +644,70 @@ function handleSaveEventConfig(data, email) {
 }
 
 // ============================================================
+// SAVE RECONCILIATION (Inthugai — Bank Deposit + Petty Cash)
+// ============================================================
+// Writes admin-entered Bank Deposit and Petty Cash figures to
+// the Ledger sheet for the given year. Auto-creates the
+// BankDeposit and PettyCash columns on first use so no manual
+// schema migration is needed.
+// ============================================================
+
+function handleSaveReconciliation(data, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.LEDGER);
+  if (!sheet) throw new Error("Ledger sheet not found");
+
+  var year = String(data.year);
+  var bankDeposit = Number(data.bankDeposit) || 0;
+  var pettyCash = Number(data.pettyCash) || 0;
+
+  var rows = sheet.getDataRange().getValues();
+  var headers = rows[0];
+  var yearCol = headers.indexOf("Year");
+  if (yearCol === -1) throw new Error("Ledger sheet missing Year column");
+
+  // Auto-create BankDeposit and PettyCash columns if missing
+  var bdCol = headers.indexOf("BankDeposit");
+  if (bdCol === -1) {
+    bdCol = headers.length;
+    sheet.getRange(1, bdCol + 1).setValue("BankDeposit");
+    headers.push("BankDeposit");
+  }
+  var pcCol = headers.indexOf("PettyCash");
+  if (pcCol === -1) {
+    pcCol = headers.length;
+    sheet.getRange(1, pcCol + 1).setValue("PettyCash");
+    headers.push("PettyCash");
+  }
+
+  // Find existing row for this year
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][yearCol]) === year) {
+      sheet.getRange(i + 1, bdCol + 1).setValue(bankDeposit);
+      sheet.getRange(i + 1, pcCol + 1).setValue(pettyCash);
+      writeAudit("UPDATE", "Ledger",
+        "Inthugai reconciliation " + year + ": BankDeposit=" + bankDeposit + ", PettyCash=" + pettyCash,
+        email);
+      return jsonResponse({ success: true, data: { year: year, bankDeposit: bankDeposit, pettyCash: pettyCash } });
+    }
+  }
+
+  // No existing row — create new one
+  var newRow = [];
+  for (var c = 0; c < headers.length; c++) {
+    if (c === yearCol) newRow.push(Number(year));
+    else if (c === bdCol) newRow.push(bankDeposit);
+    else if (c === pcCol) newRow.push(pettyCash);
+    else newRow.push("");
+  }
+  sheet.appendRow(newRow);
+  writeAudit("CREATE", "Ledger",
+    "Inthugai reconciliation " + year + " (new row): BankDeposit=" + bankDeposit + ", PettyCash=" + pettyCash,
+    email);
+  return jsonResponse({ success: true, data: { year: year, bankDeposit: bankDeposit, pettyCash: pettyCash } });
+}
+
+// ============================================================
 // SEED STANDARD AUCTION ITEMS (48 items per year)
 // ============================================================
 
@@ -829,9 +896,9 @@ function handleEditLoan(data, email) {
 
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][idCol]).trim() === String(data.loanId).trim()) {
-      var loanAmt = Number(data.loanAmount) || Number(rows[i][headers.indexOf("LoanAmount")]);
-      var rate = Number(data.interestRate) || Number(rows[i][headers.indexOf("InterestRate")]);
-      var lastYearRec = (data.lastYearReceivable !== undefined && data.lastYearReceivable !== "") ? Number(data.lastYearReceivable) || 0 : Number(rows[i][headers.indexOf("LastYearReceivable")]) || 0;
+      var loanAmt = (data.loanAmount !== undefined && data.loanAmount !== "") ? Number(data.loanAmount) : Number(rows[i][headers.indexOf("LoanAmount")]) || 0;
+      var rate = (data.interestRate !== undefined && data.interestRate !== "") ? Number(data.interestRate) : Number(rows[i][headers.indexOf("InterestRate")]) || 9;
+      var lastYearRec = (data.lastYearReceivable !== undefined && data.lastYearReceivable !== "") ? Number(data.lastYearReceivable) : Number(rows[i][headers.indexOf("LastYearReceivable")]) || 0;
       var interestOnLoan = Math.round(loanAmt * rate / 100);
       var interestOnPrev = Math.round(lastYearRec * rate / 100);
       var interestAmt = interestOnLoan + interestOnPrev;
