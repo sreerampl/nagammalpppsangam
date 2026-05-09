@@ -198,6 +198,8 @@ const T = {
   bsReconciliationTitle: { en: "Reconciliation entries", ta: "சரிபார்ப்பு பதிவுகள்" },
   bsReconciliationSaved: { en: "Reconciliation saved", ta: "சரிபார்ப்பு சேமிக்கப்பட்டது" },
   bsReconciliationHelp: { en: "Enter the cash deposited to bank and the petty cash kept on hand. Any remaining difference shows as discrepancy.", ta: "வங்கியில் வைப்பு செய்த தொகை மற்றும் கையில் உள்ள பட்டியல் பணத்தை உள்ளிடுங்கள். மீதமுள்ள வேறுபாடு திட்டக்குறையாக காட்டப்படும்." },
+  bsNotesLabel: { en: "Notes", ta: "குறிப்புகள்" },
+  bsNotesPlaceholder: { en: "Optional — discrepancy reason, items in petty cash list, etc.", ta: "விருப்பத்தேர்வு — திட்டக்குறை காரணம், பட்டியல் விவரங்கள் முதலியவை" },
   edit: { en: "Edit", ta: "திருத்து" },
   deleteBtn: { en: "Delete", ta: "நீக்கு" },
   confirmDeleteTitle: { en: "Confirm Delete", ta: "நீக்க உறுதிப்படுத்தவும்" },
@@ -322,8 +324,6 @@ const T = {
   catTempleExpenses: { en: "Temple Expenses", ta: "கோவில் செலவுகள்" },
   catMembership: { en: "Membership", ta: "உறுப்பினர் கட்டணம்" },
   catPrayerObjects: { en: "Prayer Objects", ta: "பூஜை பொருட்கள்" },
-  catAuctionObjects: { en: "Objects for Auction", ta: "ஏலப் பொருட்கள்" },
-  objectName: { en: "Object Name *", ta: "பொருளின் பெயர் *" },
   catGroceries: { en: "Groceries", ta: "மளிகை" },
   catVegetables: { en: "Vegetables", ta: "காய்கறிகள்" },
   catOther: { en: "Other", ta: "மற்றவை" },
@@ -341,17 +341,17 @@ const T = {
 const t = (key, lang) => T[key]?.[lang] || T[key]?.en || key;
 
 // Category translation maps
-const INCOME_CAT_KEYS = ["catFood", "catTempleExpenses", "catMembership", "catPrayerObjects", "catAuctionObjects", "catGroceries", "catVegetables", "catOther"];
+const INCOME_CAT_KEYS = ["catFood", "catTempleExpenses", "catMembership", "catPrayerObjects", "catGroceries", "catVegetables", "catOther"];
 const EXPENSE_CAT_KEYS = ["catFood", "catTemple", "catVegetables", "catGroceries", "catSupplies", "catPulliVari", "catDecorations", "catTransport", "catOther"];
 
 // English category values (stored in data/sheets)
-const INCOME_CATEGORIES_EN = ["Food", "Temple Expenses", "Membership", "Prayer Objects", "Objects for Auction", "Groceries", "Vegetables", "Other"];
+const INCOME_CATEGORIES_EN = ["Food", "Temple Expenses", "Membership", "Prayer Objects", "Groceries", "Vegetables", "Other"];
 const EXPENSE_CATEGORIES_EN = ["Food", "Temple", "Vegetables", "Groceries", "Supplies", "Pulli vari", "Decorations", "Transport", "Other"];
 
 // Map English category value → i18n key
 const catKeyMap = {
   "Food": "catFood", "Temple Expenses": "catTempleExpenses", "Membership": "catMembership",
-  "Prayer Objects": "catPrayerObjects", "Objects for Auction": "catAuctionObjects", "Groceries": "catGroceries", "Vegetables": "catVegetables",
+  "Prayer Objects": "catPrayerObjects", "Groceries": "catGroceries", "Vegetables": "catVegetables",
   "Other": "catOther", "Temple": "catTemple", "Supplies": "catSupplies", "Pulli Vari": "catPulliVari",
   "Pen Pulli Varavu": "catPenPulli", "Cash Donation": "catNankodaiPanam", "Material Donation": "catNankodaiPorutkkal",
   "Decorations": "catDecorations", "Transport": "catTransport",
@@ -657,26 +657,6 @@ function App() {
       };
       setIncome((prev) => [...prev, row]);
 
-      // Auto-add to auction if category is "Objects for Auction"
-      if (income.category === "Objects for Auction" && income.description) {
-        const auctionRow = {
-          ItemNo: String(auction.length + 1),
-          Year: income.year || String(new Date().getFullYear()),
-          ItemDescription: income.description,
-          DonatedBy: income.donorName,
-          WinnerFamilyID: "",
-          WinnerName: "",
-          BidAmount: "",
-          EnteredBy1: "",
-          ConfirmedBy2: "",
-          Timestamp1: "",
-          Timestamp2: "",
-          Status: "",
-        };
-        // Backend already handles auction auto-add
-        setAuction((prev) => [...prev, auctionRow]);
-      }
-
       showToast(t("toastIncome", lang));
       setShowForm(null);
     } catch (e) {
@@ -911,7 +891,7 @@ function App() {
     }
   };
 
-  // Save Inthugai reconciliation (BankDeposit, PettyCash) to Ledger sheet
+  // Save Inthugai reconciliation (BankDeposit, PettyCash, Notes) to Ledger sheet
   const saveReconciliation = async (data) => {
     setBusy(true);
     try {
@@ -924,6 +904,7 @@ function App() {
             ...updated[exists],
             BankDeposit: Number(data.bankDeposit) || 0,
             PettyCash: Number(data.pettyCash) || 0,
+            Notes: data.notes !== undefined ? String(data.notes) : (updated[exists].Notes || ""),
           };
           return updated;
         }
@@ -931,6 +912,7 @@ function App() {
           Year: data.year,
           BankDeposit: Number(data.bankDeposit) || 0,
           PettyCash: Number(data.pettyCash) || 0,
+          Notes: data.notes !== undefined ? String(data.notes) : "",
         }];
       });
       showToast(t("bsReconciliationSaved", lang));
@@ -2723,29 +2705,39 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
           <input value={form.donorName} onChange={(e) => set("donorName", e.target.value)} style={styles.input} placeholder={t("nameOfDonor", lang)} />
         </label>
         <label style={styles.label}>{t("category", lang)}
-          <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
+          <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input} disabled={!!fixedCategory}>
             {cats.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
           </select>
         </label>
-        {form.category !== "Objects for Auction" && (
-          <label style={styles.label}>{t("amount", lang)} (₹)
-            <input type="number" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} placeholder="0" />
-          </label>
-        )}
-        <label style={styles.label}>{form.category === "Objects for Auction" ? t("objectName", lang) : t("descOptional", lang)}
-          <input value={form.description} onChange={(e) => set("description", e.target.value)} style={styles.input} placeholder={form.category === "Objects for Auction" ? (lang === "ta" ? "எ.கா. மஞ்சள், உப்பு" : "e.g. Turmeric, Salt") : t("notes", lang)} />
+        <label style={styles.label}>{t("amount", lang)} (₹)
+          <input
+            type="number"
+            value={form.category === "Material Donation" ? "0" : form.amount}
+            onChange={(e) => set("amount", e.target.value)}
+            style={{ ...styles.input, ...(form.category === "Material Donation" ? { background: "#f5f5f4", color: "#a8a29e", cursor: "not-allowed" } : {}) }}
+            placeholder="0"
+            disabled={form.category === "Material Donation"}
+          />
+          {form.category === "Material Donation" && (
+            <span style={{ fontSize: 11, color: "#78716c", marginTop: 4, display: "block" }}>
+              {lang === "ta" ? "பொருள் நன்கொடைக்கு தொகை இல்லை" : "Material donations have no monetary amount"}
+            </span>
+          )}
+        </label>
+        <label style={styles.label}>{t("descOptional", lang)}
+          <input value={form.description} onChange={(e) => set("description", e.target.value)} style={styles.input} placeholder={form.category === "Material Donation" ? (lang === "ta" ? "எ.கா. அரிசி, காய்கறி" : "e.g. Rice, Vegetables") : t("notes", lang)} />
         </label>
       </div>
       <button
         onClick={() => {
           if (saving || !autoDay) return;
-          const isAuctionObj = form.category === "Objects for Auction";
-          if (form.donorName && (isAuctionObj || form.amount)) { 
-            setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear, amount: isAuctionObj ? "0" : form.amount }); 
+          const isMatDon = form.category === "Material Donation";
+          if (form.donorName && (isMatDon || form.amount)) {
+            setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear, amount: isMatDon ? "0" : form.amount });
           }
         }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: (saving || !autoDay || !form.donorName || (form.category !== "Objects for Auction" && !form.amount)) ? 0.4 : 1 }}
-        disabled={saving || !autoDay || !form.donorName || (form.category !== "Objects for Auction" && !form.amount)}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: (saving || !autoDay || !form.donorName || (form.category !== "Material Donation" && !form.amount)) ? 0.4 : 1 }}
+        disabled={saving || !autoDay || !form.donorName || (form.category !== "Material Donation" && !form.amount)}
       >
         {saving ? "⏳ Saving..." : t("saveIncome", lang)}
       </button>
@@ -2933,10 +2925,11 @@ function EventBalanceSheetInthugai({ income, expenses, auction, loans, ledger, c
 
   const expensesTotal = expenses.reduce((s, e) => s + (Number(e.Amount) || 0), 0);
 
-  // Bank deposit + Petty cash from Ledger sheet for current year
+  // Bank deposit + Petty cash + Notes from Ledger sheet for current year
   const ledgerRow = (ledger || []).find((r) => String(r.Year) === String(currentYear)) || {};
   const bankDeposit = Number(ledgerRow.BankDeposit) || 0;
   const pettyCash = Number(ledgerRow.PettyCash) || 0;
+  const ledgerNotes = String(ledgerRow.Notes || "");
 
   // Discrepancy = plug figure (so both sides always balance)
   const discrepancy = totalVaravu - (inaththu + expensesTotal + bankDeposit + pettyCash);
@@ -2993,6 +2986,8 @@ function EventBalanceSheetInthugai({ income, expenses, auction, loans, ledger, c
         <tr><td><div class="ta" style="color:${Math.abs(discrepancy) > 0 ? '#991b1b' : '#292524'}">திட்டக்குறை</div><div class="en">Discrepancy (to be reconciled)</div></td><td class="amt" style="color:${Math.abs(discrepancy) > 0 ? '#991b1b' : '#292524'}">${fmt(discrepancy)}</td></tr>
         <tr class="total-row"><td>மொத்த செலவு / Total outflow</td><td class="amt">₹ ${fmt(totalSelavu)}</td></tr>
       </table>
+
+      ${ledgerNotes ? `<div style="margin-top:24px;padding:12px;background:#fffbeb;border-left:4px solid #f59e0b;font-size:12px;"><div style="font-weight:700;margin-bottom:4px;color:#92400e;">📝 குறிப்புகள் / Notes</div><div style="white-space:pre-wrap;">${ledgerNotes.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</div></div>` : ""}
 
       <div class="signature">
         <div>Prepared by: __________________</div>
@@ -3082,6 +3077,24 @@ function EventBalanceSheetInthugai({ income, expenses, auction, loans, ledger, c
         </span>
       </div>
 
+      {/* Notes display (if any) */}
+      {ledgerNotes && (
+        <div style={{
+          marginTop: 10,
+          padding: "10px 14px",
+          background: "#fffbeb",
+          border: "1px solid #fde68a",
+          borderRadius: 8,
+          fontSize: 12,
+          color: "#78716c",
+        }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#92400e", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+            📝 {t("bsNotesLabel", lang)}
+          </div>
+          <div style={{ whiteSpace: "pre-wrap", color: "#292524" }}>{ledgerNotes}</div>
+        </div>
+      )}
+
       {/* Edit reconciliation button (Admin only) */}
       {isAdmin && (
         <button
@@ -3098,9 +3111,10 @@ function EventBalanceSheetInthugai({ income, expenses, auction, loans, ledger, c
           currentYear={currentYear}
           initialBankDeposit={bankDeposit}
           initialPettyCash={pettyCash}
+          initialNotes={ledgerNotes}
           autoDiscrepancy={totalVaravu - inaththu - expensesTotal}
           onSave={(values) => {
-            saveReconciliation({ year: currentYear, bankDeposit: values.bankDeposit, pettyCash: values.pettyCash });
+            saveReconciliation({ year: currentYear, bankDeposit: values.bankDeposit, pettyCash: values.pettyCash, notes: values.notes });
             setEditing(false);
           }}
           onClose={() => setEditing(false)}
@@ -3146,10 +3160,11 @@ function InthugaiRow({ ta, en, amount, sub, last, alert, editable, onEdit, lang 
 }
 
 // Modal: edit Bank Deposit + Petty Cash
-function ReconciliationEditForm({ currentYear, initialBankDeposit, initialPettyCash, autoDiscrepancy, onSave, onClose }) {
+function ReconciliationEditForm({ currentYear, initialBankDeposit, initialPettyCash, initialNotes, autoDiscrepancy, onSave, onClose }) {
   const lang = useLang();
   const [bankDeposit, setBankDeposit] = useState(String(initialBankDeposit || ""));
   const [pettyCash, setPettyCash] = useState(String(initialPettyCash || ""));
+  const [notes, setNotes] = useState(String(initialNotes || ""));
   const [saving, setSaving] = useState(false);
 
   const projectedDiscrepancy = autoDiscrepancy - (Number(bankDeposit) || 0) - (Number(pettyCash) || 0);
@@ -3171,7 +3186,7 @@ function ReconciliationEditForm({ currentYear, initialBankDeposit, initialPettyC
         />
       </div>
 
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 12 }}>
         <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 4 }}>
           {t("bsPettyCash", lang)} (பட்டியலுடன் வைத்தது)
         </label>
@@ -3181,6 +3196,19 @@ function ReconciliationEditForm({ currentYear, initialBankDeposit, initialPettyC
           onChange={(e) => setPettyCash(e.target.value)}
           placeholder="0"
           style={{ width: "100%", padding: "10px 12px", border: "1px solid #d6d3d1", borderRadius: 8, fontSize: 14, fontFamily: "'Outfit', sans-serif" }}
+        />
+      </div>
+
+      <div style={{ marginBottom: 16 }}>
+        <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 4 }}>
+          {t("bsNotesLabel", lang)} (குறிப்புகள்)
+        </label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          rows={3}
+          placeholder={t("bsNotesPlaceholder", lang)}
+          style={{ width: "100%", padding: "10px 12px", border: "1px solid #d6d3d1", borderRadius: 8, fontSize: 14, fontFamily: "'Outfit', sans-serif", resize: "vertical", boxSizing: "border-box" }}
         />
       </div>
 
@@ -3205,7 +3233,7 @@ function ReconciliationEditForm({ currentYear, initialBankDeposit, initialPettyC
           onClick={() => {
             if (saving) return;
             setSaving(true);
-            onSave({ bankDeposit: Number(bankDeposit) || 0, pettyCash: Number(pettyCash) || 0 });
+            onSave({ bankDeposit: Number(bankDeposit) || 0, pettyCash: Number(pettyCash) || 0, notes: notes });
           }}
           disabled={saving}
           style={{ ...styles.btnPrimary, flex: 1, opacity: saving ? 0.6 : 1 }}
@@ -3223,7 +3251,7 @@ function ReconciliationEditForm({ currentYear, initialBankDeposit, initialPettyC
 
 function ReportsView({ families, income, expenses, auction, loans, totalIncome, totalExpenses, totalAuction, balance, ledger, currentYear, isAdmin, saveReconciliation, showToast, lang: propLang }) {
   const lang = useLang();
-  const [activeReport, setActiveReport] = useState("auction_balance");
+  const [activeReport, setActiveReport] = useState("inthugai");
 
   return (
     <div style={styles.page}>
@@ -3234,8 +3262,8 @@ function ReportsView({ families, income, expenses, auction, loans, totalIncome, 
       {/* Report selector */}
       <div style={styles.filterRow}>
         {[
-          { id: "auction_balance", label: t("auctionBalance", lang) },
           { id: "inthugai", label: t("inthugaiTab", lang) },
+          { id: "auction_balance", label: t("auctionBalance", lang) },
           { id: "loan_report", label: t("loanReport", lang) },
         ].map((r) => (
           <button

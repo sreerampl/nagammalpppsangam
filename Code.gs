@@ -660,6 +660,7 @@ function handleSaveReconciliation(data, email) {
   var year = String(data.year);
   var bankDeposit = Number(data.bankDeposit) || 0;
   var pettyCash = Number(data.pettyCash) || 0;
+  var notes = data.notes !== undefined ? String(data.notes) : null; // null = don't touch
 
   var rows = sheet.getDataRange().getValues();
   var headers = rows[0];
@@ -679,16 +680,24 @@ function handleSaveReconciliation(data, email) {
     sheet.getRange(1, pcCol + 1).setValue("PettyCash");
     headers.push("PettyCash");
   }
+  // Auto-create Notes column if missing
+  var notesCol = headers.indexOf("Notes");
+  if (notesCol === -1) {
+    notesCol = headers.length;
+    sheet.getRange(1, notesCol + 1).setValue("Notes");
+    headers.push("Notes");
+  }
 
   // Find existing row for this year
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][yearCol]) === year) {
       sheet.getRange(i + 1, bdCol + 1).setValue(bankDeposit);
       sheet.getRange(i + 1, pcCol + 1).setValue(pettyCash);
+      if (notes !== null) sheet.getRange(i + 1, notesCol + 1).setValue(notes);
       writeAudit("UPDATE", "Ledger",
-        "Inthugai reconciliation " + year + ": BankDeposit=" + bankDeposit + ", PettyCash=" + pettyCash,
+        "Inthugai reconciliation " + year + ": BankDeposit=" + bankDeposit + ", PettyCash=" + pettyCash + (notes !== null ? ", Notes updated" : ""),
         email);
-      return jsonResponse({ success: true, data: { year: year, bankDeposit: bankDeposit, pettyCash: pettyCash } });
+      return jsonResponse({ success: true, data: { year: year, bankDeposit: bankDeposit, pettyCash: pettyCash, notes: notes || "" } });
     }
   }
 
@@ -698,13 +707,14 @@ function handleSaveReconciliation(data, email) {
     if (c === yearCol) newRow.push(Number(year));
     else if (c === bdCol) newRow.push(bankDeposit);
     else if (c === pcCol) newRow.push(pettyCash);
+    else if (c === notesCol) newRow.push(notes || "");
     else newRow.push("");
   }
   sheet.appendRow(newRow);
   writeAudit("CREATE", "Ledger",
     "Inthugai reconciliation " + year + " (new row): BankDeposit=" + bankDeposit + ", PettyCash=" + pettyCash,
     email);
-  return jsonResponse({ success: true, data: { year: year, bankDeposit: bankDeposit, pettyCash: pettyCash } });
+  return jsonResponse({ success: true, data: { year: year, bankDeposit: bankDeposit, pettyCash: pettyCash, notes: notes || "" } });
 }
 
 // ============================================================
