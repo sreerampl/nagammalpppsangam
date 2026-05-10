@@ -30,6 +30,8 @@
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #f5f3ff; }
     .toast { animation: slideIn 0.3s ease-out; }
     @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes voicePulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); } 50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); } }
+    .voice-listening { animation: voicePulse 1.2s infinite; }
   </style>
 </head>
 <body>
@@ -218,6 +220,10 @@ const T = {
   toastConfirmed: { en: "Collection confirmed", ta: "வசூல் உறுதி செய்யப்பட்டது" },
   expectedTotal: { en: "Expected total", ta: "எதிர்பார்க்கப்படும் மொத்தம்" },
   collectedTotal: { en: "Collected total", ta: "வசூலிக்கப்பட்ட மொத்தம்" },
+  // Voice input
+  voiceTapToDictate: { en: "Tap to dictate", ta: "பேச டப் செய்க" },
+  voiceListening: { en: "Listening…", ta: "கேட்கிறது…" },
+  voiceErrorMic: { en: "Microphone access denied", ta: "ஒலிவாங்கி அணுகல் மறுக்கப்பட்டது" },
   bsNotesLabel: { en: "Notes", ta: "குறிப்புகள்" },
   bsNotesPlaceholder: { en: "Optional — discrepancy reason, items in petty cash list, etc.", ta: "விருப்பத்தேர்வு — திட்டக்குறை காரணம், பட்டியல் விவரங்கள் முதலியவை" },
   edit: { en: "Edit", ta: "திருத்து" },
@@ -485,6 +491,106 @@ class AppBackend {
     return this.post("loadAll");
   }
 
+}
+
+// ============================================================
+// VOICE INPUT (browser-native Web Speech API)
+// ============================================================
+// Renders a small "🎙 Tap to dictate" button. On click, opens a
+// short single-utterance speech recognition session using the
+// browser's built-in engine (Tamil via ta-IN, English via en-IN).
+// Recognized text is appended to the existing field value.
+// Hides itself silently on browsers without SpeechRecognition
+// support (older iOS, some in-app browsers, Firefox desktop).
+// ============================================================
+function VoiceInput({ value, onChange, lang, compact }) {
+  const [listening, setListening] = useState(false);
+  const [error, setError] = useState(null);
+  const recognitionRef = useRef(null);
+
+  const SR = (typeof window !== "undefined")
+    ? (window.SpeechRecognition || window.webkitSpeechRecognition)
+    : null;
+
+  // Stop any active session on unmount (prevents zombie mic)
+  useEffect(() => {
+    return () => {
+      if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch (e) {}
+        recognitionRef.current = null;
+      }
+    };
+  }, []);
+
+  if (!SR) return null;  // graceful degradation
+
+  const start = () => {
+    if (listening) return;
+    setError(null);
+    const r = new SR();
+    r.lang = lang === "ta" ? "ta-IN" : "en-IN";
+    r.continuous = false;
+    r.interimResults = false;
+    r.maxAlternatives = 1;
+
+    r.onresult = (ev) => {
+      const transcript = (ev.results[0][0].transcript || "").trim();
+      if (!transcript) return;
+      const sep = (value && !/\s$/.test(value)) ? " " : "";
+      onChange((value || "") + sep + transcript);
+    };
+    r.onend = () => setListening(false);
+    r.onerror = (ev) => {
+      setListening(false);
+      if (ev.error === "not-allowed" || ev.error === "service-not-allowed") {
+        setError("mic");
+      } else if (ev.error !== "aborted" && ev.error !== "no-speech") {
+        setError("other");
+      }
+    };
+
+    recognitionRef.current = r;
+    setListening(true);
+    try { r.start(); } catch (e) { setListening(false); }
+  };
+
+  const stop = () => {
+    if (recognitionRef.current) {
+      try { recognitionRef.current.stop(); } catch (e) {}
+    }
+    setListening(false);
+  };
+
+  return (
+    <div style={{ marginTop: 4 }}>
+      <button
+        type="button"
+        onClick={listening ? stop : start}
+        className={listening ? "voice-listening" : ""}
+        style={{
+          padding: compact ? "4px 10px" : "6px 12px",
+          fontSize: 12,
+          fontWeight: 600,
+          background: listening ? "#dc2626" : "transparent",
+          color: listening ? "#fff" : "#7c3aed",
+          border: "1px solid " + (listening ? "#dc2626" : "#ddd6fe"),
+          borderRadius: 6,
+          cursor: "pointer",
+          display: "inline-flex",
+          alignItems: "center",
+          gap: 4,
+        }}
+      >
+        <span style={{ fontSize: 13 }}>{listening ? "🔴" : "🎙"}</span>
+        <span>{listening ? t("voiceListening", lang) : t("voiceTapToDictate", lang)}</span>
+      </button>
+      {error === "mic" && (
+        <span style={{ marginLeft: 8, fontSize: 11, color: "#dc2626" }}>
+          ⚠ {t("voiceErrorMic", lang)}
+        </span>
+      )}
+    </div>
+  );
 }
 
 // ============================================================
@@ -2926,6 +3032,7 @@ function EditIncomeForm({ item, families, categories, donorTypes, onSubmit, onCl
         </label>
         <label style={styles.label}>{t("descOptional", lang)}
           <input value={form.description} onChange={(e) => set("description", e.target.value)} style={styles.input} />
+          <VoiceInput value={form.description} onChange={(v) => set("description", v)} lang={lang} />
         </label>
       </div>
       <button
@@ -2973,6 +3080,7 @@ function EditExpenseForm({ item, categories, onSubmit, onClose, day1Date }) {
         </label>
         <label style={styles.label}>{t("description", lang)}
           <input value={form.description} onChange={(e) => set("description", e.target.value)} style={styles.input} />
+          <VoiceInput value={form.description} onChange={(v) => set("description", v)} lang={lang} />
         </label>
         <label style={styles.label}>{t("amount", lang)} (₹)
           <input type="number" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} />
@@ -3074,6 +3182,7 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
         </label>
         <label style={styles.label}>{t("descOptional", lang)}
           <input value={form.description} onChange={(e) => set("description", e.target.value)} style={styles.input} placeholder={form.category === "Material Donation" ? (lang === "ta" ? "எ.கா. அரிசி, காய்கறி" : "e.g. Rice, Vegetables") : t("notes", lang)} />
+          <VoiceInput value={form.description} onChange={(v) => set("description", v)} lang={lang} />
         </label>
       </div>
       <button
@@ -3126,6 +3235,7 @@ function ExpenseForm({ onSubmit, onClose, categories, day1Date }) {
         </label>
         <label style={styles.label}>{t("description", lang)}
           <input value={form.description} onChange={(e) => set("description", e.target.value)} style={styles.input} placeholder={t("whatPurchased", lang)} />
+          <VoiceInput value={form.description} onChange={(v) => set("description", v)} lang={lang} />
         </label>
         <label style={styles.label}>{t("amount", lang)} (₹)
           <input type="number" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} placeholder="0" />
@@ -3171,6 +3281,7 @@ function FamilyForm({ onSubmit, onClose }) {
         </label>
         <label style={styles.label}>{t("address", lang)}
           <input value={form.address} onChange={(e) => set("address", e.target.value)} style={styles.input} placeholder={t("fullAddress", lang)} />
+          <VoiceInput value={form.address} onChange={(v) => set("address", v)} lang={lang} />
         </label>
       </div>
       <button
@@ -3558,6 +3669,7 @@ function ReconciliationEditForm({ currentYear, initialBankDeposit, initialPettyC
           placeholder={t("bsNotesPlaceholder", lang)}
           style={{ width: "100%", padding: "10px 12px", border: "1px solid #d6d3d1", borderRadius: 8, fontSize: 14, fontFamily: "'Outfit', sans-serif", resize: "vertical", boxSizing: "border-box" }}
         />
+        <VoiceInput value={notes} onChange={setNotes} lang={lang} />
       </div>
 
       <div style={{
@@ -3956,6 +4068,7 @@ function LoanAddForm({ families, allLoans, currentYear, onSubmit, onClose, day1D
         )}
         <label style={styles.label}>{t("notes", lang)}
           <input value={form.notes} onChange={(e) => set("notes", e.target.value)} style={styles.input} />
+          <VoiceInput value={form.notes} onChange={(v) => set("notes", v)} lang={lang} />
         </label>
       </div>
       <button
@@ -4018,6 +4131,7 @@ function LoanEditForm({ loan, families, onSubmit, onClose }) {
         )}
         <label style={styles.label}>{t("notes", lang)}
           <input value={form.notes} onChange={(e) => set("notes", e.target.value)} style={styles.input} />
+          <VoiceInput value={form.notes} onChange={(v) => set("notes", v)} lang={lang} />
         </label>
       </div>
       <button
