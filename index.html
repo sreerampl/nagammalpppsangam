@@ -1046,9 +1046,11 @@ function App() {
     setBusy(true);
     try {
       const pulliDefault = Number((master["Pulli Vari Default"] || [])[0]) || 51;
+      const penPulliDefault = Number((master["Pen Pulli Default"] || [])[0]) || pulliDefault;
       const result = await backendRef.current.post("createFinancialYear", {
         prevYear: currentYear,
         pulliDefault: pulliDefault,
+        penPulliDefault: penPulliDefault,
       });
       // Refresh full data so new ledger row + income rows flow in
       const fresh = await backendRef.current.post("loadAll", {});
@@ -1331,18 +1333,13 @@ function App() {
               ))}
             </div>
             {incomeSubTab === "pulli" && (
-              <PulliVariView
-                families={families}
-                income={yearIncome}
-                category="Pulli Vari"
-                defaultAmount={Number((master["Pulli Vari Default"] || [])[0]) || 51}
-                onAdd={addIncome}
-                onConfirm={confirmIncome}
-                onDelete={deleteIncome}
-                isAdmin={isAdmin}
-                canEdit={canEdit}
-                day1Date={day1Date}
-                currentYear={currentYear}
+              <IncomeView
+                income={yearIncome.filter((d) => isIncomeConfirmed(d) && String(d.Category||"").trim().toLowerCase() === "pulli vari")}
+                families={families} canEdit={canEdit} isAdmin={isAdmin}
+                onAdd={() => setShowForm("income_pulli")}
+                onEdit={editIncome} onDelete={deleteIncome} showToast={showToast} lang={lang}
+                categories={["Pulli Vari"]} donorTypes={["Family","External"]} day1Date={day1Date}
+                fixedCategory="Pulli Vari"
               />
             )}
             {incomeSubTab === "cashrec" && (
@@ -1380,13 +1377,18 @@ function App() {
               />
             )}
             {incomeSubTab === "penpulli" && (
-              <IncomeView
-                income={yearIncome.filter((d) => isIncomeConfirmed(d) && String(d.Category||"").trim().toLowerCase() === "pen pulli varavu")}
-                families={families} canEdit={canEdit} isAdmin={isAdmin}
-                onAdd={() => setShowForm("income_penpulli")}
-                onEdit={editIncome} onDelete={deleteIncome} showToast={showToast} lang={lang}
-                categories={["Pen Pulli Varavu"]} donorTypes={["Family","External"]} day1Date={day1Date}
-                fixedCategory="Pen Pulli Varavu"
+              <PulliVariView
+                families={families}
+                income={yearIncome}
+                category="Pen Pulli Varavu"
+                defaultAmount={Number((master["Pen Pulli Default"] || [])[0]) || Number((master["Pulli Vari Default"] || [])[0]) || 51}
+                onAdd={addIncome}
+                onConfirm={confirmIncome}
+                onDelete={deleteIncome}
+                isAdmin={isAdmin}
+                canEdit={canEdit}
+                day1Date={day1Date}
+                currentYear={currentYear}
               />
             )}
             {incomeSubTab === "cashdon" && (
@@ -1905,6 +1907,10 @@ function AddFYConfirmModal({ currentYear, families, loans, onConfirm, onClose })
           <strong>{famCount} × {formatCurrency(pulliDefault)}</strong>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed #e7e5e4" }}>
+          <span>👩 {t("catPenPulli", lang)}</span>
+          <strong>{famCount} × {formatCurrency(pulliDefault)}</strong>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed #e7e5e4" }}>
           <span>💰 {t("catCashReceivable", lang)}</span>
           <strong>{loanCount} × ~{formatCurrency(loanCount > 0 ? Math.round(cashRecTotal / loanCount) : 0)}</strong>
         </div>
@@ -1914,7 +1920,7 @@ function AddFYConfirmModal({ currentYear, families, loans, onConfirm, onClose })
         </div>
         <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #d6d3d1", display: "flex", justifyContent: "space-between", color: "#7c3aed" }}>
           <strong>{t("expectedTotal", lang)}</strong>
-          <strong>{formatCurrency(famCount * pulliDefault + cashRecTotal + intRecTotal)}</strong>
+          <strong>{formatCurrency(famCount * pulliDefault * 2 + cashRecTotal + intRecTotal)}</strong>
         </div>
       </div>
       <p style={{ fontSize: 11, color: "#78716c", marginBottom: 16, lineHeight: 1.4 }}>
@@ -2092,132 +2098,6 @@ function ReceivableView({ families, income, category, currentYear, onConfirm, on
           })}
         </div>
       )}
-    </div>
-  );
-}
-
-function PulliVariView({ families, income, category, defaultAmount, onAdd, onConfirm, onDelete, isAdmin, canEdit, day1Date, currentYear }) {
-  const lang = useLang();
-  const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
-  const [busy, setBusy] = useState(null);
-
-  const isConfirmed = (row) => !row.Status || row.Status === "Confirmed";
-
-  const rowByFamily = {};
-  (income || []).forEach((d) => {
-    if (String(d.Category || "").trim().toLowerCase() === String(category).trim().toLowerCase()) {
-      const fid = String(d.FamilyID || "").trim();
-      if (fid && !rowByFamily[fid]) {
-        rowByFamily[fid] = d;
-      }
-    }
-  });
-
-  const rows = (families || []).map((f) => {
-    const fid = String(f.FamilyID || "").trim();
-    const r = rowByFamily[fid];
-    const paid = !!r && isConfirmed(r);
-    const expected = !!r && !isConfirmed(r);
-    return {
-      id: fid,
-      name: f.FamilyName,
-      paid: paid,
-      expected: expected,
-      amount: r ? Number(r.Amount) || 0 : 0,
-      txnId: r ? r.TxnID : null,
-    };
-  }).sort((a, b) => {
-    const numA = parseInt(String(a.id).replace(/\D/g, "")) || 0;
-    const numB = parseInt(String(b.id).replace(/\D/g, "")) || 0;
-    return numA - numB;
-  });
-
-  const paidCount = rows.filter((r) => r.paid).length;
-  const totalCollected = rows.filter((r) => r.paid).reduce((s, r) => s + r.amount, 0);
-
-  const quickPay = async (fam) => {
-    if (busy) return;
-    setBusy(fam.id);
-    // If a pre-populated Expected row exists, confirm it (no new row created)
-    if (fam.expected && fam.txnId && onConfirm) {
-      await onConfirm(fam.txnId);
-    } else {
-      const dateToUse = day1Date || todayISO();
-      const autoDay = calcDay(dateToUse, day1Date) || "1";
-      await onAdd({
-        date: dateToUse, day: autoDay, year: String(currentYear),
-        donorType: "Family", familyId: fam.id, donorName: fam.name,
-        category: category, amount: String(defaultAmount), description: "",
-      });
-    }
-    setBusy(null);
-  };
-
-  const quickUnpay = async (fam) => {
-    if (busy || !fam.txnId) return;
-    setBusy(fam.id);
-    await onDelete(fam.txnId);
-    setBusy(null);
-  };
-
-  return (
-    <div style={styles.page}>
-      <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
-        <div style={{ flex: 1, background: "#f0fdf4", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#166534" }}>{paidCount}</div>
-          <div style={{ fontSize: 11, color: "#15803d" }}>✅ {lang === "ta" ? "செலுத்தியது" : "Paid"}</div>
-        </div>
-        <div style={{ flex: 1, background: "#fef2f2", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
-          <div style={{ fontSize: 22, fontWeight: 700, color: "#991b1b" }}>{rows.length - paidCount}</div>
-          <div style={{ fontSize: 11, color: "#dc2626" }}>❌ {lang === "ta" ? "செலுத்தவில்லை" : "Not Paid"}</div>
-        </div>
-        <div style={{ flex: 1, background: "#fef3c7", borderRadius: 10, padding: "10px 12px", textAlign: "center" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#92400e" }}>{fmt(totalCollected)}</div>
-          <div style={{ fontSize: 11, color: "#78716c" }}>{lang === "ta" ? "வசூல்" : "Collected"}</div>
-        </div>
-      </div>
-      <div style={{ fontSize: 12, color: "#78716c", marginBottom: 8 }}>
-        {lang === "ta" ? "இயல்பு தொகை" : "Default"}: <strong>{fmt(defaultAmount)}</strong> / {lang === "ta" ? "குடும்பம்" : "family"}
-      </div>
-      {rows.map((r) => (
-        <div key={r.id} style={{
-          display: "flex", justifyContent: "space-between", alignItems: "center",
-          background: r.paid ? "#f0fdf4" : (r.expected ? "#fffbeb" : "#fff"),
-          borderRadius: 10, padding: "10px 14px",
-          marginBottom: 6,
-          border: "1px solid " + (r.paid ? "#bbf7d0" : (r.expected ? "#fde68a" : "#e7e5e4")),
-          borderLeft: r.expected ? "4px solid #f59e0b" : (r.paid ? "4px solid #16a34a" : "1px solid #e7e5e4"),
-        }}>
-          <div>
-            <div style={{ fontWeight: 600, fontSize: 14 }}>{r.name}</div>
-            <div style={{ fontSize: 11, color: r.expected ? "#92400e" : "#a8a29e" }}>
-              {r.expected ? "⏳ " + t("statusExpected", lang) : r.id}
-            </div>
-          </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            {r.paid && <span style={{ fontSize: 13, fontWeight: 600, color: "#16a34a" }}>{fmt(r.amount)}</span>}
-            {r.expected && <span style={{ fontSize: 13, fontWeight: 600, color: "#92400e" }}>{fmt(r.amount)}</span>}
-            {canEdit && !r.paid && (
-              <button onClick={() => quickPay(r)} disabled={!!busy} style={{
-                background: r.expected ? "#f59e0b" : "#16a34a",
-                color: "#fff", border: "none", borderRadius: 8,
-                padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer",
-                opacity: busy === r.id ? 0.5 : 1,
-              }}>
-                {busy === r.id ? "⏳" : (r.expected ? "✓" : "✅ " + fmt(defaultAmount))}
-              </button>
-            )}
-            {r.paid && <span style={{ fontSize: 18, color: "#16a34a" }}>✅</span>}
-            {isAdmin && (r.paid || r.expected) && (
-              <button onClick={() => quickUnpay(r)} disabled={!!busy} style={{
-                background: "none", border: "1px solid #fecaca", borderRadius: 6,
-                padding: "3px 8px", fontSize: 11, cursor: "pointer", color: "#dc2626",
-                opacity: busy === r.id ? 0.5 : 1,
-              }}>{r.expected ? "🗑" : "↩"}</button>
-            )}
-          </div>
-        </div>
-      ))}
     </div>
   );
 }
