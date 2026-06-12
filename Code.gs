@@ -714,10 +714,13 @@ function handleSaveReconciliation(data, email) {
 // Creates a new Ledger row for max(year)+1 and pre-populates
 // Income rows for each family:
 //   - Pulli Vari (Amount = pulliDefault, Status = Expected)
-//   - Pen Pulli Varavu (Amount = penPulliDefault, Status = Expected)
 // And for each family with an outstanding loan from previous year:
 //   - Cash Receivable (Amount = LastYearReceivable + LoanAmount)
 //   - Interest Receivable (Amount = InterestAmount)
+//
+// Pen Pulli Varavu is intentionally NOT pre-populated: that sub-tab uses
+// the standard IncomeView (confirmed entries only), so any Expected rows
+// there would not be reachable.
 //
 // All rolled-over rows are marked Status="Expected" so they do NOT
 // inflate income totals until an admin confirms collection via the
@@ -756,9 +759,8 @@ function handleCreateFinancialYear(data, email) {
   // Ensure Status column exists on Income sheet
   ensureColumn(incomeSh, "Status");
 
-  // Default amounts (passed from frontend; falls back to 51)
+  // Default amount (passed from frontend; falls back to 51)
   var pulliDefault = Number(data.pulliDefault) || 51;
-  var penPulliDefault = Number(data.penPulliDefault) || 51;
 
   // Read families
   var families = readSheetRows(familiesSh);
@@ -776,14 +778,17 @@ function handleCreateFinancialYear(data, email) {
   var incomeHeaders = incomeSh.getRange(1, 1, 1, incomeSh.getLastColumn()).getValues()[0];
   var ts = now();
   var newRows = [];
-  var counts = { pulli: 0, penPulli: 0, cashRec: 0, intRec: 0, families: families.length };
+  var counts = { pulli: 0, cashRec: 0, intRec: 0, families: families.length };
 
   families.forEach(function(f) {
     var fid = String(f.FamilyID || "").trim();
     var fname = String(f.FamilyName || "").trim();
     if (!fid) return;
 
-    // Pulli Vari (men's membership) — Expected
+    // Pulli Vari (men's membership) — Expected.
+    // Pen Pulli Varavu is intentionally NOT pre-populated: that sub-tab shows
+    // confirmed entries only (per user preference), so Expected rows there
+    // would be unreachable.
     newRows.push(buildIncomeRow(incomeHeaders, {
       TxnID: generateId("DON"), Year: String(newYear), Day: "", Date: "",
       DonorType: "Family", FamilyID: fid, DonorName: fname,
@@ -791,15 +796,6 @@ function handleCreateFinancialYear(data, email) {
       EnteredBy: email, Timestamp: ts, Status: "Expected",
     }));
     counts.pulli++;
-
-    // Pen Pulli Varavu — Expected
-    newRows.push(buildIncomeRow(incomeHeaders, {
-      TxnID: generateId("DON"), Year: String(newYear), Day: "", Date: "",
-      DonorType: "Family", FamilyID: fid, DonorName: fname,
-      Category: "Pen Pulli Varavu", Amount: penPulliDefault, Description: "",
-      EnteredBy: email, Timestamp: ts, Status: "Expected",
-    }));
-    counts.penPulli++;
 
     // Cash Receivable + Interest Receivable from prev year loan
     var prevLoan = prevLoansByFamily[fid];
@@ -847,7 +843,6 @@ function handleCreateFinancialYear(data, email) {
     "FY " + newYear + " created from " + prevYear +
     " · Families: " + counts.families +
     " · PulliVari: " + counts.pulli +
-    " · PenPulli: " + counts.penPulli +
     " · CashRec: " + counts.cashRec +
     " · IntRec: " + counts.intRec, email);
 

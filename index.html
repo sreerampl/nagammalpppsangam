@@ -1046,11 +1046,9 @@ function App() {
     setBusy(true);
     try {
       const pulliDefault = Number((master["Pulli Vari Default"] || [])[0]) || 51;
-      const penPulliDefault = Number((master["Pen Pulli Default"] || [])[0]) || pulliDefault;
       const result = await backendRef.current.post("createFinancialYear", {
         prevYear: currentYear,
         pulliDefault: pulliDefault,
-        penPulliDefault: penPulliDefault,
       });
       // Refresh full data so new ledger row + income rows flow in
       const fresh = await backendRef.current.post("loadAll", {});
@@ -1382,18 +1380,13 @@ function App() {
               />
             )}
             {incomeSubTab === "penpulli" && (
-              <PulliVariView
-                families={families}
-                income={yearIncome}
-                category="Pen Pulli Varavu"
-                defaultAmount={Number((master["Pen Pulli Default"] || [])[0]) || Number((master["Pulli Vari Default"] || [])[0]) || 51}
-                onAdd={addIncome}
-                onConfirm={confirmIncome}
-                onDelete={deleteIncome}
-                isAdmin={isAdmin}
-                canEdit={canEdit}
-                day1Date={day1Date}
-                currentYear={currentYear}
+              <IncomeView
+                income={yearIncome.filter((d) => isIncomeConfirmed(d) && String(d.Category||"").trim().toLowerCase() === "pen pulli varavu")}
+                families={families} canEdit={canEdit} isAdmin={isAdmin}
+                onAdd={() => setShowForm("income_penpulli")}
+                onEdit={editIncome} onDelete={deleteIncome} showToast={showToast} lang={lang}
+                categories={["Pen Pulli Varavu"]} donorTypes={["Family","External"]} day1Date={day1Date}
+                fixedCategory="Pen Pulli Varavu"
               />
             )}
             {incomeSubTab === "cashdon" && (
@@ -1912,10 +1905,6 @@ function AddFYConfirmModal({ currentYear, families, loans, onConfirm, onClose })
           <strong>{famCount} × {formatCurrency(pulliDefault)}</strong>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed #e7e5e4" }}>
-          <span>👩 {t("catPenPulli", lang)}</span>
-          <strong>{famCount} × {formatCurrency(pulliDefault)}</strong>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed #e7e5e4" }}>
           <span>💰 {t("catCashReceivable", lang)}</span>
           <strong>{loanCount} × ~{formatCurrency(loanCount > 0 ? Math.round(cashRecTotal / loanCount) : 0)}</strong>
         </div>
@@ -1925,7 +1914,7 @@ function AddFYConfirmModal({ currentYear, families, loans, onConfirm, onClose })
         </div>
         <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #d6d3d1", display: "flex", justifyContent: "space-between", color: "#7c3aed" }}>
           <strong>{t("expectedTotal", lang)}</strong>
-          <strong>{formatCurrency(famCount * pulliDefault * 2 + cashRecTotal + intRecTotal)}</strong>
+          <strong>{formatCurrency(famCount * pulliDefault + cashRecTotal + intRecTotal)}</strong>
         </div>
       </div>
       <p style={{ fontSize: 11, color: "#78716c", marginBottom: 16, lineHeight: 1.4 }}>
