@@ -752,8 +752,9 @@ function handleCreateFinancialYear(data, email) {
     }
   }
 
-  // Ensure Status column exists on Income sheet
+  // Ensure Status column exists on Income sheet (flush so subsequent reads see it)
   ensureColumn(incomeSh, "Status");
+  SpreadsheetApp.flush();
 
   // Default amounts (passed from frontend; falls back to 51)
   var pulliDefault = Number(data.pulliDefault) || 51;
