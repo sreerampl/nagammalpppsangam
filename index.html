@@ -1333,13 +1333,18 @@ function App() {
               ))}
             </div>
             {incomeSubTab === "pulli" && (
-              <IncomeView
-                income={yearIncome.filter((d) => isIncomeConfirmed(d) && String(d.Category||"").trim().toLowerCase() === "pulli vari")}
-                families={families} canEdit={canEdit} isAdmin={isAdmin}
-                onAdd={() => setShowForm("income_pulli")}
-                onEdit={editIncome} onDelete={deleteIncome} showToast={showToast} lang={lang}
-                categories={["Pulli Vari"]} donorTypes={["Family","External"]} day1Date={day1Date}
-                fixedCategory="Pulli Vari"
+              <PulliVariView
+                families={families}
+                income={yearIncome}
+                category="Pulli Vari"
+                defaultAmount={Number((master["Pulli Vari Default"] || [])[0]) || 51}
+                onAdd={addIncome}
+                onConfirm={confirmIncome}
+                onDelete={deleteIncome}
+                isAdmin={isAdmin}
+                canEdit={canEdit}
+                day1Date={day1Date}
+                currentYear={currentYear}
               />
             )}
             {incomeSubTab === "cashrec" && (
@@ -2098,6 +2103,150 @@ function ReceivableView({ families, income, category, currentYear, onConfirm, on
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// PULLI VARI VIEW (family checklist for Pulli Vari & Pen Pulli)
+// ============================================================
+// Per-family list at a fixed default amount per family.
+// State per family:
+//   - Confirmed row exists → green "Paid" with revert button (admin)
+//   - Expected row exists  → amber "Expected" with ✓ Confirm button
+//   - No row exists        → green "✅ ₹51" Quick Pay button
+// Quick Pay confirms an Expected row if one exists, else creates
+// a new Confirmed row via onAdd.
+// ============================================================
+function PulliVariView({ families, income, category, defaultAmount, onAdd, onConfirm, onDelete, isAdmin, canEdit, day1Date, currentYear }) {
+  const lang = useLang();
+  const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
+  const [busy, setBusy] = useState(null);
+
+  const isConfirmed = (row) => !row.Status || row.Status === "Confirmed";
+
+  // One row per family for this category (latest wins if duplicates)
+  const rowByFamily = {};
+  (income || []).forEach((d) => {
+    if (String(d.Category || "").trim().toLowerCase() === String(category).trim().toLowerCase()) {
+      const fid = String(d.FamilyID || "").trim();
+      if (fid && !rowByFamily[fid]) rowByFamily[fid] = d;
+    }
+  });
+
+  const rows = (families || []).map((f) => {
+    const fid = String(f.FamilyID || "").trim();
+    const r = rowByFamily[fid];
+    const paid = !!r && isConfirmed(r);
+    const expected = !!r && !isConfirmed(r);
+    return {
+      id: fid,
+      name: f.FamilyName,
+      paid: paid,
+      expected: expected,
+      amount: r ? Number(r.Amount) || 0 : 0,
+      txnId: r ? r.TxnID : null,
+    };
+  }).sort((a, b) => {
+    const numA = parseInt(String(a.id).replace(/\D/g, "")) || 0;
+    const numB = parseInt(String(b.id).replace(/\D/g, "")) || 0;
+    return numA - numB;
+  });
+
+  const paidCount = rows.filter((r) => r.paid).length;
+  const notPaidCount = rows.length - paidCount;
+  const totalCollected = rows.filter((r) => r.paid).reduce((s, r) => s + r.amount, 0);
+
+  const quickPay = async (fam) => {
+    if (busy) return;
+    setBusy(fam.id);
+    // If a pre-populated Expected row exists, confirm it in place
+    if (fam.expected && fam.txnId && onConfirm) {
+      await onConfirm(fam.txnId);
+    } else {
+      const dateToUse = day1Date || todayISO();
+      const autoDay = calcDay(dateToUse, day1Date) || "1";
+      await onAdd({
+        date: dateToUse, day: autoDay, year: String(currentYear),
+        donorType: "Family", familyId: fam.id, donorName: fam.name,
+        category: category, amount: String(defaultAmount), description: "",
+      });
+    }
+    setBusy(null);
+  };
+
+  const quickUnpay = async (fam) => {
+    if (busy) return;
+    if (!fam.txnId) return;
+    setBusy(fam.id);
+    await onDelete(fam.txnId);
+    setBusy(null);
+  };
+
+  return (
+    <div style={styles.page}>
+      {/* Summary cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, padding: "8px 12px" }}>
+        <div style={{ background: "#dcfce7", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: "#166534" }}>{paidCount}</div>
+          <div style={{ fontSize: 11, color: "#166534" }}>✅ {lang === "ta" ? "செலுத்தியது" : "Paid"}</div>
+        </div>
+        <div style={{ background: "#fee2e2", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: "#991b1b" }}>{notPaidCount}</div>
+          <div style={{ fontSize: 11, color: "#991b1b" }}>❌ {lang === "ta" ? "செலுத்தவில்லை" : "Not Paid"}</div>
+        </div>
+        <div style={{ background: "#fef3c7", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+          <div style={{ fontSize: 20, fontWeight: 800, color: "#92400e" }}>{fmt(totalCollected)}</div>
+          <div style={{ fontSize: 11, color: "#92400e" }}>{lang === "ta" ? "வசூல்" : "Collected"}</div>
+        </div>
+      </div>
+
+      <div style={{ padding: "0 12px 4px", fontSize: 12, color: "#78716c" }}>
+        {lang === "ta" ? "இயல்புநிலை" : "Default"}: <strong>{fmt(defaultAmount)}</strong> / {lang === "ta" ? "குடும்பம்" : "family"}
+      </div>
+
+      {/* Per-family list */}
+      <div style={{ padding: "4px 8px" }}>
+        {rows.map((r) => (
+          <div key={r.id} style={{
+            display: "flex", justifyContent: "space-between", alignItems: "center",
+            background: r.paid ? "#f0fdf4" : (r.expected ? "#fffbeb" : "#fff"),
+            borderRadius: 10, padding: "10px 14px",
+            marginBottom: 6,
+            border: "1px solid " + (r.paid ? "#bbf7d0" : (r.expected ? "#fde68a" : "#e7e5e4")),
+            borderLeft: r.expected ? "4px solid #f59e0b" : (r.paid ? "4px solid #16a34a" : "1px solid #e7e5e4"),
+          }}>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{r.name}</div>
+              <div style={{ fontSize: 11, color: r.expected ? "#92400e" : "#a8a29e" }}>
+                {r.expected ? "⏳ " + t("statusExpected", lang) : r.id}
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              {r.paid && <span style={{ fontSize: 13, fontWeight: 600, color: "#16a34a" }}>{fmt(r.amount)}</span>}
+              {r.expected && <span style={{ fontSize: 13, fontWeight: 600, color: "#92400e" }}>{fmt(r.amount)}</span>}
+              {canEdit && !r.paid && (
+                <button onClick={() => quickPay(r)} disabled={!!busy} style={{
+                  background: r.expected ? "#f59e0b" : "#16a34a",
+                  color: "#fff", border: "none", borderRadius: 8,
+                  padding: "6px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer",
+                  opacity: busy === r.id ? 0.5 : 1,
+                }}>
+                  {busy === r.id ? "⏳" : (r.expected ? "✓" : "✅ " + fmt(defaultAmount))}
+                </button>
+              )}
+              {r.paid && <span style={{ fontSize: 18, color: "#16a34a" }}>✅</span>}
+              {isAdmin && (r.paid || r.expected) && (
+                <button onClick={() => quickUnpay(r)} disabled={!!busy} style={{
+                  background: "none", border: "1px solid #fecaca", borderRadius: 6,
+                  padding: "3px 8px", fontSize: 11, cursor: "pointer", color: "#dc2626",
+                  opacity: busy === r.id ? 0.5 : 1,
+                }}>{r.expected ? "🗑" : "↩"}</button>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
