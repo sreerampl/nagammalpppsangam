@@ -2,21 +2,16 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Nagammal PPP Sangam</title>
   <meta name="description" content="Nagammal PPP Sangam Mobile App" />
-  <meta name="theme-color" content="#7B1E26" />
+  <meta name="theme-color" content="#7c3aed" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <link rel="manifest" href="manifest.json" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🙏</text></svg>" />
   
-  <!-- Fonts: Noto Serif Tamil (display), Outfit (UI), Noto Sans Tamil (Tamil UI text) -->
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Tamil:wght@500;600;700&family=Outfit:wght@400;500;600;700&family=Noto+Sans+Tamil:wght@400;500;600;700&display=swap" rel="stylesheet" />
-
   <!-- Google Identity Services -->
   <script src="https://accounts.google.com/gsi/client" async defer></script>
   
@@ -36,17 +31,12 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
   
-
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    body { font-family: 'Outfit', 'Noto Sans Tamil', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #FBF6EC; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; margin: 0; background: #f5f3ff; }
     .toast { animation: slideIn 0.3s ease-out; }
-    /* Pulli kolam — gold thread through maroon dots (echoes Pulli Vari) */
-    .kolam {
-      height: 14px;
-      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='44' height='14' viewBox='0 0 44 14'%3E%3Cpath d='M0 7 Q11 1 22 7 T44 7' fill='none' stroke='%23C98A2D' stroke-width='1.3'/%3E%3Ccircle cx='11' cy='3.5' r='1.7' fill='%237B1E26'/%3E%3Ccircle cx='33' cy='10.5' r='1.7' fill='%237B1E26'/%3E%3C/svg%3E") repeat-x center;
-    }
-    @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
     @keyframes slideIn { from { transform: translateY(-100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
     @keyframes voicePulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); } 50% { box-shadow: 0 0 0 8px rgba(220, 38, 38, 0); } }
     .voice-listening { animation: voicePulse 1.2s infinite; }
@@ -184,8 +174,6 @@ const T = {
   saveFamily: { en: "Save Family", ta: "குடும்பம் சேமி" },
   noFamilies: { en: "No families found.", ta: "குடும்பங்கள் இல்லை." },
   searchFamilies: { en: "Search families...", ta: "குடும்பம் தேடு..." },
-  searchTxns: { en: "🔍 Search name, amount...", ta: "🔍 பெயர், தொகை தேடு..." },
-  noMatches: { en: "No matching entries.", ta: "பொருந்தும் பதிவுகள் இல்லை." },
   sameOrDiff: { en: "Same or different from phone", ta: "தொலைபேசி போல் அல்லது வேறு" },
   fullAddress: { en: "Full address", ta: "முழு முகவரி" },
 
@@ -592,7 +580,7 @@ function VoiceInput({ value, onChange, lang, compact }) {
           fontSize: 12,
           fontWeight: 600,
           background: listening ? "#dc2626" : "transparent",
-          color: listening ? "#fff" : "#7B1E26",
+          color: listening ? "#fff" : "#7c3aed",
           border: "1px solid " + (listening ? "#dc2626" : "#ddd6fe"),
           borderRadius: 6,
           cursor: "pointer",
@@ -642,8 +630,6 @@ function App() {
   const [showForm, setShowForm] = useState(null);
   const [toast, setToast] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [lastSync, setLastSync] = useState(null);
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [showAddFYModal, setShowAddFYModal] = useState(false);
 
@@ -748,55 +734,25 @@ function App() {
     }
   };
 
-  // Apply a loadAll result to all state slices (never mutates the result,
-  // so the same object can be safely cached and re-applied)
-  const applyData = (result) => {
-    setMaster(result.master || {});
-    setFamilies(result.families || []);
-    setIncome(result.income || []);
-    setExpenses(result.expenses || []);
-    setAuction(result.auction || []);
-    setAccessList(result.access || []);
-    if (result.auditLog) setAuditLog([...result.auditLog].reverse());
-    if (result.ledger) setLedger(result.ledger);
-    if (result.loans) setLoans(result.loans);
-    setRole(result.role || null);
-  };
-
-  const CACHE_KEY = "npps_cache_v1";
-
   const loadAllData = async (email) => {
-    // 1) Instant startup: hydrate from last cached snapshot (per email)
-    let hydrated = false;
     try {
-      const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || "null");
-      if (cached && cached.email === email && cached.result) {
-        applyData(cached.result);
-        setLastSync(cached.ts || null);
-        setLoading(false);
-        hydrated = true;
-      }
-    } catch (_) { /* corrupt cache — ignore */ }
-
-    // 2) Fetch fresh data in the background (or foreground on first run)
-    try {
-      if (!hydrated) setLoading(true);
-      setRefreshing(true);
+      setLoading(true);
       const api = backendRef.current;
       const result = await api.loadAll();
-      applyData(result);
-      const ts = Date.now();
-      setLastSync(ts);
-      try { localStorage.setItem(CACHE_KEY, JSON.stringify({ email, ts, result })); } catch (_) {}
+      setMaster(result.master || {});
+      setFamilies(result.families || []);
+      setIncome(result.income || []);
+      setExpenses(result.expenses || []);
+      setAuction(result.auction || []);
+      setAccessList(result.access || []);
+      if (result.auditLog) setAuditLog(result.auditLog.reverse());
+      if (result.ledger) setLedger(result.ledger);
+      if (result.loans) setLoans(result.loans);
+      setRole(result.role || null);
     } catch (e) {
-      if (hydrated) {
-        showToast("⚠️ " + (lang === "ta" ? "புதுப்பிக்க முடியவில்லை" : "Refresh failed") + ": " + e.message, "error");
-      } else {
-        setError("Failed to load data: " + e.message);
-      }
+      setError("Failed to load data: " + e.message);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   };
 
@@ -1098,7 +1054,7 @@ function App() {
     setBusy(true);
     try {
       const pulliDefault = Number((master["Pulli Vari Default"] || [])[0]) || 51;
-      const penPulliDefault = Number((master["Pen Pulli Default"] || [])[0]) || pulliDefault;
+      const penPulliDefault = Number((master["Pen Pulli Default"] || [])[0]) || 2;
       const result = await backendRef.current.post("createFinancialYear", {
         prevYear: currentYear,
         pulliDefault: pulliDefault,
@@ -1288,7 +1244,7 @@ function App() {
                       <option key={y} value={y} style={{ color: "#1a1a1a" }}>{y}</option>
                     ));
                   })()}
-                  {isAdmin && <option value="__add_fy__" style={{ color: "#7B1E26", fontWeight: 600 }}>{t("addFYYear", lang)}</option>}
+                  {isAdmin && <option value="__add_fy__" style={{ color: "#7c3aed", fontWeight: 600 }}>{t("addFYYear", lang)}</option>}
                 </select>
               </p>
             </div>
@@ -1306,13 +1262,6 @@ function App() {
               <span style={styles.rolePill}>{role}</span>
               <span style={styles.userName}>{user.name?.split(" ")[0]}</span>
             </div>
-            <button
-              onClick={() => { if (!refreshing) loadAllData(user.email); }}
-              style={{ ...styles.logoutBtn, opacity: refreshing ? 0.5 : 1 }}
-              title={lang === "ta" ? "புதுப்பி" : "Refresh"}
-            >
-              <span style={refreshing ? { display: "inline-block", animation: "spin 1s linear infinite" } : {}}>⟳</span>
-            </button>
             <button onClick={logout} style={styles.logoutBtn}>↗</button>
           </div>
         </div>
@@ -1320,14 +1269,14 @@ function App() {
       </header>
 
       {/* Live Date/Time Bar */}
-      <LiveClock lang={lang} lastSync={lastSync} refreshing={refreshing} />
+      <LiveClock lang={lang} />
 
       {/* Busy overlay */}
       {busy && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
           <div style={{ background: "#fff", borderRadius: 12, padding: "24px 32px", textAlign: "center", boxShadow: "0 4px 24px rgba(0,0,0,0.2)" }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>⏳</div>
-            <div style={{ fontWeight: 600, color: "#3A2320" }}>Processing...</div>
+            <div style={{ fontWeight: 600, color: "#292524" }}>Processing...</div>
           </div>
         </div>
       )}
@@ -1370,41 +1319,27 @@ function App() {
         {activeTab === "income" && (
           <div>
             {/* Sub-tab bar */}
-            {(() => {
-              const catCount = (name) => yearIncome.filter((d) => String(d.Category || "").trim().toLowerCase() === name).length;
-              const counts = {
-                pulli: catCount("pulli vari"),
-                penpulli: catCount("pen pulli varavu"),
-                cashrec: catCount("cash receivable"),
-                intrec: catCount("interest receivable"),
-                cashdon: catCount("cash donation"),
-                matdon: catCount("material donation"),
-              };
-              counts.general = yearIncome.length - counts.pulli - counts.penpulli - counts.cashrec - counts.intrec - counts.cashdon - counts.matdon;
-              return (
-                <div style={{ display: "flex", gap: 6, padding: "8px 12px", overflowX: "auto", background: "#FBF6EC", borderBottom: "1px solid #EBDDC3" }}>
-                  {[
-                    { id: "general", label: t("generalIncome", lang), icon: "💰" },
-                    { id: "pulli", label: t("pulliVari", lang), icon: "👨" },
-                    { id: "penpulli", label: t("penPulli", lang), icon: "👩" },
-                    { id: "cashrec", label: t("cashReceivableTab", lang), icon: "💵" },
-                    { id: "intrec", label: t("interestReceivableTab", lang), icon: "📈" },
-                    { id: "cashdon", label: t("nankodaiPanam", lang), icon: "💸" },
-                    { id: "matdon", label: t("nankodaiPorutkkal", lang), icon: "📦" },
-                  ].map((st) => (
-                    <button key={st.id} onClick={() => setIncomeSubTab(st.id)} style={{
-                      padding: "10px 14px", borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: "pointer",
-                      border: "none", whiteSpace: "nowrap",
-                      background: incomeSubTab === st.id ? "#7B1E26" : "#fff",
-                      color: incomeSubTab === st.id ? "#fff" : "#6B5A48",
-                      boxShadow: incomeSubTab === st.id ? "0 2px 4px rgba(0,0,0,0.15)" : "0 1px 2px rgba(0,0,0,0.05)",
-                    }}>
-                      {st.icon} {st.label}{counts[st.id] > 0 ? ` (${counts[st.id]})` : ""}
-                    </button>
-                  ))}
-                </div>
-              );
-            })()}
+            <div style={{ display: "flex", gap: 4, padding: "8px 12px", overflowX: "auto", background: "#fafaf9", borderBottom: "1px solid #e7e5e4" }}>
+              {[
+                { id: "general", label: t("generalIncome", lang), icon: "💰" },
+                { id: "pulli", label: t("pulliVari", lang), icon: "👨" },
+                { id: "penpulli", label: t("penPulli", lang), icon: "👩" },
+                { id: "cashrec", label: t("cashReceivableTab", lang), icon: "💵" },
+                { id: "intrec", label: t("interestReceivableTab", lang), icon: "📈" },
+                { id: "cashdon", label: t("nankodaiPanam", lang), icon: "💸" },
+                { id: "matdon", label: t("nankodaiPorutkkal", lang), icon: "📦" },
+              ].map((st) => (
+                <button key={st.id} onClick={() => setIncomeSubTab(st.id)} style={{
+                  padding: "6px 10px", borderRadius: 8, fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  border: "none", whiteSpace: "nowrap",
+                  background: incomeSubTab === st.id ? "#292524" : "#fff",
+                  color: incomeSubTab === st.id ? "#fff" : "#57534e",
+                  boxShadow: incomeSubTab === st.id ? "0 2px 4px rgba(0,0,0,0.15)" : "0 1px 2px rgba(0,0,0,0.05)",
+                }}>
+                  {st.icon} {st.label}
+                </button>
+              ))}
+            </div>
             {incomeSubTab === "pulli" && (
               <PulliVariView
                 key="pulli-vari"
@@ -1460,10 +1395,11 @@ function App() {
             {incomeSubTab === "penpulli" && (
               <IncomeView
                 key="pen-pulli"
-                income={yearIncome.filter((d) => isIncomeConfirmed(d) && String(d.Category||"").trim().toLowerCase() === "pen pulli varavu")}
+                income={yearIncome.filter((d) => String(d.Category||"").trim().toLowerCase() === "pen pulli varavu")}
                 families={families} canEdit={canEdit} isAdmin={isAdmin}
                 onAdd={() => setShowForm("income_penpulli")}
-                onEdit={editIncome} onDelete={deleteIncome} showToast={showToast} lang={lang}
+                onEdit={editIncome} onDelete={deleteIncome} onConfirm={confirmIncome} showExpected
+                showToast={showToast} lang={lang}
                 categories={["Pen Pulli Varavu"]} donorTypes={["Family","External"]} day1Date={day1Date}
                 fixedCategory="Pen Pulli Varavu"
               />
@@ -1569,6 +1505,7 @@ function App() {
           currentYear={currentYear}
           families={families}
           loans={loans}
+          income={income}
           onConfirm={async () => {
             setShowAddFYModal(false);
             await createFinancialYear();
@@ -1641,8 +1578,8 @@ function App() {
             onClick={() => { setActiveTab(tab.id); setShowMoreMenu(false); }}
             style={{
               ...styles.navBtn,
-              color: activeTab === tab.id ? "#7B1E26" : "#8A7568",
-              borderTop: activeTab === tab.id ? "3px solid #C98A2D" : "3px solid transparent",
+              color: activeTab === tab.id ? "#b45309" : "#78716c",
+              borderTop: activeTab === tab.id ? "3px solid #b45309" : "3px solid transparent",
             }}
           >
             <span style={{ fontSize: 20 }}>{tab.icon}</span>
@@ -1656,8 +1593,8 @@ function App() {
             onClick={() => setShowMoreMenu(!showMoreMenu)}
             style={{
               ...styles.navBtn,
-              color: ["families", "reports", "auditlog"].includes(activeTab) ? "#7B1E26" : "#8A7568",
-              borderTop: ["families", "reports", "auditlog"].includes(activeTab) ? "3px solid #C98A2D" : "3px solid transparent",
+              color: ["families", "reports", "auditlog"].includes(activeTab) ? "#b45309" : "#78716c",
+              borderTop: ["families", "reports", "auditlog"].includes(activeTab) ? "3px solid #b45309" : "3px solid transparent",
             }}
           >
             <span style={{ fontSize: 20 }}>⋯</span>
@@ -1668,7 +1605,7 @@ function App() {
             <div onClick={() => setShowMoreMenu(false)} style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, zIndex: 199 }} />
             <div style={{
               position: "absolute", bottom: "100%", right: 0, background: "#fff",
-              borderRadius: 12, boxShadow: "0 -4px 20px rgba(0,0,0,0.15)", border: "1px solid #EBDDC3",
+              borderRadius: 12, boxShadow: "0 -4px 20px rgba(0,0,0,0.15)", border: "1px solid #e7e5e4",
               padding: 8, minWidth: 160, zIndex: 200,
             }}>
               {[
@@ -1682,8 +1619,8 @@ function App() {
                   style={{
                     display: "flex", alignItems: "center", gap: 10, width: "100%",
                     padding: "10px 12px", border: "none", borderRadius: 8, cursor: "pointer",
-                    background: activeTab === tab.id ? "#F8ECD4" : "transparent",
-                    color: activeTab === tab.id ? "#8C5A10" : "#3A2320",
+                    background: activeTab === tab.id ? "#fef3c7" : "transparent",
+                    color: activeTab === tab.id ? "#b45309" : "#292524",
                     fontSize: 14, fontWeight: 600, textAlign: "left",
                   }}
                 >
@@ -1711,14 +1648,14 @@ function LoadingScreen() {
   return (
     <div style={styles.centerScreen}>
       <div style={styles.spinner} />
-      <p style={{ color: "#86735F", marginTop: 16, fontFamily: "'Noto Serif Tamil', serif" }}>
+      <p style={{ color: "#78716c", marginTop: 16, fontFamily: "'Cormorant Garamond', serif" }}>
         {t("loading", lang)}
       </p>
     </div>
   );
 }
 
-function LiveClock({ lang, lastSync, refreshing }) {
+function LiveClock({ lang }) {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const id = setInterval(() => setTime(new Date()), 1000);
@@ -1727,19 +1664,10 @@ function LiveClock({ lang, lastSync, refreshing }) {
   const opts = { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' };
   const dateStr = time.toLocaleDateString(lang === 'ta' ? 'ta-IN' : 'en-IN', opts);
   const timeStr = time.toLocaleTimeString(lang === 'ta' ? 'ta-IN' : 'en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  // Data freshness chip
-  let syncStr = null;
-  if (refreshing) {
-    syncStr = "🔄 " + (lang === 'ta' ? "புதுப்பிக்கிறது…" : "Refreshing…");
-  } else if (lastSync) {
-    const mins = Math.floor((time.getTime() - lastSync) / 60000);
-    syncStr = "⟳ " + (mins < 1 ? (lang === 'ta' ? "இப்போது" : "now") : mins + (lang === 'ta' ? " நிமி." : "m"));
-  }
   return (
-    <div style={{ background: '#FBF3E0', borderBottom: '1px solid #ECD9AC', padding: '6px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, fontSize: 13, color: '#7A4E12', fontWeight: 500 }}>
+    <div style={{ background: '#fefce8', borderBottom: '1px solid #fde68a', padding: '6px 16px', display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 12, fontSize: 13, color: '#92400e', fontWeight: 500 }}>
       <span>📅 {dateStr}</span>
       <span>🕐 {timeStr}</span>
-      {syncStr && <span style={{ fontSize: 11, background: '#F8ECD4', border: '1px solid #ECD9AC', borderRadius: 10, padding: '1px 8px' }}>{syncStr}</span>}
     </div>
   );
 }
@@ -1775,13 +1703,13 @@ function LoginScreen({ lang, setLang }) {
         {/* Language toggle on login */}
         <button
           onClick={() => setLang(lang === "en" ? "ta" : "en")}
-          style={{ ...styles.langToggle, position: "absolute", top: 16, right: 16, background: "#7B1E26", color: "#fff" }}
+          style={{ ...styles.langToggle, position: "absolute", top: 16, right: 16, background: "#292524", color: "#fff" }}
         >
           {lang === "en" ? "தமிழ்" : "ENG"}
         </button>
         <div style={{ fontSize: 64, marginBottom: 8 }}>🪔</div>
         <h1 style={styles.loginTitle}>Nagammal PPP Sangam</h1>
-        <div className="kolam" style={{ margin: "18px 0" }} />
+        <div style={styles.loginDivider} />
         <div style={{ marginTop: 24 }}>
             <div id="g-signin-btn" style={{ display: "flex", justifyContent: "center", minHeight: 44 }} />
           </div>
@@ -1812,10 +1740,10 @@ function NoAccessScreen({ email, onLogout, error }) {
     <div style={styles.centerScreen}>
       <div style={{ textAlign: "center", padding: 32 }}>
         <div style={{ fontSize: 48 }}>🔒</div>
-        <h2 style={{ fontFamily: "'Noto Serif Tamil', serif", color: "#3A2320", marginTop: 16 }}>
+        <h2 style={{ fontFamily: "'Cormorant Garamond', serif", color: "#292524", marginTop: 16 }}>
           {t("accessPending", lang)}
         </h2>
-        <p style={{ color: "#86735F", marginTop: 8, maxWidth: 300 }}>
+        <p style={{ color: "#78716c", marginTop: 8, maxWidth: 300 }}>
           <strong>{email}</strong> {t("noAccess", lang)}
         </p>
         {error && <p style={{ color: "#dc2626", marginTop: 8, fontSize: 13 }}>{error}</p>}
@@ -1825,7 +1753,7 @@ function NoAccessScreen({ email, onLogout, error }) {
         <button onClick={runDebug} style={{ ...styles.btnSecondary, marginTop: 12, fontSize: 12 }}>
           🔍 Debug Access
         </button>
-        {debugInfo && <pre style={{ textAlign: "left", fontSize: 11, marginTop: 12, padding: 12, background: "#F3EBDB", borderRadius: 8, maxWidth: 400, overflow: "auto", maxHeight: 200 }}>{debugInfo}</pre>}
+        {debugInfo && <pre style={{ textAlign: "left", fontSize: 11, marginTop: 12, padding: 12, background: "#f5f5f4", borderRadius: 8, maxWidth: 400, overflow: "auto", maxHeight: 200 }}>{debugInfo}</pre>}
       </div>
     </div>
   );
@@ -1842,18 +1770,17 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
 
   return (
     <div style={styles.page}>
-      <h2 style={{ ...styles.pageTitle, marginBottom: 6 }}>{t("dashboard", lang)}</h2>
-      <div className="kolam" style={{ marginBottom: 14 }} />
+      <h2 style={styles.pageTitle}>{t("dashboard", lang)}</h2>
 
       {/* Summary Cards — Admin only */}
       {isAdmin && (
       <div style={styles.cardGrid}>
-        <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #1F5B40, #2E7D54)" }}>
+        <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #065f46, #059669)" }}>
           <p style={styles.cardLabel}>{t("totalIncome", lang)}</p>
           <p style={styles.cardValue}>{formatCurrency(totalIncome + totalAuction)}</p>
           <p style={styles.cardCount}>{income.length} + {confirmedAuctions} {t("entries", lang)}</p>
         </div>
-        <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #7A1F12, #B0402C)" }}>
+        <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #991b1b, #dc2626)" }}>
           <p style={styles.cardLabel}>{t("totalExpenses", lang)}</p>
           <p style={styles.cardValue}>{formatCurrency(totalExpenses)}</p>
           <p style={styles.cardCount}>{expenses.length} {t("entries", lang)}</p>
@@ -1861,14 +1788,14 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
         <div style={{
           ...styles.summaryCard,
           background: balance >= 0
-            ? "linear-gradient(135deg, #4A0E13, #7B1E26)"
+            ? "linear-gradient(135deg, #1e3a5f, #2563eb)"
             : "linear-gradient(135deg, #7f1d1d, #991b1b)",
         }}>
           <p style={styles.cardLabel}>{t("netBalance", lang)}</p>
           <p style={styles.cardValue}>{formatCurrency(balance)}</p>
           <p style={styles.cardCount}>{balance >= 0 ? t("surplus", lang) : t("deficit", lang)}</p>
         </div>
-        <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #8C5A10, #C98A2D)" }}>
+        <div style={{ ...styles.summaryCard, background: "linear-gradient(135deg, #92400e, #b45309)" }}>
           <p style={styles.cardLabel}>{t("auctionIncome", lang)}</p>
           <p style={styles.cardValue}>{formatCurrency(totalAuction)}</p>
           <p style={styles.cardCount}>{confirmedAuctions}/{auction.length} {t("confirmed", lang)}</p>
@@ -1913,7 +1840,7 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
                 <span style={{ color: "#dc2626" }}>↑ {t("outflow", lang)}</span>
                 <span style={{ fontWeight: 700 }}>{formatCurrency(dayExpTotal)}</span>
               </div>
-              <div style={{ ...styles.dayRow, borderTop: "1px solid #EBDDC3", paddingTop: 8, marginTop: 4 }}>
+              <div style={{ ...styles.dayRow, borderTop: "1px solid #e7e5e4", paddingTop: 8, marginTop: 4 }}>
                 <span style={{ fontWeight: 600 }}>{t("net", lang)}</span>
                 <span style={{ fontWeight: 700, color: dayDonTotal - dayExpTotal >= 0 ? "#059669" : "#dc2626" }}>
                   {formatCurrency(dayDonTotal - dayExpTotal)}
@@ -1971,7 +1898,7 @@ function Dashboard({ totalIncome, totalExpenses, totalAuction, balance, income, 
 // Admin-only modal that confirms creation of next financial year.
 // Shows a preview of what will be carried over before commit.
 // ============================================================
-function AddFYConfirmModal({ currentYear, families, loans, onConfirm, onClose }) {
+function AddFYConfirmModal({ currentYear, families, loans, income, onConfirm, onClose }) {
   const lang = useLang();
   const [submitting, setSubmitting] = useState(false);
   const newYear = currentYear + 1;
@@ -1982,39 +1909,50 @@ function AddFYConfirmModal({ currentYear, families, loans, onConfirm, onClose })
     s + (Number(l.LastYearReceivable) || 0) + (Number(l.LoanAmount) || 0), 0);
   const intRecTotal = loansThisYear.reduce((s, l) => s + (Number(l.InterestAmount) || 0), 0);
   const pulliDefault = 51;
+  // Distinct Pen Pulli Varavu donors from the current year (carried forward)
+  const penPulliDefault = 2;
+  const penPulliDonorSet = {};
+  (income || []).forEach((d) => {
+    if (String(d.Year) === String(currentYear) &&
+        String(d.Category || "").trim().toLowerCase() === "pen pulli varavu") {
+      const n = String(d.DonorName || "").trim().toLowerCase();
+      if (n) penPulliDonorSet[n] = true;
+    }
+  });
+  const penPulliCount = Object.keys(penPulliDonorSet).length;
 
   return (
     <Modal title={t("rolloverTitle", lang)} onClose={onClose}>
-      <p style={{ fontSize: 13, color: "#3A2320", marginBottom: 12 }}>
-        {t("rolloverConfirm", lang)} <strong style={{ color: "#7B1E26" }}>{newYear}</strong>
+      <p style={{ fontSize: 13, color: "#292524", marginBottom: 12 }}>
+        {t("rolloverConfirm", lang)} <strong style={{ color: "#7c3aed" }}>{newYear}</strong>
       </p>
-      <div style={{ background: "#FBF6EC", border: "1px solid #EBDDC3", borderRadius: 8, padding: 12, fontSize: 12, marginBottom: 12 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed #EBDDC3" }}>
+      <div style={{ background: "#fafaf9", border: "1px solid #e7e5e4", borderRadius: 8, padding: 12, fontSize: 12, marginBottom: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed #e7e5e4" }}>
           <span>👨 {t("catPulliVari", lang)}</span>
           <strong>{famCount} × {formatCurrency(pulliDefault)}</strong>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed #EBDDC3" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed #e7e5e4" }}>
           <span>👩 {t("catPenPulli", lang)}</span>
-          <strong>{famCount} × {formatCurrency(pulliDefault)}</strong>
+          <strong>{penPulliCount} × {formatCurrency(penPulliDefault)}</strong>
         </div>
-        <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed #EBDDC3" }}>
-          <span>💰 {t("catCashReceivable", lang)}</span>
-          <strong>{loanCount} × ~{formatCurrency(loanCount > 0 ? Math.round(cashRecTotal / loanCount) : 0)}</strong>
+        <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0", borderBottom: "1px dashed #e7e5e4" }}>
+          <span>💰 {t("catCashReceivable", lang)} ({loanCount})</span>
+          <strong>{formatCurrency(cashRecTotal)}</strong>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", padding: "4px 0" }}>
-          <span>📈 {t("catInterestReceivable", lang)}</span>
-          <strong>{loanCount} × ~{formatCurrency(loanCount > 0 ? Math.round(intRecTotal / loanCount) : 0)}</strong>
+          <span>📈 {t("catInterestReceivable", lang)} ({loanCount})</span>
+          <strong>{formatCurrency(intRecTotal)}</strong>
         </div>
-        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #D9C49C", display: "flex", justifyContent: "space-between", color: "#7B1E26" }}>
+        <div style={{ marginTop: 8, paddingTop: 8, borderTop: "1px solid #d6d3d1", display: "flex", justifyContent: "space-between", color: "#7c3aed" }}>
           <strong>{t("expectedTotal", lang)}</strong>
-          <strong>{formatCurrency(famCount * pulliDefault * 2 + cashRecTotal + intRecTotal)}</strong>
+          <strong>{formatCurrency(famCount * pulliDefault + penPulliCount * penPulliDefault + cashRecTotal + intRecTotal)}</strong>
         </div>
       </div>
-      <p style={{ fontSize: 11, color: "#86735F", marginBottom: 16, lineHeight: 1.4 }}>
+      <p style={{ fontSize: 11, color: "#78716c", marginBottom: 16, lineHeight: 1.4 }}>
         💡 {t("rolloverDetail", lang)}
       </p>
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={onClose} disabled={submitting} style={{ ...styles.btnPrimary, flex: 1, background: "#A89377" }}>
+        <button onClick={onClose} disabled={submitting} style={{ ...styles.btnPrimary, flex: 1, background: "#a8a29e" }}>
           {t("cancel", lang)}
         </button>
         <button
@@ -2024,7 +1962,7 @@ function AddFYConfirmModal({ currentYear, families, loans, onConfirm, onClose })
             await onConfirm();
           }}
           disabled={submitting}
-          style={{ ...styles.btnPrimary, flex: 1, background: "#7B1E26", opacity: submitting ? 0.6 : 1 }}
+          style={{ ...styles.btnPrimary, flex: 1, background: "#7c3aed", opacity: submitting ? 0.6 : 1 }}
         >
           {submitting ? "⏳ " + (lang === "ta" ? "உருவாக்கப்படுகிறது..." : "Creating...") : "✨ " + t("rolloverProceed", lang) + " " + newYear}
         </button>
@@ -2095,16 +2033,16 @@ function ReceivableView({ families, income, category, currentYear, onConfirm, on
   return (
     <div style={styles.page}>
       {/* Summary header */}
-      <div style={{ display: "flex", gap: 8, padding: "8px 12px", background: "#FBF6EC", borderBottom: "1px solid #EBDDC3" }}>
-        <div style={{ flex: 1, padding: 10, background: "#F8ECD4", borderRadius: 8, fontSize: 12 }}>
-          <div style={{ color: "#7A4E12", fontWeight: 600 }}>⏳ {t("expectedTotal", lang)}</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#7A4E12", marginTop: 2 }}>{fmt(expectedTotal)}</div>
-          <div style={{ fontSize: 10, color: "#86735F" }}>{expectedRows.length} {lang === "ta" ? "பாக்கி" : "pending"}</div>
+      <div style={{ display: "flex", gap: 8, padding: "8px 12px", background: "#fafaf9", borderBottom: "1px solid #e7e5e4" }}>
+        <div style={{ flex: 1, padding: 10, background: "#fef3c7", borderRadius: 8, fontSize: 12 }}>
+          <div style={{ color: "#92400e", fontWeight: 600 }}>⏳ {t("expectedTotal", lang)}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#92400e", marginTop: 2 }}>{fmt(expectedTotal)}</div>
+          <div style={{ fontSize: 10, color: "#78716c" }}>{expectedRows.length} {lang === "ta" ? "பாக்கி" : "pending"}</div>
         </div>
         <div style={{ flex: 1, padding: 10, background: "#d1fae5", borderRadius: 8, fontSize: 12 }}>
-          <div style={{ color: "#1F5B40", fontWeight: 600 }}>✓ {t("collectedTotal", lang)}</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#1F5B40", marginTop: 2 }}>{fmt(collectedTotal)}</div>
-          <div style={{ fontSize: 10, color: "#86735F" }}>{confirmedRows.length} {lang === "ta" ? "வசூல்" : "collected"}</div>
+          <div style={{ color: "#065f46", fontWeight: 600 }}>✓ {t("collectedTotal", lang)}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#065f46", marginTop: 2 }}>{fmt(collectedTotal)}</div>
+          <div style={{ fontSize: 10, color: "#78716c" }}>{confirmedRows.length} {lang === "ta" ? "வசூல்" : "collected"}</div>
         </div>
       </div>
 
@@ -2123,23 +2061,23 @@ function ReceivableView({ families, income, category, currentYear, onConfirm, on
                 padding: "10px 12px",
                 marginBottom: 6,
                 background: "#fff",
-                border: "1px solid " + (expected ? "#ECD9AC" : "#a7f3d0"),
+                border: "1px solid " + (expected ? "#fde68a" : "#a7f3d0"),
                 borderRadius: 8,
                 borderLeft: "4px solid " + (expected ? "#f59e0b" : "#10b981"),
               }}>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 600, color: "#3A2320" }}>{r.name}</div>
-                  <div style={{ fontSize: 11, color: "#86735F", marginTop: 2 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#292524" }}>{r.name}</div>
+                  <div style={{ fontSize: 11, color: "#78716c", marginTop: 2 }}>
                     {expected ? (
-                      <span style={{ color: "#7A4E12" }}>⏳ {t("statusExpected", lang)}</span>
+                      <span style={{ color: "#92400e" }}>⏳ {t("statusExpected", lang)}</span>
                     ) : (
-                      <span style={{ color: "#1F5B40" }}>✓ {t("statusConfirmed", lang)}</span>
+                      <span style={{ color: "#065f46" }}>✓ {t("statusConfirmed", lang)}</span>
                     )}
                     {r.row.Date && <span style={{ marginLeft: 6 }}>· {r.row.Date}</span>}
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8 }}>
-                  <strong style={{ fontSize: 14, fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif", color: "#3A2320" }}>{fmt(r.row.Amount)}</strong>
+                  <strong style={{ fontSize: 14, fontFamily: "'Outfit', sans-serif", color: "#292524" }}>{fmt(r.row.Amount)}</strong>
                   {expected && canEdit && (
                     <button
                       onClick={() => doConfirm(r)}
@@ -2204,11 +2142,6 @@ function PulliVariView({ families, income, category, defaultAmount, onAdd, onCon
   const lang = useLang();
   const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
   const [busy, setBusy] = useState(null);
-  const [payFilter, setPayFilter] = useState("all"); // all | paid | expected | unpaid
-  const [search, setSearch] = useState("");
-  const [undoInfo, setUndoInfo] = useState(null); // { id, name } — only for fresh (non-Expected) payments
-  const undoTimer = useRef(null);
-  useEffect(() => () => { if (undoTimer.current) clearTimeout(undoTimer.current); }, []);
 
   const isConfirmed = (row) => !row.Status || row.Status === "Confirmed";
 
@@ -2250,9 +2183,8 @@ function PulliVariView({ families, income, category, defaultAmount, onAdd, onCon
   const quickPay = async (fam) => {
     if (busy) return;
     setBusy(fam.id);
-    const wasConfirmInPlace = !!(fam.expected && fam.txnId && onConfirm);
     // If a pre-populated Expected row exists, confirm it in place
-    if (wasConfirmInPlace) {
+    if (fam.expected && fam.txnId && onConfirm) {
       await onConfirm(fam.txnId);
     } else {
       const dateToUse = day1Date || todayISO();
@@ -2262,25 +2194,8 @@ function PulliVariView({ families, income, category, defaultAmount, onAdd, onCon
         donorType: "Family", familyId: fam.id, donorName: fam.name,
         category: category, amount: String(defaultAmount), description: "",
       });
-      // 10-second undo window — only for freshly added rows (deleting a
-      // confirmed Expected row would remove the pre-populated entry)
-      if (undoTimer.current) clearTimeout(undoTimer.current);
-      setUndoInfo({ id: fam.id, name: fam.name });
-      undoTimer.current = setTimeout(() => setUndoInfo(null), 10000);
     }
     setBusy(null);
-  };
-
-  const doUndo = async () => {
-    if (!undoInfo || busy) return;
-    const row = rows.find((r) => r.id === undoInfo.id);
-    setUndoInfo(null);
-    if (undoTimer.current) clearTimeout(undoTimer.current);
-    if (row && row.txnId) {
-      setBusy(row.id);
-      await onDelete(row.txnId);
-      setBusy(null);
-    }
   };
 
   const quickUnpay = async (fam) => {
@@ -2299,9 +2214,9 @@ function PulliVariView({ families, income, category, defaultAmount, onAdd, onCon
           <div style={{ fontSize: 18, fontWeight: 800, color: "#166534" }}>{paidCount}</div>
           <div style={{ fontSize: 10, color: "#166534" }}>✅ {lang === "ta" ? "செலுத்தியது" : "Paid"}</div>
         </div>
-        <div style={{ background: "#F8ECD4", borderRadius: 10, padding: "8px 4px", textAlign: "center" }}>
-          <div style={{ fontSize: 18, fontWeight: 800, color: "#7A4E12" }}>{expectedCount}</div>
-          <div style={{ fontSize: 10, color: "#7A4E12" }}>⏳ {t("statusExpected", lang)}</div>
+        <div style={{ background: "#fef3c7", borderRadius: 10, padding: "8px 4px", textAlign: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#92400e" }}>{expectedCount}</div>
+          <div style={{ fontSize: 10, color: "#92400e" }}>⏳ {t("statusExpected", lang)}</div>
         </div>
         <div style={{ background: "#fee2e2", borderRadius: 10, padding: "8px 4px", textAlign: "center" }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: "#991b1b" }}>{noRowCount}</div>
@@ -2313,73 +2228,30 @@ function PulliVariView({ families, income, category, defaultAmount, onAdd, onCon
         </div>
       </div>
 
-      {/* Progress bar */}
-      <div style={{ padding: "4px 12px 0" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 600, color: "#6B5A48", marginBottom: 4 }}>
-          <span>{paidCount} / {rows.length} {lang === "ta" ? "குடும்பங்கள்" : "families"}</span>
-          <span>{rows.length > 0 ? Math.round((paidCount / rows.length) * 100) : 0}%</span>
-        </div>
-        <div style={{ height: 8, background: "#EBDDC3", borderRadius: 4, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: (rows.length > 0 ? (paidCount / rows.length) * 100 : 0) + "%", background: "linear-gradient(90deg, #16a34a, #22c55e)", borderRadius: 4, transition: "width 0.4s ease" }} />
-        </div>
-      </div>
-
-      {/* Status filter + search */}
-      <div style={{ display: "flex", gap: 6, padding: "10px 12px 0" }}>
-        {[
-          { id: "all", label: lang === "ta" ? "அனைத்தும்" : "All" },
-          { id: "unpaid", label: "❌ " + (rows.length - paidCount - expectedCount) },
-          { id: "expected", label: "⏳ " + expectedCount },
-          { id: "paid", label: "✅ " + paidCount },
-        ].map((f) => (
-          <button key={f.id} onClick={() => setPayFilter(f.id)} style={{
-            flex: 1, padding: "8px 6px", borderRadius: 8, border: "none", cursor: "pointer",
-            fontSize: 12, fontWeight: 700, whiteSpace: "nowrap",
-            background: payFilter === f.id ? "#7B1E26" : "#F3EBDB",
-            color: payFilter === f.id ? "#fff" : "#6B5A48",
-          }}>{f.label}</button>
-        ))}
-      </div>
-      <div style={{ padding: "8px 12px 0" }}>
-        <input
-          placeholder={t("searchFamilies", lang)}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ ...styles.input, marginBottom: 0 }}
-        />
-      </div>
-
-      <div style={{ padding: "8px 12px 4px", fontSize: 12, color: "#86735F" }}>
+      <div style={{ padding: "0 12px 4px", fontSize: 12, color: "#78716c" }}>
         {lang === "ta" ? "இயல்புநிலை" : "Default"}: <strong>{fmt(defaultAmount)}</strong> / {lang === "ta" ? "குடும்பம்" : "family"}
       </div>
 
       {/* Per-family list */}
       <div style={{ padding: "4px 8px" }}>
-        {rows.filter((r) => {
-          if (payFilter === "paid" && !r.paid) return false;
-          if (payFilter === "expected" && !r.expected) return false;
-          if (payFilter === "unpaid" && (r.paid || r.expected)) return false;
-          const q = search.trim().toLowerCase();
-          if (q && !String(r.name || "").toLowerCase().includes(q) && !String(r.id || "").toLowerCase().includes(q)) return false;
-          return true;
-        }).map((r) => (
+        {rows.map((r) => (
           <div key={r.id} style={{
             display: "flex", justifyContent: "space-between", alignItems: "center",
             background: r.paid ? "#f0fdf4" : (r.expected ? "#fffbeb" : "#fff"),
             borderRadius: 10, padding: "10px 14px",
             marginBottom: 6,
-            border: "1px solid " + (r.paid ? "#bbf7d0" : (r.expected ? "#ECD9AC" : "#EBDDC3")),
-            borderLeft: r.expected ? "4px solid #f59e0b" : (r.paid ? "4px solid #16a34a" : "1px solid #EBDDC3"),
+            border: "1px solid " + (r.paid ? "#bbf7d0" : (r.expected ? "#fde68a" : "#e7e5e4")),
+            borderLeft: r.expected ? "4px solid #f59e0b" : (r.paid ? "4px solid #16a34a" : "1px solid #e7e5e4"),
           }}>
             <div>
               <div style={{ fontWeight: 600, fontSize: 14 }}>{r.name}</div>
-              <div style={{ fontSize: 11, color: r.expected ? "#7A4E12" : "#A89377" }}>
+              <div style={{ fontSize: 11, color: r.expected ? "#92400e" : "#a8a29e" }}>
                 {r.expected ? "⏳ " + t("statusExpected", lang) : r.id}
               </div>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               {r.paid && <span style={{ fontSize: 13, fontWeight: 600, color: "#16a34a" }}>{fmt(r.amount)}</span>}
-              {r.expected && <span style={{ fontSize: 13, fontWeight: 600, color: "#7A4E12" }}>{fmt(r.amount)}</span>}
+              {r.expected && <span style={{ fontSize: 13, fontWeight: 600, color: "#92400e" }}>{fmt(r.amount)}</span>}
               {canEdit && !r.paid && (
                 <button onClick={() => quickPay(r)} disabled={!!busy} style={{
                   background: r.expected ? "#f59e0b" : "#16a34a",
@@ -2402,22 +2274,6 @@ function PulliVariView({ families, income, category, defaultAmount, onAdd, onCon
           </div>
         ))}
       </div>
-
-      {/* Undo bar — 10s window after a fresh quick-pay, available to whoever tapped */}
-      {undoInfo && (
-        <div style={{
-          position: "fixed", bottom: 96, left: "50%", transform: "translateX(-50%)",
-          background: "#7B1E26", color: "#fff", borderRadius: 24, padding: "10px 18px",
-          display: "flex", alignItems: "center", gap: 12, zIndex: 300,
-          boxShadow: "0 4px 20px rgba(0,0,0,0.3)", fontSize: 13, whiteSpace: "nowrap", maxWidth: "90vw",
-        }}>
-          <span style={{ overflow: "hidden", textOverflow: "ellipsis" }}>✅ {undoInfo.name} · {fmt(defaultAmount)}</span>
-          <button onClick={doUndo} style={{
-            background: "#fbbf24", color: "#3A2320", border: "none", borderRadius: 16,
-            padding: "5px 14px", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0,
-          }}>↩ {lang === "ta" ? "மீளமை" : "Undo"}</button>
-        </div>
-      )}
     </div>
   );
 }
@@ -2425,31 +2281,16 @@ function PulliVariView({ families, income, category, defaultAmount, onAdd, onCon
 // ============================================================
 // INCOME VIEW
 // ============================================================
-function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelete, showToast, lang: propLang, categories, donorTypes, day1Date, fixedCategory }) {
+function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelete, onConfirm, showExpected, showToast, lang: propLang, categories, donorTypes, day1Date, fixedCategory }) {
   const lang = useLang();
   const [editingItem, setEditingItem] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [confirming, setConfirming] = useState(null);
+
+  const isExpected = (d) => d.Status === "Expected";
 
   const [filter, setFilter] = useState("All");
-  const [search, setSearch] = useState("");
-  const catFiltered = filter === "All" ? income : income.filter((d) => d.Category === filter);
-  const q = search.trim().toLowerCase();
-  const filtered = q
-    ? catFiltered.filter((d) =>
-        String(d.DonorName || "").toLowerCase().includes(q) ||
-        String(d.Description || "").toLowerCase().includes(q) ||
-        String(d.FamilyID || "").toLowerCase().includes(q) ||
-        String(d.Amount || "").includes(q))
-    : catFiltered;
-
-  // Group by Day for day-wise sections with subtotals
-  const dayGroups = {};
-  filtered.forEach((d) => {
-    const k = String(d.Day || "—");
-    if (!dayGroups[k]) dayGroups[k] = [];
-    dayGroups[k].push(d);
-  });
-  const dayKeys = Object.keys(dayGroups).sort((a, b) => (parseInt(a) || 99) - (parseInt(b) || 99));
+  const filtered = filter === "All" ? income : income.filter((d) => d.Category === filter);
 
   return (
     <div style={styles.page}>
@@ -2463,8 +2304,8 @@ function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelet
               onClick={() => setFilter(cat)}
               style={{
                 ...styles.filterPill,
-                background: filter === cat ? "#7B1E26" : "#F3EBDB",
-                color: filter === cat ? "#fff" : "#6B5A48",
+                background: filter === cat ? "#292524" : "#f5f5f4",
+                color: filter === cat ? "#fff" : "#57534e",
               }}
             >
               {cat === "All" ? t("all", lang) : tCat(cat, lang)}
@@ -2473,58 +2314,54 @@ function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelet
         </div>
       )}
 
-      {/* Search */}
-      <input
-        placeholder={t("searchTxns", lang)}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{ ...styles.input, marginBottom: 10 }}
-      />
-
-      {/* Total */}
+      {/* Total (confirmed only — Expected rows not yet collected) */}
       <div style={styles.inlineTotal}>
-        {t("total", lang)}: <strong>{formatCurrency(filtered.reduce((s, d) => s + Number(d.Amount || 0), 0))}</strong>
+        {t("total", lang)}: <strong>{formatCurrency(filtered.filter((d) => !isExpected(d)).reduce((s, d) => s + Number(d.Amount || 0), 0))}</strong>
         <span style={styles.countBadge}>{filtered.length}</span>
       </div>
 
-      {/* List — grouped by Day with subtotals */}
+      {/* List */}
       <div style={styles.txnList}>
         {filtered.length === 0 ? (
-          <p style={styles.empty}>{q ? t("noMatches", lang) : t("noIncome", lang)}</p>
+          <p style={styles.empty}>{t("noIncome", lang)}</p>
         ) : (
-          dayKeys.map((dayKey) => {
-            const group = dayGroups[dayKey];
-            const subtotal = group.reduce((s, d) => s + Number(d.Amount || 0), 0);
+          filtered.map((d, i) => {
+            const expected = isExpected(d);
             return (
-              <div key={dayKey}>
-                <div style={styles.dayGroupHeader}>
-                  <span>📅 {t("day", lang)} {dayKey}</span>
-                  <span>{formatCurrency(subtotal)} · {group.length} {t("entries", lang)}</span>
+            <div key={i} style={{ ...styles.txnCard, ...(expected ? { background: "#fffbeb", borderLeft: "4px solid #f59e0b" } : {}) }}>
+              <div style={styles.txnTop}>
+                <div>
+                  <p style={styles.txnName}>{d.DonorName}</p>
+                  <p style={styles.txnMeta}>
+                    {expected
+                      ? <span style={{ color: "#92400e", fontWeight: 600 }}>⏳ {t("statusExpected", lang)}</span>
+                      : (d.DonorType === "Family" ? `🏠 ${d.FamilyID}` : `👤 ${t("external", lang)}`)} · {tCat(d.Category, lang)}
+                  </p>
                 </div>
-                {group.map((d, i) => (
-                  <div key={d.TxnID || i} style={styles.txnCard}>
-                    <div style={styles.txnTop}>
-                      <div>
-                        <p style={styles.txnName}>{d.DonorName}</p>
-                        <p style={styles.txnMeta}>
-                          {d.DonorType === "Family" ? `🏠 ${d.FamilyID}` : `👤 ${t("external", lang)}`} · {tCat(d.Category, lang)}
-                        </p>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <p style={{ ...styles.txnAmount, color: "#059669" }}>{formatCurrency(d.Amount)}</p>
-                        <p style={styles.txnMeta}>{d.Date ? formatDateDisplay(d.Date) : ''}</p>
-                      </div>
-                    </div>
-                    {d.Description && <p style={styles.txnDesc}>{d.Description}</p>}
-                    {isAdmin && (
-                      <div style={{ display: "flex", gap: 8, marginTop: 8, justifyContent: "flex-end" }}>
-                        <button onClick={() => setEditingItem(d)} style={{ ...styles.addBtn, background: "#8C5A10", fontSize: 11, padding: "4px 12px" }}>✏️ {t("edit", lang)}</button>
-                        <button onClick={() => setDeleteConfirm(d.TxnID)} style={{ ...styles.addBtn, background: "#dc2626", fontSize: 11, padding: "4px 12px" }}>🗑️ {t("deleteBtn", lang)}</button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                <div style={{ textAlign: "right" }}>
+                  <p style={{ ...styles.txnAmount, color: expected ? "#92400e" : "#059669" }}>{formatCurrency(d.Amount)}</p>
+                  <p style={styles.txnMeta}>{d.Date ? formatDateDisplay(d.Date) + ' · ' : ''}{d.Day ? t("day", lang) + " " + d.Day : ''}</p>
+                </div>
               </div>
+              {d.Description && <p style={styles.txnDesc}>{d.Description}</p>}
+              <div style={{ display: "flex", gap: 8, marginTop: 8, justifyContent: "flex-end" }}>
+                {expected && canEdit && onConfirm && (
+                  <button
+                    onClick={async () => { setConfirming(d.TxnID); await onConfirm(d.TxnID); setConfirming(null); }}
+                    disabled={confirming === d.TxnID}
+                    style={{ ...styles.addBtn, background: "#16a34a", fontSize: 11, padding: "4px 12px", opacity: confirming === d.TxnID ? 0.5 : 1 }}
+                  >
+                    {confirming === d.TxnID ? "⏳" : "✓ " + t("confirmCollection", lang)}
+                  </button>
+                )}
+                {isAdmin && !expected && (
+                  <button onClick={() => setEditingItem(d)} style={{ ...styles.addBtn, background: "#2563eb", fontSize: 11, padding: "4px 12px" }}>✏️ {t("edit", lang)}</button>
+                )}
+                {isAdmin && (
+                  <button onClick={() => setDeleteConfirm(d.TxnID)} style={{ ...styles.addBtn, background: "#dc2626", fontSize: 11, padding: "4px 12px" }}>🗑️ {t("deleteBtn", lang)}</button>
+                )}
+              </div>
+            </div>
             );
           })
         )}
@@ -2535,7 +2372,7 @@ function IncomeView({ income, families, canEdit, isAdmin, onAdd, onEdit, onDelet
         <Modal title={t("confirmDeleteTitle", lang)} onClose={() => setDeleteConfirm(null)}>
           <p style={{ marginBottom: 16, fontSize: 15 }}>{t("confirmDeleteMsg", lang)}</p>
           <div style={{ display: "flex", gap: 12 }}>
-            <button onClick={() => setDeleteConfirm(null)} style={{ ...styles.btnPrimary, flex: 1, background: "#A89377" }}>{t("cancel", lang)}</button>
+            <button onClick={() => setDeleteConfirm(null)} style={{ ...styles.btnPrimary, flex: 1, background: "#a8a29e" }}>{t("cancel", lang)}</button>
             <button onClick={() => { onDelete(deleteConfirm); setDeleteConfirm(null); }} style={{ ...styles.btnPrimary, flex: 1, background: "#dc2626" }}>🗑️ {t("deleteBtn", lang)}</button>
           </div>
         </Modal>
@@ -2568,25 +2405,7 @@ function ExpensesView({ expenses, canEdit, isAdmin, onAdd, onEdit, onDelete, sho
   const [deleteConfirm, setDeleteConfirm] = useState(null);
 
   const [filter, setFilter] = useState("All");
-  const [search, setSearch] = useState("");
-  const catFiltered = filter === "All" ? expenses : expenses.filter((e) => e.Category === filter);
-  const q = search.trim().toLowerCase();
-  const filtered = q
-    ? catFiltered.filter((e) =>
-        String(e.Description || "").toLowerCase().includes(q) ||
-        String(e.Vendor || "").toLowerCase().includes(q) ||
-        String(e.Category || "").toLowerCase().includes(q) ||
-        String(e.Amount || "").includes(q))
-    : catFiltered;
-
-  // Group by Day for day-wise sections with subtotals
-  const dayGroups = {};
-  filtered.forEach((e) => {
-    const k = String(e.Day || "—");
-    if (!dayGroups[k]) dayGroups[k] = [];
-    dayGroups[k].push(e);
-  });
-  const dayKeys = Object.keys(dayGroups).sort((a, b) => (parseInt(a) || 99) - (parseInt(b) || 99));
+  const filtered = filter === "All" ? expenses : expenses.filter((e) => e.Category === filter);
 
   return (
     <div style={styles.page}>
@@ -2601,21 +2420,14 @@ function ExpensesView({ expenses, canEdit, isAdmin, onAdd, onEdit, onDelete, sho
             onClick={() => setFilter(cat)}
             style={{
               ...styles.filterPill,
-              background: filter === cat ? "#7B1E26" : "#F3EBDB",
-              color: filter === cat ? "#fff" : "#6B5A48",
+              background: filter === cat ? "#292524" : "#f5f5f4",
+              color: filter === cat ? "#fff" : "#57534e",
             }}
           >
             {cat === "All" ? t("all", lang) : tCat(cat, lang)}
           </button>
         ))}
       </div>
-
-      <input
-        placeholder={t("searchTxns", lang)}
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        style={{ ...styles.input, marginBottom: 10 }}
-      />
 
       <div style={styles.inlineTotal}>
         {t("total", lang)}: <strong>{formatCurrency(filtered.reduce((s, e) => s + Number(e.Amount || 0), 0))}</strong>
@@ -2624,40 +2436,28 @@ function ExpensesView({ expenses, canEdit, isAdmin, onAdd, onEdit, onDelete, sho
 
       <div style={styles.txnList}>
         {filtered.length === 0 ? (
-          <p style={styles.empty}>{q ? t("noMatches", lang) : t("noExpenses", lang)}</p>
+          <p style={styles.empty}>{t("noExpenses", lang)}</p>
         ) : (
-          dayKeys.map((dayKey) => {
-            const group = dayGroups[dayKey];
-            const subtotal = group.reduce((s, e) => s + Number(e.Amount || 0), 0);
-            return (
-              <div key={dayKey}>
-                <div style={styles.dayGroupHeader}>
-                  <span>📅 {t("day", lang)} {dayKey}</span>
-                  <span>{formatCurrency(subtotal)} · {group.length} {t("entries", lang)}</span>
+          filtered.map((e, i) => (
+            <div key={i} style={styles.txnCard}>
+              <div style={styles.txnTop}>
+                <div>
+                  <p style={styles.txnName}>{e.Description}</p>
+                  <p style={styles.txnMeta}>{tCat(e.Category, lang)}{e.Vendor ? ` · ${e.Vendor}` : ""}</p>
                 </div>
-                {group.map((e, i) => (
-                  <div key={e.TxnID || i} style={styles.txnCard}>
-                    <div style={styles.txnTop}>
-                      <div>
-                        <p style={styles.txnName}>{e.Description}</p>
-                        <p style={styles.txnMeta}>{tCat(e.Category, lang)}{e.Vendor ? ` · ${e.Vendor}` : ""}</p>
-                      </div>
-                      <div style={{ textAlign: "right" }}>
-                        <p style={{ ...styles.txnAmount, color: "#dc2626" }}>{formatCurrency(e.Amount)}</p>
-                        <p style={styles.txnMeta}>{e.Date ? formatDateDisplay(e.Date) : ''}</p>
-                      </div>
-                    </div>
-                    {isAdmin && (
-                      <div style={{ display: "flex", gap: 8, marginTop: 8, justifyContent: "flex-end" }}>
-                        <button onClick={() => setEditingItem(e)} style={{ ...styles.addBtn, background: "#8C5A10", fontSize: 11, padding: "4px 12px" }}>✏️ {t("edit", lang)}</button>
-                        <button onClick={() => setDeleteConfirm(e.TxnID)} style={{ ...styles.addBtn, background: "#dc2626", fontSize: 11, padding: "4px 12px" }}>🗑️ {t("deleteBtn", lang)}</button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                <div style={{ textAlign: "right" }}>
+                  <p style={{ ...styles.txnAmount, color: "#dc2626" }}>{formatCurrency(e.Amount)}</p>
+                  <p style={styles.txnMeta}>{e.Date ? formatDateDisplay(e.Date) + ' · ' : ''}{t("day", lang)} {e.Day}</p>
+                </div>
               </div>
-            );
-          })
+              {isAdmin && (
+                <div style={{ display: "flex", gap: 8, marginTop: 8, justifyContent: "flex-end" }}>
+                  <button onClick={() => setEditingItem(e)} style={{ ...styles.addBtn, background: "#2563eb", fontSize: 11, padding: "4px 12px" }}>✏️ {t("edit", lang)}</button>
+                  <button onClick={() => setDeleteConfirm(e.TxnID)} style={{ ...styles.addBtn, background: "#dc2626", fontSize: 11, padding: "4px 12px" }}>🗑️ {t("deleteBtn", lang)}</button>
+                </div>
+              )}
+            </div>
+          ))
         )}
       </div>
 
@@ -2666,7 +2466,7 @@ function ExpensesView({ expenses, canEdit, isAdmin, onAdd, onEdit, onDelete, sho
         <Modal title={t("confirmDeleteTitle", lang)} onClose={() => setDeleteConfirm(null)}>
           <p style={{ marginBottom: 16, fontSize: 15 }}>{t("confirmDeleteMsg", lang)}</p>
           <div style={{ display: "flex", gap: 12 }}>
-            <button onClick={() => setDeleteConfirm(null)} style={{ ...styles.btnPrimary, flex: 1, background: "#A89377" }}>{t("cancel", lang)}</button>
+            <button onClick={() => setDeleteConfirm(null)} style={{ ...styles.btnPrimary, flex: 1, background: "#a8a29e" }}>{t("cancel", lang)}</button>
             <button onClick={() => { onDelete(deleteConfirm); setDeleteConfirm(null); }} style={{ ...styles.btnPrimary, flex: 1, background: "#dc2626" }}>🗑️ {t("deleteBtn", lang)}</button>
           </div>
         </Modal>
@@ -2759,8 +2559,8 @@ function AuctionView({ auction, families, canEdit, isAdmin, email, onBid, onAddI
             onClick={() => setFilterStatus(s)}
             style={{
               ...styles.filterPill,
-              background: filterStatus === s ? "#7B1E26" : "#F3EBDB",
-              color: filterStatus === s ? "#fff" : "#6B5A48",
+              background: filterStatus === s ? "#292524" : "#f5f5f4",
+              color: filterStatus === s ? "#fff" : "#57534e",
             }}
           >
             {statusLabels[s]}
@@ -2783,17 +2583,17 @@ function AuctionView({ auction, families, canEdit, isAdmin, email, onBid, onAddI
           return (
             <div key={i} style={{
               ...styles.auctionCard,
-              borderLeft: `4px solid ${isConfirmed ? "#059669" : isPending ? "#f59e0b" : "#D9C49C"}`,
+              borderLeft: `4px solid ${isConfirmed ? "#059669" : isPending ? "#f59e0b" : "#d6d3d1"}`,
             }}>
               <div style={styles.txnTop}>
                 <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
                   {/* Photo thumbnail */}
                   {item.Photo ? (
                     <div onClick={() => setPhotoViewer({ itemNo: item.ItemNo, photoUrl: item.Photo })} style={{ cursor: "pointer", flexShrink: 0 }}>
-                      <img src={item.Photo} alt={item.ItemDescription} style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", border: "1px solid #EBDDC3" }} />
+                      <img src={item.Photo} alt={item.ItemDescription} style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", border: "1px solid #e7e5e4" }} />
                     </div>
                   ) : canEdit ? (
-                    <button onClick={() => handlePhotoUpload(item.ItemNo)} disabled={uploadingPhoto === item.ItemNo} style={{ width: 48, height: 48, borderRadius: 8, border: "2px dashed #D9C49C", background: "#FBF6EC", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#A89377", cursor: "pointer", flexShrink: 0 }}>
+                    <button onClick={() => handlePhotoUpload(item.ItemNo)} disabled={uploadingPhoto === item.ItemNo} style={{ width: 48, height: 48, borderRadius: 8, border: "2px dashed #d6d3d1", background: "#fafaf9", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, color: "#a8a29e", cursor: "pointer", flexShrink: 0 }}>
                       {uploadingPhoto === item.ItemNo ? "⏳" : "📷"}
                     </button>
                   ) : null}
@@ -2812,8 +2612,8 @@ function AuctionView({ auction, families, canEdit, isAdmin, email, onBid, onAddI
                   {item.Status && (
                     <span style={{
                       ...styles.statusBadge,
-                      background: isConfirmed ? "#d1fae5" : "#F8ECD4",
-                      color: isConfirmed ? "#1F5B40" : "#7A4E12",
+                      background: isConfirmed ? "#d1fae5" : "#fef3c7",
+                      color: isConfirmed ? "#065f46" : "#92400e",
                     }}>
                       {item.Status}
                     </span>
@@ -2856,7 +2656,7 @@ function AuctionView({ auction, families, canEdit, isAdmin, email, onBid, onAddI
                 </button>
               )}
               {isPending && item.EnteredBy1 === email && (
-                <p style={{ ...styles.txnMeta, color: "#8C5A10", fontStyle: "italic" }}>
+                <p style={{ ...styles.txnMeta, color: "#b45309", fontStyle: "italic" }}>
                   {t("waitingConfirm", lang)}
                 </p>
               )}
@@ -2874,8 +2674,8 @@ function AuctionView({ auction, families, canEdit, isAdmin, email, onBid, onAddI
                           ...styles.filterPill,
                           flex: 1,
                           textAlign: "center",
-                          background: bidForm.bidderType === tp ? "#7B1E26" : "#F3EBDB",
-                          color: bidForm.bidderType === tp ? "#fff" : "#6B5A48",
+                          background: bidForm.bidderType === tp ? "#292524" : "#f5f5f4",
+                          color: bidForm.bidderType === tp ? "#fff" : "#57534e",
                           padding: "8px 12px",
                           fontSize: 12,
                         }}
@@ -2911,7 +2711,7 @@ function AuctionView({ auction, families, canEdit, isAdmin, email, onBid, onAddI
                     style={styles.input}
                   />
                   <input
-                    type="number" inputMode="decimal"
+                    type="number"
                     placeholder={t("bidAmount", lang)}
                     value={bidForm.amount}
                     onChange={(e) => setBidForm({ ...bidForm, amount: e.target.value })}
@@ -2944,7 +2744,7 @@ function AuctionView({ auction, families, canEdit, isAdmin, email, onBid, onAddI
           <div onClick={(e) => e.stopPropagation()} style={{ maxWidth: 500, width: "100%", background: "#fff", borderRadius: 16, overflow: "hidden" }}>
             <img src={photoViewer.photoUrl} alt={"Item #" + photoViewer.itemNo} style={{ width: "100%", maxHeight: "70vh", objectFit: "contain" }} />
             <div style={{ padding: 12, textAlign: "center" }}>
-              <button onClick={() => setPhotoViewer(null)} style={{ background: "#7B1E26", color: "#fff", border: "none", borderRadius: 8, padding: "8px 24px", fontSize: 14, cursor: "pointer" }}>
+              <button onClick={() => setPhotoViewer(null)} style={{ background: "#292524", color: "#fff", border: "none", borderRadius: 8, padding: "8px 24px", fontSize: 14, cursor: "pointer" }}>
                 {t("cancel", lang)}
               </button>
             </div>
@@ -3079,7 +2879,7 @@ function FamiliesView({ families, isAdmin, canEdit, onAdd, showToast, lang: prop
         <h2 style={styles.pageTitle}>{t("familiesTitle", lang)}</h2>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           {families.length > 0 && (<>
-            <button onClick={exportFamiliesPDF} style={{ ...styles.addBtn, background: "#F3EBDB", color: "#6B5A48", fontSize: 12 }}>{t("exportPDF", lang)}</button>
+            <button onClick={exportFamiliesPDF} style={{ ...styles.addBtn, background: "#f5f5f4", color: "#57534e", fontSize: 12 }}>{t("exportPDF", lang)}</button>
           </>)}
         </div>
       </div>
@@ -3144,11 +2944,11 @@ function DayBadge({ day, lang }) {
       </div>
     );
   }
-  const colors = { "1": "#2E7D54", "2": "#8C5A10", "3": "#7B1E26" };
+  const colors = { "1": "#16a34a", "2": "#2563eb", "3": "#9333ea" };
   const label = day === "1" ? t("day1", lang) : day === "2" ? t("day2", lang) : t("day3", lang);
   return (
     <div style={{
-      background: colors[day] || "#86735F",
+      background: colors[day] || "#78716c",
       color: "#fff",
       borderRadius: 8,
       padding: "8px 16px",
@@ -3175,8 +2975,8 @@ function EventSetupBanner({ currentYear, isAdmin, onSave, onSeedAuction, lang })
 
   if (!isAdmin) {
     return (
-      <div style={{ background: "#F8ECD4", border: "1px solid #f59e0b", borderRadius: 12, padding: 16, marginBottom: 16, textAlign: "center" }}>
-        <p style={{ margin: 0, color: "#7A4E12", fontWeight: 600 }}>⚠️ {t("eventNotConfigured", lang)} ({currentYear})</p>
+      <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 12, padding: 16, marginBottom: 16, textAlign: "center" }}>
+        <p style={{ margin: 0, color: "#92400e", fontWeight: 600 }}>⚠️ {t("eventNotConfigured", lang)} ({currentYear})</p>
         <p style={{ margin: "8px 0 0", color: "#a16207", fontSize: 13 }}>{t("pleaseConfigureEvent", lang)}</p>
       </div>
     );
@@ -3184,8 +2984,8 @@ function EventSetupBanner({ currentYear, isAdmin, onSave, onSeedAuction, lang })
 
   if (!showSetup) {
     return (
-      <div style={{ background: "#F8ECD4", border: "1px solid #f59e0b", borderRadius: 12, padding: 16, marginBottom: 16, textAlign: "center" }}>
-        <p style={{ margin: 0, color: "#7A4E12", fontWeight: 600 }}>⚠️ {t("eventNotConfigured", lang)} ({currentYear})</p>
+      <div style={{ background: "#fef3c7", border: "1px solid #f59e0b", borderRadius: 12, padding: 16, marginBottom: 16, textAlign: "center" }}>
+        <p style={{ margin: 0, color: "#92400e", fontWeight: 600 }}>⚠️ {t("eventNotConfigured", lang)} ({currentYear})</p>
         <button
           onClick={() => setShowSetup(true)}
           style={{ marginTop: 10, background: "#f59e0b", color: "#fff", border: "none", borderRadius: 8, padding: "8px 20px", fontWeight: 600, fontSize: 14, cursor: "pointer" }}
@@ -3198,17 +2998,17 @@ function EventSetupBanner({ currentYear, isAdmin, onSave, onSeedAuction, lang })
 
   return (
     <div style={{ background: "#fffbeb", border: "1px solid #f59e0b", borderRadius: 12, padding: 16, marginBottom: 16 }}>
-      <h3 style={{ margin: "0 0 12px", color: "#7A4E12", fontSize: 16 }}>🛠️ {t("eventSetup", lang)} — {currentYear}</h3>
-      <label style={{ display: "block", marginBottom: 12, fontWeight: 600, color: "#86735F", fontSize: 13 }}>
+      <h3 style={{ margin: "0 0 12px", color: "#92400e", fontSize: 16 }}>🛠️ {t("eventSetup", lang)} — {currentYear}</h3>
+      <label style={{ display: "block", marginBottom: 12, fontWeight: 600, color: "#78716c", fontSize: 13 }}>
         {t("day1Date", lang)}
         <input
           type="date"
           value={day1}
           onChange={(e) => setDay1(e.target.value)}
-          style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", borderRadius: 8, border: "1px solid #D9C49C", fontSize: 14, boxSizing: "border-box" }}
+          style={{ display: "block", width: "100%", marginTop: 4, padding: "8px 10px", borderRadius: 8, border: "1px solid #d6d3d1", fontSize: 14, boxSizing: "border-box" }}
         />
       </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, fontSize: 13, color: "#6B5A48", cursor: "pointer" }}>
+      <label style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 14, fontSize: 13, color: "#57534e", cursor: "pointer" }}>
         <input type="checkbox" checked={seedAuction} onChange={(e) => setSeedAuction(e.target.checked)} style={{ width: 18, height: 18 }} />
         {t("seedAuctionItems", lang)}
       </label>
@@ -3231,7 +3031,7 @@ function EventSetupBanner({ currentYear, isAdmin, onSave, onSeedAuction, lang })
         </button>
         <button
           onClick={() => setShowSetup(false)}
-          style={{ padding: "10px 16px", background: "#EBDDC3", border: "none", borderRadius: 8, fontSize: 14, cursor: "pointer" }}
+          style={{ padding: "10px 16px", background: "#e7e5e4", border: "none", borderRadius: 8, fontSize: 14, cursor: "pointer" }}
         >
           ✕
         </button>
@@ -3292,7 +3092,7 @@ function EditIncomeForm({ item, families, categories, donorTypes, onSubmit, onCl
           </select>
         </label>
         <label style={styles.label}>{t("amount", lang)} (₹)
-          <input type="number" inputMode="decimal" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} />
+          <input type="number" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} />
         </label>
         <label style={styles.label}>{t("descOptional", lang)}
           <input value={form.description} onChange={(e) => set("description", e.target.value)} style={styles.input} />
@@ -3301,7 +3101,7 @@ function EditIncomeForm({ item, families, categories, donorTypes, onSubmit, onCl
       </div>
       <button
         onClick={() => { if (!saving && autoDay && form.donorName && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#8C5A10", opacity: (saving || !autoDay) ? 0.6 : 1 }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: (saving || !autoDay) ? 0.6 : 1 }}
         disabled={saving || !autoDay || !form.donorName || !form.amount}
       >
         {saving ? "⏳ Updating..." : t("updateIncome", lang)}
@@ -3347,7 +3147,7 @@ function EditExpenseForm({ item, categories, onSubmit, onClose, day1Date }) {
           <VoiceInput value={form.description} onChange={(v) => set("description", v)} lang={lang} />
         </label>
         <label style={styles.label}>{t("amount", lang)} (₹)
-          <input type="number" inputMode="decimal" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} />
+          <input type="number" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} />
         </label>
         <label style={styles.label}>{lang === "ta" ? "கடை" : "Vendor"}
           <input value={form.vendor} onChange={(e) => set("vendor", e.target.value)} style={styles.input} placeholder={t("shopName", lang)} />
@@ -3355,7 +3155,7 @@ function EditExpenseForm({ item, categories, onSubmit, onClose, day1Date }) {
       </div>
       <button
         onClick={() => { if (!saving && autoDay && form.description && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#8C5A10", opacity: (saving || !autoDay) ? 0.6 : 1 }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: (saving || !autoDay) ? 0.6 : 1 }}
         disabled={saving || !autoDay || !form.description || !form.amount}
       >
         {saving ? "⏳ Updating..." : t("updateExpense", lang)}
@@ -3431,15 +3231,15 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
         </label>
         <label style={styles.label}>{t("amount", lang)} (₹)
           <input
-            type="number" inputMode="decimal"
+            type="number"
             value={form.category === "Material Donation" ? "0" : form.amount}
             onChange={(e) => set("amount", e.target.value)}
-            style={{ ...styles.input, ...(form.category === "Material Donation" ? { background: "#F3EBDB", color: "#A89377", cursor: "not-allowed" } : {}) }}
+            style={{ ...styles.input, ...(form.category === "Material Donation" ? { background: "#f5f5f4", color: "#a8a29e", cursor: "not-allowed" } : {}) }}
             placeholder="0"
             disabled={form.category === "Material Donation"}
           />
           {form.category === "Material Donation" && (
-            <span style={{ fontSize: 11, color: "#86735F", marginTop: 4, display: "block" }}>
+            <span style={{ fontSize: 11, color: "#78716c", marginTop: 4, display: "block" }}>
               {lang === "ta" ? "பொருள் நன்கொடைக்கு தொகை இல்லை" : "Material donations have no monetary amount"}
             </span>
           )}
@@ -3502,7 +3302,7 @@ function ExpenseForm({ onSubmit, onClose, categories, day1Date }) {
           <VoiceInput value={form.description} onChange={(v) => set("description", v)} lang={lang} />
         </label>
         <label style={styles.label}>{t("amount", lang)} (₹)
-          <input type="number" inputMode="decimal" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} placeholder="0" />
+          <input type="number" value={form.amount} onChange={(e) => set("amount", e.target.value)} style={styles.input} placeholder="0" />
         </label>
         <label style={styles.label}>{t("vendorPayee", lang)}
           <input value={form.vendor} onChange={(e) => set("vendor", e.target.value)} style={styles.input} placeholder={t("shopName", lang)} />
@@ -3680,7 +3480,7 @@ function BalanceSheetView({ income, expenses, auction, loans, ledger, currentYea
 
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Balance Sheet ${currentYear}</title>
       <style>
-        body { font-family: 'Latha', 'Noto Sans Tamil', Arial, sans-serif; margin: 24px; color: #3A2320; }
+        body { font-family: 'Latha', 'Noto Sans Tamil', Arial, sans-serif; margin: 24px; color: #292524; }
         h2 { text-align: center; margin: 0; color: #1B5E20; }
         h3 { text-align: center; margin: 4px 0 4px; }
         .meta { text-align: center; color: #666; font-size: 12px; margin-bottom: 18px; }
@@ -3689,10 +3489,10 @@ function BalanceSheetView({ income, expenses, auction, loans, ledger, currentYea
         td.amt { text-align: right; font-weight: 600; width: 35%; }
         .ta { font-size: 14px; }
         .en { font-size: 11px; color: #777; }
-        .header-row td { background: #F3EBDB; font-weight: 700; font-size: 13px; border-bottom: 2px solid #999; }
-        .header-row td.varavu { background: #d1fae5; color: #1F5B40; }
+        .header-row td { background: #f5f5f4; font-weight: 700; font-size: 13px; border-bottom: 2px solid #999; }
+        .header-row td.varavu { background: #d1fae5; color: #065f46; }
         .header-row td.selavu { background: #fee2e2; color: #991b1b; }
-        .total-row td { background: #F3EBDB; font-weight: 700; font-size: 14px; border-top: 2px solid #3A2320; border-bottom: 2px solid #3A2320; }
+        .total-row td { background: #f5f5f4; font-weight: 700; font-size: 14px; border-top: 2px solid #292524; border-bottom: 2px solid #292524; }
         .signature { margin-top: 40px; display: flex; justify-content: space-between; font-size: 12px; color: #666; }
         @media print { body { margin: 12mm; } button { display: none !important; } }
       </style></head><body>
@@ -3716,11 +3516,11 @@ function BalanceSheetView({ income, expenses, auction, loans, ledger, currentYea
         <tr><td><div class="ta">செலவு கணக்கு</div><div class="en">Event expenses</div></td><td class="amt">${fmt(expensesTotal)}</td></tr>
         <tr><td><div class="ta">வங்கி வைப்பு / Bank deposit</div><div class="en">Cash deposited to bank</div></td><td class="amt">${fmt(bankDeposit)}</td></tr>
         <tr><td><div class="ta">பட்டியலுடன் வைத்தது</div><div class="en">Petty cash on hand (with itemized list)</div></td><td class="amt">${fmt(pettyCash)}</td></tr>
-        <tr><td><div class="ta" style="color:${Math.abs(discrepancy) > 0 ? '#991b1b' : '#3A2320'}">திட்டக்குறை</div><div class="en">Discrepancy (to be reconciled)</div></td><td class="amt" style="color:${Math.abs(discrepancy) > 0 ? '#991b1b' : '#3A2320'}">${fmt(discrepancy)}</td></tr>
+        <tr><td><div class="ta" style="color:${Math.abs(discrepancy) > 0 ? '#991b1b' : '#292524'}">திட்டக்குறை</div><div class="en">Discrepancy (to be reconciled)</div></td><td class="amt" style="color:${Math.abs(discrepancy) > 0 ? '#991b1b' : '#292524'}">${fmt(discrepancy)}</td></tr>
         <tr class="total-row"><td>மொத்த செலவு / Total outflow</td><td class="amt">₹ ${fmt(totalSelavu)}</td></tr>
       </table>
 
-      ${ledgerNotes ? `<div style="margin-top:24px;padding:12px;background:#fffbeb;border-left:4px solid #f59e0b;font-size:12px;"><div style="font-weight:700;margin-bottom:4px;color:#7A4E12;">📝 குறிப்புகள் / Notes</div><div style="white-space:pre-wrap;">${ledgerNotes.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</div></div>` : ""}
+      ${ledgerNotes ? `<div style="margin-top:24px;padding:12px;background:#fffbeb;border-left:4px solid #f59e0b;font-size:12px;"><div style="font-weight:700;margin-bottom:4px;color:#92400e;">📝 குறிப்புகள் / Notes</div><div style="white-space:pre-wrap;">${ledgerNotes.replace(/&/g,"&amp;").replace(/</g,"&lt;")}</div></div>` : ""}
 
       <div class="signature">
         <div>Prepared by: __________________</div>
@@ -3746,10 +3546,10 @@ function BalanceSheetView({ income, expenses, auction, loans, ledger, currentYea
 
       <div style={styles.balanceSheet}>
         {/* === வரவு (Income) side === */}
-        <div style={{ ...styles.bsSectionHeader, padding: "10px 14px", background: "#d1fae5", borderBottom: "1px solid #EBDDC3", margin: 0 }}>
-          <span style={{ ...styles.bsSectionIcon, background: "#a7f3d0", color: "#1F5B40" }}>↓</span>
+        <div style={{ ...styles.bsSectionHeader, padding: "10px 14px", background: "#d1fae5", borderBottom: "1px solid #e7e5e4", margin: 0 }}>
+          <span style={{ ...styles.bsSectionIcon, background: "#a7f3d0", color: "#065f46" }}>↓</span>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 700, color: "#1F5B40" }}>{t("varavuTitle", lang)}</div>
+            <div style={{ fontSize: 13, fontWeight: 700, color: "#065f46" }}>{t("varavuTitle", lang)}</div>
             <div style={{ fontSize: 10, color: "#059669" }}>வரவு / Receipts</div>
           </div>
         </div>
@@ -3762,15 +3562,15 @@ function BalanceSheetView({ income, expenses, auction, loans, ledger, currentYea
         <BalanceSheetRow ta="வசூல் பாக்கி வரவு" en={t("catCashReceivable", lang)} amount={cashReceivable} lang={lang} />
         <BalanceSheetRow ta="வட்டி பாக்கி வரவு" en={t("catInterestReceivable", lang)} amount={interestReceivable} lang={lang} last />
 
-        <div style={{ padding: "10px 14px", background: "#d1fae5", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #EBDDC3" }}>
-          <span style={{ fontSize: 13, fontWeight: 700, color: "#1F5B40" }}>{t("bsTotalVaravu", lang)}</span>
-          <span style={{ fontSize: 15, fontWeight: 800, color: "#1F5B40", fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif" }}>{formatCurrency(totalVaravu)}</span>
+        <div style={{ padding: "10px 14px", background: "#d1fae5", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e7e5e4" }}>
+          <span style={{ fontSize: 13, fontWeight: 700, color: "#065f46" }}>{t("bsTotalVaravu", lang)}</span>
+          <span style={{ fontSize: 15, fontWeight: 800, color: "#065f46", fontFamily: "'Outfit', sans-serif" }}>{formatCurrency(totalVaravu)}</span>
         </div>
 
         {/* === செலவு (Outflow) side === */}
-        <div style={{ height: 6, background: "#F3EBDB" }} />
+        <div style={{ height: 6, background: "#f5f5f4" }} />
 
-        <div style={{ ...styles.bsSectionHeader, padding: "10px 14px", background: "#fee2e2", borderBottom: "1px solid #EBDDC3", margin: 0 }}>
+        <div style={{ ...styles.bsSectionHeader, padding: "10px 14px", background: "#fee2e2", borderBottom: "1px solid #e7e5e4", margin: 0 }}>
           <span style={{ ...styles.bsSectionIcon, background: "#fecaca", color: "#991b1b" }}>↑</span>
           <div>
             <div style={{ fontSize: 13, fontWeight: 700, color: "#991b1b" }}>{t("selavuTitle", lang)}</div>
@@ -3784,9 +3584,9 @@ function BalanceSheetView({ income, expenses, auction, loans, ledger, currentYea
         <BalanceSheetRow ta="பட்டியலுடன் வைத்தது" en={t("bsPettyCash", lang)} amount={pettyCash} lang={lang} sub={t("bsAdminEntry", lang)} editable={isAdmin} onEdit={() => setEditing(true)} />
         <BalanceSheetRow ta="திட்டக்குறை" en={t("bsDiscrepancy", lang)} amount={discrepancy} lang={lang} sub={t("bsDiscrepancySub", lang)} alert={Math.abs(discrepancy) > 0.5} last />
 
-        <div style={{ padding: "10px 14px", background: "#fee2e2", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #EBDDC3" }}>
+        <div style={{ padding: "10px 14px", background: "#fee2e2", display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid #e7e5e4" }}>
           <span style={{ fontSize: 13, fontWeight: 700, color: "#991b1b" }}>{t("bsTotalSelavu", lang)}</span>
-          <span style={{ fontSize: 15, fontWeight: 800, color: "#991b1b", fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif" }}>{formatCurrency(totalSelavu)}</span>
+          <span style={{ fontSize: 15, fontWeight: 800, color: "#991b1b", fontFamily: "'Outfit', sans-serif" }}>{formatCurrency(totalSelavu)}</span>
         </div>
       </div>
 
@@ -3795,14 +3595,14 @@ function BalanceSheetView({ income, expenses, auction, loans, ledger, currentYea
         marginTop: 12,
         padding: "10px 14px",
         background: isBalanced ? "#d1fae5" : "#fee2e2",
-        color: isBalanced ? "#1F5B40" : "#991b1b",
+        color: isBalanced ? "#065f46" : "#991b1b",
         borderRadius: 8,
         fontSize: 13,
         fontWeight: 600,
         display: "flex",
         alignItems: "center",
         gap: 8,
-        fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+        fontFamily: "'Outfit', sans-serif",
       }}>
         <span style={{ fontSize: 16 }}>{isBalanced ? "✓" : "⚠"}</span>
         <span>
@@ -3818,15 +3618,15 @@ function BalanceSheetView({ income, expenses, auction, loans, ledger, currentYea
           marginTop: 10,
           padding: "10px 14px",
           background: "#fffbeb",
-          border: "1px solid #ECD9AC",
+          border: "1px solid #fde68a",
           borderRadius: 8,
           fontSize: 12,
-          color: "#86735F",
+          color: "#78716c",
         }}>
-          <div style={{ fontSize: 11, fontWeight: 600, color: "#7A4E12", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
+          <div style={{ fontSize: 11, fontWeight: 600, color: "#92400e", marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 }}>
             📝 {t("bsNotesLabel", lang)}
           </div>
-          <div style={{ whiteSpace: "pre-wrap", color: "#3A2320" }}>{ledgerNotes}</div>
+          <div style={{ whiteSpace: "pre-wrap", color: "#292524" }}>{ledgerNotes}</div>
         </div>
       )}
 
@@ -3834,7 +3634,7 @@ function BalanceSheetView({ income, expenses, auction, loans, ledger, currentYea
       {isAdmin && (
         <button
           onClick={() => setEditing(true)}
-          style={{ ...styles.btnPrimary, width: "100%", marginTop: 12, background: "#7B1E26" }}
+          style={{ ...styles.btnPrimary, width: "100%", marginTop: 12, background: "#7c3aed" }}
         >
           ✏️ {t("bsEditReconciliation", lang)}
         </button>
@@ -3867,11 +3667,11 @@ function BalanceSheetRow({ ta, en, amount, sub, last, alert, editable, onEdit, l
       justifyContent: "space-between",
       alignItems: "center",
       padding: "10px 14px",
-      borderBottom: last ? "none" : "1px dashed #EBDDC3",
+      borderBottom: last ? "none" : "1px dashed #e7e5e4",
       background: "#fff",
     }}>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: alert ? "#991b1b" : "#3A2320", fontWeight: 500 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: alert ? "#991b1b" : "#292524", fontWeight: 500 }}>
           <span>{lang === "ta" ? ta : ta}</span>
           {editable && (
             <button onClick={onEdit} style={{ background: "transparent", border: "none", cursor: "pointer", color: "#2563eb", fontSize: 11, padding: 0 }}>
@@ -3879,13 +3679,13 @@ function BalanceSheetRow({ ta, en, amount, sub, last, alert, editable, onEdit, l
             </button>
           )}
         </div>
-        <div style={{ fontSize: 10, color: "#86735F", marginTop: 2 }}>{en}{sub ? ` · ${sub}` : ""}</div>
+        <div style={{ fontSize: 10, color: "#78716c", marginTop: 2 }}>{en}{sub ? ` · ${sub}` : ""}</div>
       </div>
       <span style={{
         fontSize: 13,
         fontWeight: 700,
-        fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
-        color: alert ? "#991b1b" : "#3A2320",
+        fontFamily: "'Outfit', sans-serif",
+        color: alert ? "#991b1b" : "#292524",
         whiteSpace: "nowrap",
       }}>
         {formatCurrency(amount)}
@@ -3906,18 +3706,18 @@ function ReconciliationEditForm({ currentYear, initialBankDeposit, initialPettyC
 
   return (
     <Modal title={`${t("bsReconciliationTitle", lang)} · ${currentYear}`} onClose={onClose}>
-      <p style={{ fontSize: 12, color: "#86735F", marginBottom: 16 }}>{t("bsReconciliationHelp", lang)}</p>
+      <p style={{ fontSize: 12, color: "#78716c", marginBottom: 16 }}>{t("bsReconciliationHelp", lang)}</p>
 
       <div style={{ marginBottom: 12 }}>
         <label style={{ fontSize: 13, fontWeight: 600, display: "block", marginBottom: 4 }}>
           {t("bsBankDeposit", lang)} (வங்கி வைப்பு)
         </label>
         <input
-          type="number" inputMode="decimal"
+          type="number"
           value={bankDeposit}
           onChange={(e) => setBankDeposit(e.target.value)}
           placeholder="0"
-          style={{ width: "100%", padding: "10px 12px", border: "1px solid #D9C49C", borderRadius: 8, fontSize: 14, fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif" }}
+          style={{ width: "100%", padding: "10px 12px", border: "1px solid #d6d3d1", borderRadius: 8, fontSize: 14, fontFamily: "'Outfit', sans-serif" }}
         />
       </div>
 
@@ -3926,11 +3726,11 @@ function ReconciliationEditForm({ currentYear, initialBankDeposit, initialPettyC
           {t("bsPettyCash", lang)} (பட்டியலுடன் வைத்தது)
         </label>
         <input
-          type="number" inputMode="decimal"
+          type="number"
           value={pettyCash}
           onChange={(e) => setPettyCash(e.target.value)}
           placeholder="0"
-          style={{ width: "100%", padding: "10px 12px", border: "1px solid #D9C49C", borderRadius: 8, fontSize: 14, fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif" }}
+          style={{ width: "100%", padding: "10px 12px", border: "1px solid #d6d3d1", borderRadius: 8, fontSize: 14, fontFamily: "'Outfit', sans-serif" }}
         />
       </div>
 
@@ -3943,26 +3743,26 @@ function ReconciliationEditForm({ currentYear, initialBankDeposit, initialPettyC
           onChange={(e) => setNotes(e.target.value)}
           rows={3}
           placeholder={t("bsNotesPlaceholder", lang)}
-          style={{ width: "100%", padding: "10px 12px", border: "1px solid #D9C49C", borderRadius: 8, fontSize: 14, fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif", resize: "vertical", boxSizing: "border-box" }}
+          style={{ width: "100%", padding: "10px 12px", border: "1px solid #d6d3d1", borderRadius: 8, fontSize: 14, fontFamily: "'Outfit', sans-serif", resize: "vertical", boxSizing: "border-box" }}
         />
         <VoiceInput value={notes} onChange={setNotes} lang={lang} />
       </div>
 
       <div style={{
-        background: Math.abs(projectedDiscrepancy) < 0.5 ? "#d1fae5" : "#F8ECD4",
-        color: Math.abs(projectedDiscrepancy) < 0.5 ? "#1F5B40" : "#7A4E12",
+        background: Math.abs(projectedDiscrepancy) < 0.5 ? "#d1fae5" : "#fef3c7",
+        color: Math.abs(projectedDiscrepancy) < 0.5 ? "#065f46" : "#92400e",
         padding: 10,
         borderRadius: 8,
         fontSize: 12,
         marginBottom: 12,
-        fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+        fontFamily: "'Outfit', sans-serif",
       }}>
         <strong>திட்டக்குறை / {t("bsDiscrepancy", lang)}: </strong>
         {formatCurrency(projectedDiscrepancy)}
       </div>
 
       <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={onClose} style={{ ...styles.btnPrimary, flex: 1, background: "#A89377" }}>
+        <button onClick={onClose} style={{ ...styles.btnPrimary, flex: 1, background: "#a8a29e" }}>
           {t("cancel", lang)}
         </button>
         <button
@@ -4006,9 +3806,9 @@ function ReportsView({ families, income, expenses, auction, loans, ledger, curre
             onClick={() => setActiveReport(r.id)}
             style={{
               ...styles.reportTab,
-              background: activeReport === r.id ? "#7B1E26" : "#fff",
-              color: activeReport === r.id ? "#fff" : "#6B5A48",
-              border: activeReport === r.id ? "1px solid #7B1E26" : "1px solid #D9C49C",
+              background: activeReport === r.id ? "#292524" : "#fff",
+              color: activeReport === r.id ? "#fff" : "#57534e",
+              border: activeReport === r.id ? "1px solid #292524" : "1px solid #d6d3d1",
             }}
           >
             {r.label}
@@ -4043,7 +3843,7 @@ function AddressReport({ families }) {
     const printWin = window.open("", "_blank");
     if (!printWin) return;
     const rows = families.map((f, i) =>
-      `<tr style="background:${i % 2 === 0 ? '#fff' : '#F3EBDB'}">
+      `<tr style="background:${i % 2 === 0 ? '#fff' : '#f5f5f4'}">
         <td style="padding:6px 8px;border:1px solid #ccc;text-align:center;color:#999">${i + 1}</td>
         <td style="padding:6px 8px;border:1px solid #ccc"><strong>${f.FamilyName}</strong><br/><span style="font-size:11px;color:#666">${f.Address || ''}</span></td>
         <td style="padding:6px 8px;border:1px solid #ccc">${f.Phone || '—'}</td>
@@ -4120,7 +3920,7 @@ function AddressReport({ families }) {
                       💬 {f.WhatsApp}
                     </a>
                   ) : (
-                    <span style={{ color: "#A89377", fontSize: 12 }}>—</span>
+                    <span style={{ color: "#a8a29e", fontSize: 12 }}>—</span>
                   )}
                 </td>
               </tr>
@@ -4169,47 +3969,47 @@ function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onE
       {/* Summary cards */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
         {totalPrevOutstanding > 0 && (
-          <div style={{ background: "#F8ECD4", borderRadius: 10, padding: "10px 8px", textAlign: "center", gridColumn: "1 / -1" }}>
-            <div style={{ fontSize: 18, fontWeight: 700, color: "#7A4E12" }}>{fmt(totalPrevOutstanding)}</div>
-            <div style={{ fontSize: 10, color: "#86735F" }}>{lang === "ta" ? `${prevYear} நிலுவை` : `${prevYear} Outstanding`}</div>
+          <div style={{ background: "#fef3c7", borderRadius: 10, padding: "10px 8px", textAlign: "center", gridColumn: "1 / -1" }}>
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#92400e" }}>{fmt(totalPrevOutstanding)}</div>
+            <div style={{ fontSize: 10, color: "#78716c" }}>{lang === "ta" ? `${prevYear} நிலுவை` : `${prevYear} Outstanding`}</div>
           </div>
         )}
-        <div style={{ background: "#F8ECD4", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
-          <div style={{ fontSize: 18, fontWeight: 700, color: "#7A4E12" }}>{fmt(totalAdvanced)}</div>
-          <div style={{ fontSize: 10, color: "#86735F" }}>{t("totalAdvanced", lang)}</div>
+        <div style={{ background: "#fef3c7", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
+          <div style={{ fontSize: 18, fontWeight: 700, color: "#92400e" }}>{fmt(totalAdvanced)}</div>
+          <div style={{ fontSize: 10, color: "#78716c" }}>{t("totalAdvanced", lang)}</div>
         </div>
         <div style={{ background: "#fee2e2", borderRadius: 10, padding: "10px 8px", textAlign: "center" }}>
           <div style={{ fontSize: 18, fontWeight: 700, color: "#991b1b" }}>{fmt(totalDue)}</div>
-          <div style={{ fontSize: 10, color: "#86735F" }}>{t("totalDue", lang)}</div>
+          <div style={{ fontSize: 10, color: "#78716c" }}>{t("totalDue", lang)}</div>
         </div>
       </div>
 
       {/* Loan list */}
       {loans.length === 0 ? (
-        <div style={{ textAlign: "center", padding: 40, color: "#A89377" }}>{lang === "ta" ? "இந்த ஆண்டு கடன்கள் இல்லை" : "No advances for this year"}</div>
+        <div style={{ textAlign: "center", padding: 40, color: "#a8a29e" }}>{lang === "ta" ? "இந்த ஆண்டு கடன்கள் இல்லை" : "No advances for this year"}</div>
       ) : (
         loans.map((l) => (
           <div key={l.LoanID} style={{ ...styles.card, marginBottom: 10, borderLeft: "4px solid #d97706" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div style={{ fontWeight: 700, fontSize: 15 }}>{l.FamilyName} <span style={{ color: "#A89377", fontSize: 12 }}>({l.FamilyID})</span></div>
+                <div style={{ fontWeight: 700, fontSize: 15 }}>{l.FamilyName} <span style={{ color: "#a8a29e", fontSize: 12 }}>({l.FamilyID})</span></div>
                 {prevYearOutstanding[String(l.FamilyID || "").trim()] > 0 && (
-                  <div style={{ fontSize: 12, color: "#8C5A10", background: "#F8ECD4", borderRadius: 4, padding: "2px 6px", display: "inline-block", marginTop: 2 }}>
+                  <div style={{ fontSize: 12, color: "#b45309", background: "#fef3c7", borderRadius: 4, padding: "2px 6px", display: "inline-block", marginTop: 2 }}>
                     ⚠️ {prevYear} {lang === "ta" ? "நிலுவை" : "Outstanding"}: {fmt(prevYearOutstanding[String(l.FamilyID || "").trim()])}
                   </div>
                 )}
-                <div style={{ fontSize: 12, color: "#86735F", marginTop: 2 }}>
+                <div style={{ fontSize: 12, color: "#78716c", marginTop: 2 }}>
                   {t("loanAmount", lang)}: {fmt(l.LoanAmount)} · {t("interestRate", lang).replace(" (%)", "")}: {l.InterestRate}% · {t("interestAmount", lang)}: {fmt(l.InterestAmount)}
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 600, marginTop: 4 }}>
                   {t("totalReceivable", lang)}: {fmt(l.TotalReceivable)}
                 </div>
-                {l.Notes && <div style={{ fontSize: 11, color: "#86735F", marginTop: 2 }}>📝 {l.Notes}</div>}
+                {l.Notes && <div style={{ fontSize: 11, color: "#78716c", marginTop: 2 }}>📝 {l.Notes}</div>}
               </div>
               <div style={{ textAlign: "right" }}>
                 {isAdmin && (
                   <div style={{ display: "flex", gap: 4, justifyContent: "flex-end" }}>
-                    <button onClick={() => setEditModal(l)} style={{ fontSize: 11, background: "none", border: "1px solid #D9C49C", borderRadius: 6, padding: "2px 8px", cursor: "pointer" }}>✏️</button>
+                    <button onClick={() => setEditModal(l)} style={{ fontSize: 11, background: "none", border: "1px solid #d6d3d1", borderRadius: 6, padding: "2px 8px", cursor: "pointer" }}>✏️</button>
                     <button onClick={() => setConfirmDelete(l)} style={{ fontSize: 11, background: "none", border: "1px solid #fecaca", borderRadius: 6, padding: "2px 8px", cursor: "pointer", color: "#dc2626" }}>🗑️</button>
                   </div>
                 )}
@@ -4247,7 +4047,7 @@ function LoansView({ loans, allLoans, families, currentYear, isAdmin, onAdd, onE
           <p>{lang === "ta" ? "இந்த முன்பணத்தை நீக்க வேண்டுமா?" : "Delete this advance?"}</p>
           <p style={{ fontWeight: 700 }}>{confirmDelete.FamilyName} — {fmt(confirmDelete.LoanAmount)}</p>
           <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
-            <button onClick={() => setConfirmDelete(null)} style={{ ...styles.btnPrimary, flex: 1, background: "#86735F" }}>{t("cancel", lang)}</button>
+            <button onClick={() => setConfirmDelete(null)} style={{ ...styles.btnPrimary, flex: 1, background: "#78716c" }}>{t("cancel", lang)}</button>
             <button onClick={() => { onDelete(confirmDelete.LoanID); setConfirmDelete(null); }} style={{ ...styles.btnPrimary, flex: 1, background: "#dc2626" }}>{t("delete", lang)}</button>
           </div>
         </Modal>
@@ -4317,14 +4117,14 @@ function LoanAddForm({ families, allLoans, currentYear, onSubmit, onClose, day1D
           </select>
         </label>
         <label style={styles.label}>{lang === "ta" ? "கடந்த ஆண்டு நிலுவை" : "Last Year Receivable"} (₹)
-          <input type="number" inputMode="decimal" value={form.lastYearReceivable} onChange={(e) => set("lastYearReceivable", e.target.value)} style={{ ...styles.input, background: "#F8ECD4" }} placeholder="0" />
+          <input type="number" value={form.lastYearReceivable} onChange={(e) => set("lastYearReceivable", e.target.value)} style={{ ...styles.input, background: "#fef3c7" }} placeholder="0" />
         </label>
         <label style={styles.label}>{t("loanAmount", lang)} (₹)
-          <input type="number" inputMode="decimal" value={form.loanAmount} onChange={(e) => set("loanAmount", e.target.value)} style={styles.input} placeholder="0" />
+          <input type="number" value={form.loanAmount} onChange={(e) => set("loanAmount", e.target.value)} style={styles.input} placeholder="0" />
         </label>
         <div style={{ display: "flex", gap: 10 }}>
           <label style={{ ...styles.label, flex: 1 }}>{t("interestRate", lang)}
-            <input type="number" inputMode="decimal" value={form.interestRate} onChange={(e) => set("interestRate", e.target.value)} style={styles.input} step="0.5" />
+            <input type="number" value={form.interestRate} onChange={(e) => set("interestRate", e.target.value)} style={styles.input} step="0.5" />
           </label>
         </div>
         <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
@@ -4335,11 +4135,11 @@ function LoanAddForm({ families, allLoans, currentYear, onSubmit, onClose, day1D
         </div>
         {/* Auto-calculated summary */}
         {(loanAmt > 0 || lastYrRec > 0) && (
-          <div style={{ background: "#F3EBDB", borderRadius: 8, padding: 12, fontSize: 13 }}>
-            {lastYrRec > 0 && <div style={{ color: "#8C5A10" }}>{lang === "ta" ? "கடந்த ஆண்டு நிலுவை" : "Last Year Receivable"}: <strong>₹{lastYrRec.toLocaleString("en-IN")}</strong> {intOnPrev > 0 && <span>(+ ₹{intOnPrev.toLocaleString("en-IN")} {lang === "ta" ? "வட்டி" : "int"})</span>}</div>}
+          <div style={{ background: "#f5f5f4", borderRadius: 8, padding: 12, fontSize: 13 }}>
+            {lastYrRec > 0 && <div style={{ color: "#b45309" }}>{lang === "ta" ? "கடந்த ஆண்டு நிலுவை" : "Last Year Receivable"}: <strong>₹{lastYrRec.toLocaleString("en-IN")}</strong> {intOnPrev > 0 && <span>(+ ₹{intOnPrev.toLocaleString("en-IN")} {lang === "ta" ? "வட்டி" : "int"})</span>}</div>}
             {loanAmt > 0 && <div>{lang === "ta" ? "புதிய கடன்" : "New Loan"}: <strong>₹{loanAmt.toLocaleString("en-IN")}</strong> {intOnLoan > 0 && <span>(+ ₹{intOnLoan.toLocaleString("en-IN")} {lang === "ta" ? "வட்டி" : "int"})</span>}</div>}
-            <div style={{ fontSize: 12, color: "#86735F", marginTop: 2 }}>{t("interestAmount", lang)}: ₹{intAmt.toLocaleString("en-IN")} ({rate}%)</div>
-            <div style={{ fontWeight: 700, fontSize: 15, marginTop: 4, color: "#8C5A10" }}>{t("totalReceivable", lang)}: ₹{totalRec.toLocaleString("en-IN")}</div>
+            <div style={{ fontSize: 12, color: "#78716c", marginTop: 2 }}>{t("interestAmount", lang)}: ₹{intAmt.toLocaleString("en-IN")} ({rate}%)</div>
+            <div style={{ fontWeight: 700, fontSize: 15, marginTop: 4, color: "#b45309" }}>{t("totalReceivable", lang)}: ₹{totalRec.toLocaleString("en-IN")}</div>
           </div>
         )}
         <label style={styles.label}>{t("notes", lang)}
@@ -4349,7 +4149,7 @@ function LoanAddForm({ families, allLoans, currentYear, onSubmit, onClose, day1D
       </div>
       <button
         onClick={() => { if (!saving && autoDay && form.familyId && (form.loanAmount || form.lastYearReceivable)) { setSaving(true); onSubmit({ ...form, year: String(currentYear) }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#7B1E26", opacity: (saving || !autoDay || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)) ? 0.6 : 1 }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#b45309", opacity: (saving || !autoDay || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)) ? 0.6 : 1 }}
         disabled={saving || !autoDay || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)}
       >
         {saving ? "⏳ Saving..." : t("addLoan", lang)}
@@ -4389,20 +4189,20 @@ function LoanEditForm({ loan, families, onSubmit, onClose }) {
           </select>
         </label>
         <label style={styles.label}>{lang === "ta" ? "கடந்த ஆண்டு நிலுவை" : "Last Year Receivable"} (₹)
-          <input type="number" inputMode="decimal" value={form.lastYearReceivable} onChange={(e) => set("lastYearReceivable", e.target.value)} style={{ ...styles.input, background: "#F8ECD4" }} placeholder="0" />
+          <input type="number" value={form.lastYearReceivable} onChange={(e) => set("lastYearReceivable", e.target.value)} style={{ ...styles.input, background: "#fef3c7" }} placeholder="0" />
         </label>
         <label style={styles.label}>{t("loanAmount", lang)} (₹)
-          <input type="number" inputMode="decimal" value={form.loanAmount} onChange={(e) => set("loanAmount", e.target.value)} style={styles.input} />
+          <input type="number" value={form.loanAmount} onChange={(e) => set("loanAmount", e.target.value)} style={styles.input} />
         </label>
         <label style={styles.label}>{t("interestRate", lang)}
-          <input type="number" inputMode="decimal" value={form.interestRate} onChange={(e) => set("interestRate", e.target.value)} style={styles.input} step="0.5" />
+          <input type="number" value={form.interestRate} onChange={(e) => set("interestRate", e.target.value)} style={styles.input} step="0.5" />
         </label>
         {(loanAmt > 0 || lastYrRec > 0) && (
-          <div style={{ background: "#F3EBDB", borderRadius: 8, padding: 12, fontSize: 13 }}>
-            {lastYrRec > 0 && <div style={{ color: "#8C5A10" }}>{lang === "ta" ? "கடந்த ஆண்டு நிலுவை" : "Last Year Receivable"}: <strong>₹{lastYrRec.toLocaleString("en-IN")}</strong> (+ ₹{intOnPrev.toLocaleString("en-IN")} int)</div>}
+          <div style={{ background: "#f5f5f4", borderRadius: 8, padding: 12, fontSize: 13 }}>
+            {lastYrRec > 0 && <div style={{ color: "#b45309" }}>{lang === "ta" ? "கடந்த ஆண்டு நிலுவை" : "Last Year Receivable"}: <strong>₹{lastYrRec.toLocaleString("en-IN")}</strong> (+ ₹{intOnPrev.toLocaleString("en-IN")} int)</div>}
             {loanAmt > 0 && <div>{lang === "ta" ? "கடன்" : "Loan"}: <strong>₹{loanAmt.toLocaleString("en-IN")}</strong> (+ ₹{intOnLoan.toLocaleString("en-IN")} int)</div>}
-            <div style={{ fontSize: 12, color: "#86735F", marginTop: 2 }}>{t("interestAmount", lang)}: ₹{intAmt.toLocaleString("en-IN")} ({rate}%)</div>
-            <div style={{ fontWeight: 700, fontSize: 15, marginTop: 4, color: "#8C5A10" }}>{t("totalReceivable", lang)}: ₹{totalRec.toLocaleString("en-IN")}</div>
+            <div style={{ fontSize: 12, color: "#78716c", marginTop: 2 }}>{t("interestAmount", lang)}: ₹{intAmt.toLocaleString("en-IN")} ({rate}%)</div>
+            <div style={{ fontWeight: 700, fontSize: 15, marginTop: 4, color: "#b45309" }}>{t("totalReceivable", lang)}: ₹{totalRec.toLocaleString("en-IN")}</div>
           </div>
         )}
         <label style={styles.label}>{t("notes", lang)}
@@ -4412,7 +4212,7 @@ function LoanEditForm({ loan, families, onSubmit, onClose }) {
       </div>
       <button
         onClick={() => { if (!saving && form.familyId && (form.loanAmount || form.lastYearReceivable)) { setSaving(true); onSubmit({ ...form, loanId: loan.LoanID }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#8C5A10", opacity: (saving || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)) ? 0.6 : 1 }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: (saving || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)) ? 0.6 : 1 }}
         disabled={saving || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)}
       >
         {saving ? "⏳ Saving..." : t("loanEdited", lang)}
@@ -4489,7 +4289,7 @@ function LoanReport({ families, loans, currentYear }) {
     const printWin = window.open("", "_blank");
     if (!printWin) return;
     const htmlRows = rows.map((r) => {
-      return `<tr style="background:${r.amount > 0 || r.prevOutstanding > 0 ? '#FBF3E0' : '#fff'}">
+      return `<tr style="background:${r.amount > 0 || r.prevOutstanding > 0 ? '#fefce8' : '#fff'}">
         <td style="text-align:center;padding:4px 6px;border:1px solid #999">${r.sl}</td>
         <td style="padding:4px 6px;border:1px solid #999">${r.name}</td>
         <td style="text-align:right;padding:4px 6px;border:1px solid #999">${r.prevOutstanding > 0 ? fmtNum(r.prevOutstanding) : '0'}</td>
@@ -4503,7 +4303,7 @@ function LoanReport({ families, loans, currentYear }) {
     const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${titleYear} Inaththu Kanakku</title>
       <style>body{font-family:Arial,sans-serif;margin:20px}table{border-collapse:collapse;width:100%}
       @media print{body{margin:10px}button{display:none!important}}</style></head><body>
-      <div style="background:#F8ECD4;padding:16px;text-align:center;border:2px solid #7A4E12;margin-bottom:16px">
+      <div style="background:#fef3c7;padding:16px;text-align:center;border:2px solid #92400e;margin-bottom:16px">
         <h2 style="margin:0;color:#1a237e">${titleYear} Amount advanced to Pangalis'</h2>
         <h3 style="margin:4px 0 0;color:#1a237e">(Inaththu kanakku)</h3>
       </div>
@@ -4539,13 +4339,13 @@ function LoanReport({ families, loans, currentYear }) {
     printWin.document.close();
   };
 
-  const cellStyle = { padding: "5px 6px", borderBottom: "1px solid #EBDDC3", fontSize: 11 };
+  const cellStyle = { padding: "5px 6px", borderBottom: "1px solid #e7e5e4", fontSize: 11 };
   const headStyle = { ...cellStyle, fontWeight: 700, background: "#1a237e", color: "#fdd835", position: "sticky", top: 0, fontSize: 10, whiteSpace: "nowrap" };
   const greenHead = { ...headStyle, background: "#16a34a", color: "#fff" };
 
   return (
     <div style={{ ...styles.card, padding: 0, overflow: "hidden" }}>
-      <div style={{ padding: "12px 16px", background: "#F8ECD4", borderBottom: "2px solid #7A4E12", textAlign: "center" }}>
+      <div style={{ padding: "12px 16px", background: "#fef3c7", borderBottom: "2px solid #92400e", textAlign: "center" }}>
         <h3 style={{ margin: 0, fontSize: 16, color: "#1a237e" }}>{titleYear} Amount advanced to Pangalis'</h3>
         <div style={{ fontSize: 13, color: "#1a237e", fontWeight: 600 }}>(Inaththu kanakku)</div>
         <button onClick={downloadPDF} style={{ marginTop: 8, padding: "6px 16px", background: "#1a237e", color: "#fff", border: "none", borderRadius: 6, fontSize: 12, cursor: "pointer", fontWeight: 600 }}>
@@ -4570,10 +4370,10 @@ function LoanReport({ families, loans, currentYear }) {
             {rows.map((r) => {
               const hasData = r.amount > 0 || r.prevOutstanding > 0;
               return (
-                <tr key={r.id} style={{ background: hasData ? "#FBF3E0" : "#fff" }}>
-                  <td style={{ ...cellStyle, textAlign: "center", color: "#A89377" }}>{r.sl}</td>
+                <tr key={r.id} style={{ background: hasData ? "#fefce8" : "#fff" }}>
+                  <td style={{ ...cellStyle, textAlign: "center", color: "#a8a29e" }}>{r.sl}</td>
                   <td style={cellStyle}>{r.name}</td>
-                  <td style={{ ...cellStyle, textAlign: "right", color: r.prevOutstanding > 0 ? "#7B1E26" : "#8A7568" }}>{r.prevOutstanding > 0 ? fmtNum(r.prevOutstanding) : "0"}</td>
+                  <td style={{ ...cellStyle, textAlign: "right", color: r.prevOutstanding > 0 ? "#b45309" : "#78716c" }}>{r.prevOutstanding > 0 ? fmtNum(r.prevOutstanding) : "0"}</td>
                   <td style={{ ...cellStyle, textAlign: "right", fontWeight: r.amount > 0 ? 600 : 400 }}>{r.amount > 0 ? fmtNum(r.amount) : "0"}</td>
                   <td style={{ ...cellStyle, textAlign: "right" }}>{r.interest > 0 ? fmtNum(r.interest) : "0"}</td>
                   <td style={{ ...cellStyle, textAlign: "right", fontWeight: 600 }}>{r.total > 0 ? fmtNum(r.total) : "0"}</td>
@@ -4607,7 +4407,7 @@ function AuditLogView({ entries }) {
   const { lang } = useContext(LangContext);
   const [filter, setFilter] = useState("all");
   const actionColors = {
-    CREATE: "#059669", BID: "#2563eb", CONFIRM: "#7B1E26",
+    CREATE: "#059669", BID: "#2563eb", CONFIRM: "#7c3aed",
     LOGIN: "#6b7280", LOGOUT: "#6b7280", UPDATE: "#d97706", DELETE: "#dc2626", EDIT: "#d97706",
   };
 
@@ -4616,7 +4416,7 @@ function AuditLogView({ entries }) {
 
   return (
     <div>
-      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif" }}>
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, fontFamily: "'Outfit', sans-serif" }}>
         📜 {t("navAuditLog", lang)}
       </h2>
 
@@ -4631,9 +4431,9 @@ function AuditLogView({ entries }) {
             onClick={() => setFilter(tab.id)}
             style={{
               flex: 1, padding: "8px 12px", borderRadius: 8, fontSize: 13, fontWeight: 600,
-              cursor: "pointer", border: "1px solid #D9C49C", transition: "all 0.2s",
-              background: filter === tab.id ? "#7B1E26" : "#fff",
-              color: filter === tab.id ? "#fff" : "#6B5A48",
+              cursor: "pointer", border: "1px solid #d6d3d1", transition: "all 0.2s",
+              background: filter === tab.id ? "#292524" : "#fff",
+              color: filter === tab.id ? "#fff" : "#57534e",
             }}
           >
             {tab.icon} {tab.label}
@@ -4641,12 +4441,12 @@ function AuditLogView({ entries }) {
         ))}
       </div>
 
-      <p style={{ fontSize: 12, color: "#86735F", marginBottom: 12 }}>
+      <p style={{ fontSize: 12, color: "#78716c", marginBottom: 12 }}>
         {filtered.length} {lang === "ta" ? "பதிவுகள்" : "entries"}
-        {filter === "financial" && <span style={{ color: "#8C5A10" }}> ({lang === "ta" ? "வருமானம், செலவுகள், ஏலம், கடன்" : "Income, Expenses, Auction, Loan"})</span>}
+        {filter === "financial" && <span style={{ color: "#b45309" }}> ({lang === "ta" ? "வருமானம், செலவுகள், ஏலம், கடன்" : "Income, Expenses, Auction, Loan"})</span>}
       </p>
       {filtered.length === 0 ? (
-        <p style={{ textAlign: "center", color: "#A89377", padding: 40 }}>
+        <p style={{ textAlign: "center", color: "#a8a29e", padding: 40 }}>
           {lang === "ta" ? "பதிவுகள் இல்லை" : "No entries found"}
         </p>
       ) : (
@@ -4654,23 +4454,23 @@ function AuditLogView({ entries }) {
           {filtered.map((e, i) => (
             <div key={i} style={{
               background: "#fff", borderRadius: 10, padding: "10px 14px",
-              border: "1px solid #EBDDC3", boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+              border: "1px solid #e7e5e4", boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
             }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
                 <span style={{
                   fontSize: 10, fontWeight: 700, color: "#fff", textTransform: "uppercase",
                   background: actionColors[e.Action] || "#6b7280",
                   padding: "2px 8px", borderRadius: 6, letterSpacing: 0.5,
-                  fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+                  fontFamily: "'Outfit', sans-serif",
                 }}>
                   {e.Action}
                 </span>
-                <span style={{ fontSize: 10, color: "#A89377", fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif" }}>
+                <span style={{ fontSize: 10, color: "#a8a29e", fontFamily: "'Outfit', sans-serif" }}>
                   {e.Module}
                 </span>
               </div>
-              <p style={{ margin: "4px 0 2px", fontSize: 13, color: "#3A2320" }}>{e.Details}</p>
-              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#A89377" }}>
+              <p style={{ margin: "4px 0 2px", fontSize: 13, color: "#292524" }}>{e.Details}</p>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#a8a29e" }}>
                 <span>👤 {e.User}</span>
                 <span>🕐 {e.Timestamp}</span>
               </div>
@@ -4688,8 +4488,8 @@ function AuditLogView({ entries }) {
 
 const styles = {
   app: {
-    fontFamily: "'Noto Serif Tamil', Georgia, serif",
-    background: "#FBF6EC",
+    fontFamily: "'Cormorant Garamond', 'Georgia', serif",
+    background: "#fafaf9",
     minHeight: "100vh",
     maxWidth: 480,
     margin: "0 auto",
@@ -4698,13 +4498,12 @@ const styles = {
   },
   // Header
   header: {
-    background: "linear-gradient(150deg, #4A0E13, #7B1E26)",
+    background: "linear-gradient(135deg, #292524, #44403c)",
     color: "#fff",
     position: "sticky",
     top: 0,
     zIndex: 100,
-    boxShadow: "0 2px 12px rgba(59,10,14,0.25)",
-    borderBottom: "3px solid #C98A2D",
+    boxShadow: "0 2px 12px rgba(0,0,0,0.15)",
   },
   headerInner: {
     display: "flex",
@@ -4731,7 +4530,7 @@ const styles = {
     fontSize: 11,
     margin: 0,
     opacity: 0.7,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
     letterSpacing: 1,
     textTransform: "uppercase",
   },
@@ -4745,7 +4544,7 @@ const styles = {
     alignItems: "center",
     gap: 6,
     fontSize: 12,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
   rolePill: {
     background: "rgba(255,255,255,0.15)",
@@ -4782,7 +4581,7 @@ const styles = {
     padding: "10px 24px",
     borderRadius: 8,
     fontSize: 13,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
     fontWeight: 500,
     zIndex: 200,
     boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
@@ -4801,7 +4600,7 @@ const styles = {
   pageTitle: {
     fontSize: 24,
     fontWeight: 700,
-    color: "#5E1218",
+    color: "#292524",
     margin: "0 0 16px 0",
   },
   pageHeader: {
@@ -4829,7 +4628,7 @@ const styles = {
     fontSize: 11,
     opacity: 0.85,
     margin: 0,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
     textTransform: "uppercase",
     letterSpacing: 0.8,
     fontWeight: 500,
@@ -4843,7 +4642,7 @@ const styles = {
     fontSize: 11,
     opacity: 0.7,
     margin: 0,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
 
   // Stats row
@@ -4854,8 +4653,8 @@ const styles = {
   },
   statBox: {
     flex: 1,
-    background: "#FFFDF8",
-    border: "1px solid #EBDDC3",
+    background: "#fff",
+    border: "1px solid #e7e5e4",
     borderRadius: 10,
     padding: "12px 8px",
     textAlign: "center",
@@ -4864,12 +4663,12 @@ const styles = {
     display: "block",
     fontSize: 22,
     fontWeight: 700,
-    color: "#3A2320",
+    color: "#292524",
   },
   statLabel: {
     fontSize: 10,
-    color: "#86735F",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    color: "#78716c",
+    fontFamily: "'Outfit', sans-serif",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -4878,9 +4677,9 @@ const styles = {
   sectionTitle: {
     fontSize: 16,
     fontWeight: 700,
-    color: "#4A382E",
+    color: "#44403c",
     margin: "20px 0 10px",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
 
   // Day cards
@@ -4891,17 +4690,17 @@ const styles = {
     marginBottom: 20,
   },
   dayCard: {
-    background: "#FFFDF8",
-    border: "1px solid #EBDDC3",
+    background: "#fff",
+    border: "1px solid #e7e5e4",
     borderRadius: 10,
     padding: 12,
   },
   dayBadge: {
     fontSize: 11,
     fontWeight: 700,
-    color: "#8C5A10",
+    color: "#b45309",
     marginBottom: 8,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
     textTransform: "uppercase",
     letterSpacing: 0.5,
   },
@@ -4910,7 +4709,7 @@ const styles = {
     justifyContent: "space-between",
     fontSize: 12,
     marginBottom: 4,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
 
   // Recent list
@@ -4924,7 +4723,7 @@ const styles = {
     alignItems: "center",
     gap: 10,
     background: "#fff",
-    border: "1px solid #EBDDC3",
+    border: "1px solid #e7e5e4",
     borderRadius: 10,
     padding: "10px 12px",
   },
@@ -4942,20 +4741,20 @@ const styles = {
     margin: 0,
     fontSize: 13,
     fontWeight: 600,
-    color: "#3A2320",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    color: "#292524",
+    fontFamily: "'Outfit', sans-serif",
   },
   recentMeta: {
     margin: 0,
     fontSize: 11,
-    color: "#86735F",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    color: "#78716c",
+    fontFamily: "'Outfit', sans-serif",
   },
   recentAmount: {
     margin: 0,
     fontSize: 14,
     fontWeight: 700,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
 
   // Filter
@@ -4971,21 +4770,21 @@ const styles = {
     borderRadius: 16,
     fontSize: 11,
     cursor: "pointer",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
     fontWeight: 500,
     transition: "all 0.2s",
   },
   inlineTotal: {
     fontSize: 13,
-    color: "#6B5A48",
+    color: "#57534e",
     marginBottom: 12,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
     display: "flex",
     alignItems: "center",
     gap: 8,
   },
   countBadge: {
-    background: "#EBDDC3",
+    background: "#e7e5e4",
     padding: "1px 8px",
     borderRadius: 10,
     fontSize: 11,
@@ -4999,8 +4798,8 @@ const styles = {
     gap: 8,
   },
   txnCard: {
-    background: "#FFFDF8",
-    border: "1px solid #EBDDC3",
+    background: "#fff",
+    border: "1px solid #e7e5e4",
     borderRadius: 10,
     padding: "12px 14px",
   },
@@ -5013,33 +4812,33 @@ const styles = {
     margin: 0,
     fontSize: 14,
     fontWeight: 600,
-    color: "#3A2320",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    color: "#292524",
+    fontFamily: "'Outfit', sans-serif",
   },
   txnMeta: {
     margin: "2px 0 0",
     fontSize: 11,
-    color: "#86735F",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    color: "#78716c",
+    fontFamily: "'Outfit', sans-serif",
   },
   txnAmount: {
     margin: 0,
     fontSize: 15,
     fontWeight: 700,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
   txnDesc: {
     margin: "6px 0 0",
     fontSize: 12,
-    color: "#6B5A48",
+    color: "#57534e",
     fontStyle: "italic",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
 
   // Auction
   auctionCard: {
     background: "#fff",
-    border: "1px solid #EBDDC3",
+    border: "1px solid #e7e5e4",
     borderRadius: 10,
     padding: "12px 14px",
   },
@@ -5047,23 +4846,23 @@ const styles = {
     margin: 0,
     fontSize: 11,
     fontWeight: 700,
-    color: "#8C5A10",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    color: "#b45309",
+    fontFamily: "'Outfit', sans-serif",
   },
   auctionInfo: {
-    background: "#F8ECD4",
-    border: "1px solid #ECD9AC",
+    background: "#fef3c7",
+    border: "1px solid #fde68a",
     borderRadius: 8,
     padding: "8px 12px",
     fontSize: 11,
-    color: "#7A4E12",
+    color: "#92400e",
     marginBottom: 12,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
   unsoldBadge: {
     fontSize: 11,
-    color: "#A89377",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    color: "#a8a29e",
+    fontFamily: "'Outfit', sans-serif",
   },
   statusBadge: {
     display: "inline-block",
@@ -5072,11 +4871,11 @@ const styles = {
     fontSize: 10,
     fontWeight: 600,
     marginTop: 4,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
   bidBtn: {
     marginTop: 8,
-    background: "#7B1E26",
+    background: "#b45309",
     color: "#fff",
     border: "none",
     padding: "6px 14px",
@@ -5084,7 +4883,7 @@ const styles = {
     fontSize: 12,
     fontWeight: 600,
     cursor: "pointer",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
   inlineBidForm: {
     marginTop: 10,
@@ -5092,9 +4891,9 @@ const styles = {
     flexDirection: "column",
     gap: 8,
     padding: 10,
-    background: "#FBF6EC",
+    background: "#fafaf9",
     borderRadius: 8,
-    border: "1px solid #EBDDC3",
+    border: "1px solid #e7e5e4",
   },
 
   // Family card
@@ -5103,7 +4902,7 @@ const styles = {
     alignItems: "flex-start",
     gap: 12,
     background: "#fff",
-    border: "1px solid #EBDDC3",
+    border: "1px solid #e7e5e4",
     borderRadius: 10,
     padding: "14px",
   },
@@ -5111,7 +4910,7 @@ const styles = {
     width: 40,
     height: 40,
     borderRadius: "50%",
-    background: "linear-gradient(135deg, #8C5A10, #d97706)",
+    background: "linear-gradient(135deg, #b45309, #d97706)",
     color: "#fff",
     display: "flex",
     alignItems: "center",
@@ -5123,7 +4922,7 @@ const styles = {
 
   // Buttons
   addBtn: {
-    background: "#7B1E26",
+    background: "#292524",
     color: "#fff",
     border: "none",
     padding: "8px 16px",
@@ -5131,7 +4930,7 @@ const styles = {
     fontSize: 13,
     fontWeight: 600,
     cursor: "pointer",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
   fab: {
     position: "sticky",
@@ -5140,20 +4939,20 @@ const styles = {
     transform: "translateX(-50%)",
     display: "block",
     margin: "16px auto 0",
-    background: "#7B1E26",
+    background: "#292524",
     color: "#fff",
-    border: "2px solid #C98A2D",
+    border: "none",
     padding: "12px 28px",
     borderRadius: 50,
     fontSize: 15,
     fontWeight: 700,
     cursor: "pointer",
     boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
     zIndex: 50,
   },
   btnPrimary: {
-    background: "#7B1E26",
+    background: "#b45309",
     color: "#fff",
     border: "none",
     padding: "10px 20px",
@@ -5161,42 +4960,28 @@ const styles = {
     fontSize: 14,
     fontWeight: 600,
     cursor: "pointer",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
   btnSecondary: {
-    background: "#EBDDC3",
-    color: "#6B5A48",
+    background: "#e7e5e4",
+    color: "#57534e",
     border: "none",
     padding: "10px 20px",
     borderRadius: 8,
     fontSize: 14,
     fontWeight: 600,
     cursor: "pointer",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
 
   // Form
-  dayGroupHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    background: "#F3EBDB",
-    border: "1px solid #EBDDC3",
-    borderRadius: 8,
-    padding: "6px 12px",
-    margin: "14px 0 8px",
-    fontSize: 12,
-    fontWeight: 700,
-    color: "#6B4A2E",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
-  },
   input: {
     width: "100%",
     padding: "10px 12px",
-    border: "1px solid #D9C49C",
+    border: "1px solid #d6d3d1",
     borderRadius: 8,
-    fontSize: 16,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontSize: 14,
+    fontFamily: "'Outfit', sans-serif",
     background: "#fff",
     boxSizing: "border-box",
     outline: "none",
@@ -5207,8 +4992,8 @@ const styles = {
     gap: 4,
     fontSize: 12,
     fontWeight: 600,
-    color: "#6B5A48",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    color: "#57534e",
+    fontFamily: "'Outfit', sans-serif",
   },
   formGrid: {
     display: "flex",
@@ -5244,17 +5029,15 @@ const styles = {
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 16,
-    paddingBottom: 10,
-    borderBottom: "2px solid #F0E2C4",
   },
   modalTitle: {
     margin: 0,
     fontSize: 18,
     fontWeight: 700,
-    color: "#5E1218",
+    color: "#292524",
   },
   modalClose: {
-    background: "#F3EBDB",
+    background: "#f5f5f4",
     border: "none",
     width: 30,
     height: 30,
@@ -5274,8 +5057,8 @@ const styles = {
     transform: "translateX(-50%)",
     width: "100%",
     maxWidth: 480,
-    background: "#FFFDF8",
-    borderTop: "1px solid #EBDDC3",
+    background: "#fff",
+    borderTop: "1px solid #e7e5e4",
     display: "flex",
     justifyContent: "space-around",
     zIndex: 100,
@@ -5292,7 +5075,7 @@ const styles = {
     gap: 2,
     cursor: "pointer",
     transition: "all 0.2s",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
 
   // Login
@@ -5301,13 +5084,12 @@ const styles = {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    background: "linear-gradient(160deg, #3B0A0E, #7B1E26)",
+    background: "linear-gradient(135deg, #292524, #57534e)",
     padding: 24,
   },
   loginCard: {
-    background: "#FFFDF8",
+    background: "#fff",
     borderRadius: 20,
-    borderTop: "5px solid #C98A2D",
     padding: "40px 32px",
     textAlign: "center",
     maxWidth: 360,
@@ -5317,27 +5099,27 @@ const styles = {
   loginTitle: {
     fontSize: 26,
     fontWeight: 700,
-    color: "#5E1218",
+    color: "#292524",
     margin: "0 0 4px",
   },
   loginSubtitle: {
     fontSize: 13,
-    color: "#86735F",
+    color: "#78716c",
     margin: 0,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
   loginDivider: {
     width: 40,
     height: 2,
-    background: "#7B1E26",
+    background: "#b45309",
     margin: "20px auto",
   },
 
   loginFooter: {
     fontSize: 11,
-    color: "#A89377",
+    color: "#a8a29e",
     marginTop: 20,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
     lineHeight: 1.5,
   },
 
@@ -5348,13 +5130,13 @@ const styles = {
     flexDirection: "column",
     alignItems: "center",
     justifyContent: "center",
-    background: "#FBF6EC",
+    background: "#fafaf9",
   },
   spinner: {
     width: 32,
     height: 32,
-    border: "3px solid #EBDDC3",
-    borderTopColor: "#8C5A10",
+    border: "3px solid #e7e5e4",
+    borderTopColor: "#b45309",
     borderRadius: "50%",
     animation: "spin 0.8s linear infinite",
   },
@@ -5362,10 +5144,10 @@ const styles = {
   // Empty state
   empty: {
     textAlign: "center",
-    color: "#A89377",
+    color: "#a8a29e",
     padding: 32,
     fontSize: 14,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
 
   // Report styles
@@ -5374,7 +5156,7 @@ const styles = {
     borderRadius: 8,
     fontSize: 13,
     cursor: "pointer",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
     fontWeight: 600,
     transition: "all 0.2s",
   },
@@ -5384,32 +5166,32 @@ const styles = {
   reportTitle: {
     fontSize: 16,
     fontWeight: 700,
-    color: "#4A382E",
+    color: "#44403c",
     margin: 0,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
   reportSubtitle: {
     fontSize: 12,
-    color: "#86735F",
+    color: "#78716c",
     margin: "2px 0 0",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
 
   // Table styles
   tableWrapper: {
     overflowX: "auto",
     borderRadius: 10,
-    border: "1px solid #EBDDC3",
+    border: "1px solid #e7e5e4",
     marginBottom: 8,
   },
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
     fontSize: 12,
   },
   th: {
-    background: "#7B1E26",
+    background: "#292524",
     color: "#fff",
     padding: "10px 12px",
     textAlign: "left",
@@ -5421,7 +5203,7 @@ const styles = {
   },
   td: {
     padding: "10px 12px",
-    borderBottom: "1px solid #F3EBDB",
+    borderBottom: "1px solid #f5f5f4",
     verticalAlign: "top",
     fontSize: 12,
   },
@@ -5429,21 +5211,21 @@ const styles = {
     background: "#fff",
   },
   trOdd: {
-    background: "#FBF6EC",
+    background: "#fafaf9",
   },
   trTotal: {
-    background: "#F3EBDB",
-    borderTop: "2px solid #D9C49C",
+    background: "#f5f5f4",
+    borderTop: "2px solid #d6d3d1",
   },
   tableName: {
     margin: 0,
     fontWeight: 600,
-    color: "#3A2320",
+    color: "#292524",
     fontSize: 13,
   },
   tableAddr: {
     margin: "2px 0 0",
-    color: "#86735F",
+    color: "#78716c",
     fontSize: 11,
     lineHeight: 1.4,
   },
@@ -5463,14 +5245,14 @@ const styles = {
   // Balance sheet styles
   balanceSheet: {
     background: "#fff",
-    border: "1px solid #EBDDC3",
+    border: "1px solid #e7e5e4",
     borderRadius: 12,
     overflow: "hidden",
     marginBottom: 16,
   },
   bsSection: {
     padding: "14px 16px",
-    borderBottom: "1px solid #F3EBDB",
+    borderBottom: "1px solid #f5f5f4",
   },
   bsSectionHeader: {
     display: "flex",
@@ -5493,9 +5275,9 @@ const styles = {
   bsSectionTitle: {
     fontSize: 11,
     fontWeight: 700,
-    color: "#6B5A48",
+    color: "#57534e",
     letterSpacing: 1,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
   bsRow: {
     display: "flex",
@@ -5503,12 +5285,12 @@ const styles = {
     alignItems: "center",
     padding: "6px 0",
     fontSize: 13,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
-    color: "#4A382E",
+    fontFamily: "'Outfit', sans-serif",
+    color: "#44403c",
   },
   bsAmount: {
     fontWeight: 600,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
   bsTotalRow: {
     display: "flex",
@@ -5516,9 +5298,9 @@ const styles = {
     alignItems: "center",
     padding: "10px 0 4px",
     fontSize: 14,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
-    color: "#3A2320",
-    borderTop: "1px solid #EBDDC3",
+    fontFamily: "'Outfit', sans-serif",
+    color: "#292524",
+    borderTop: "1px solid #e7e5e4",
     marginTop: 6,
   },
   bsNetRow: {
@@ -5527,7 +5309,7 @@ const styles = {
     alignItems: "center",
     padding: "14px 16px",
     color: "#fff",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
     fontWeight: 700,
     fontSize: 14,
     letterSpacing: 0.5,
@@ -5542,7 +5324,7 @@ const styles = {
   },
   auctionSummaryCard: {
     background: "#fff",
-    border: "1px solid #EBDDC3",
+    border: "1px solid #e7e5e4",
     borderRadius: 10,
     padding: "12px 10px",
     textAlign: "center",
@@ -5551,23 +5333,23 @@ const styles = {
     margin: 0,
     fontSize: 24,
     fontWeight: 800,
-    color: "#3A2320",
+    color: "#292524",
   },
   asLabel: {
     margin: "2px 0",
     fontSize: 10,
     fontWeight: 600,
-    color: "#86735F",
+    color: "#78716c",
     textTransform: "uppercase",
     letterSpacing: 0.5,
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    fontFamily: "'Outfit', sans-serif",
   },
   asAmount: {
     margin: 0,
     fontSize: 12,
     fontWeight: 700,
-    color: "#6B5A48",
-    fontFamily: "'Outfit', 'Noto Sans Tamil', sans-serif",
+    color: "#57534e",
+    fontFamily: "'Outfit', sans-serif",
   },
 };
 
