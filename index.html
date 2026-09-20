@@ -290,6 +290,7 @@ const T = {
   totalDue: { en: "Total Due", ta: "மொத்த வசூல்" },
   balance: { en: "Balance", ta: "இருப்பு" },
   invalidEventDate: { en: "Date must be one of the 3 event days", ta: "தேதி 3 நிகழ்வு நாட்களில் ஒன்றாக இருக்க வேண்டும்" },
+  invalidFYDate: { en: "Date must be on or before Feb {year}", ta: "தேதி பிப்ரவரி {year} அல்லது அதற்கு முன் இருக்க வேண்டும்" },
   growth: { en: "Growth", ta: "வளர்ச்சி" },
   familyAddressDir: { en: "Family Address Directory", ta: "குடும்ப முகவரி அடைவு" },
   eventBalanceSheet: { en: "Event Balance Sheet", ta: "நிகழ்வு இருப்புநிலை" },
@@ -442,6 +443,22 @@ const calcDay = (dateStr, day1Date) => {
   if (diff === 1) return "2";
   if (diff === 2) return "3";
   return null; // Invalid — not an event day
+};
+
+// A transaction date is valid for financial year FY if it falls on or before
+// the end of February of that FY (advances/expenses in the months leading up
+// to the event are allowed; the event itself is held around Feb). No event
+// configuration is required — this works even before Day 1 is set.
+const isValidFYDate = (dateStr, fyYear) => {
+  if (!dateStr) return false;
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return false;
+  const fy = Number(fyYear);
+  if (!fy) return true; // no FY context → don't block
+  // Last day of February of the FY (handles leap years automatically:
+  // day 0 of March = last day of Feb).
+  const endOfFeb = new Date(fy, 2, 0, 23, 59, 59);
+  return d.getTime() <= endOfFeb.getTime();
 };
 
 // --- Audit Log ---
@@ -1552,6 +1569,7 @@ function App() {
           categories={INCOME_CATS}
           donorTypes={DONOR_TYPES}
           day1Date={day1Date}
+          fyYear={currentYear}
         />
       )}
       {showForm && showForm.startsWith("income_") && (
@@ -1562,6 +1580,7 @@ function App() {
           categories={INCOME_CATS}
           donorTypes={DONOR_TYPES}
           day1Date={day1Date}
+          fyYear={currentYear}
           fixedCategory={
             showForm === "income_pulli" ? "Pulli Vari" :
             showForm === "income_penpulli" ? "Pen Pulli Varavu" :
@@ -1576,6 +1595,7 @@ function App() {
           onClose={() => setShowForm(null)}
           categories={EXPENSE_CATS}
           day1Date={day1Date}
+          fyYear={currentYear}
         />
       )}
       {showForm === "family" && (
@@ -2120,7 +2140,7 @@ function ReceivableView({ families, income, category, currentYear, onConfirm, on
                     ) : (
                       <span style={{ color: "#065f46" }}>✓ {t("statusConfirmed", lang)}</span>
                     )}
-                    {r.row.Date && <span style={{ marginLeft: 6 }}>· {r.row.Date}</span>}
+                    {r.row.Date && <span style={{ marginLeft: 6 }}>· {formatDateDisplay(r.row.Date)}</span>}
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8 }}>
@@ -3143,8 +3163,9 @@ function EditIncomeForm({ item, families, categories, donorTypes, onSubmit, onCl
     amount: String(item.Amount || ""),
     description: item.Description || "",
   });
-  const formYear = form.date ? form.date.split("-")[0] : String(new Date().getFullYear());
+  const formYear = String(item.Year || (form.date ? form.date.split("-")[0] : new Date().getFullYear()));
   const autoDay = calcDay(form.date, day1Date);
+  const dateValid = isValidFYDate(form.date, formYear);
   const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
   return (
@@ -3154,8 +3175,13 @@ function EditIncomeForm({ item, families, categories, donorTypes, onSubmit, onCl
           <label style={{ ...styles.label, flex: 1 }}>{t("date", lang)}
             <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
           </label>
-          <DayBadge day={autoDay} lang={lang} />
+          {autoDay ? <DayBadge day={autoDay} lang={lang} /> : null}
         </div>
+        {!dateValid && form.date && (
+          <div style={{ fontSize: 12, color: "#dc2626", padding: "4px 0" }}>
+            ✕ {t("invalidFYDate", lang).replace("{year}", formYear)}
+          </div>
+        )}
         <label style={styles.label}>{t("donorType", lang)}
           <select value={form.donorType} onChange={(e) => set("donorType", e.target.value)} style={styles.input}>
             {dtypes.map((tp) => <option key={tp} value={tp}>{tp === "Family" ? t("family", lang) : tp === "External" ? t("external", lang) : tp}</option>)}
@@ -3186,9 +3212,9 @@ function EditIncomeForm({ item, families, categories, donorTypes, onSubmit, onCl
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && autoDay && form.donorName && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: (saving || !autoDay) ? 0.6 : 1 }}
-        disabled={saving || !autoDay || !form.donorName || !form.amount}
+        onClick={() => { if (!saving && dateValid && form.donorName && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay || "", year: formYear }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: (saving || !dateValid || !form.donorName || !form.amount) ? 0.6 : 1 }}
+        disabled={saving || !dateValid || !form.donorName || !form.amount}
       >
         {saving ? "⏳ Updating..." : t("updateIncome", lang)}
       </button>
@@ -3210,8 +3236,9 @@ function EditExpenseForm({ item, categories, onSubmit, onClose, day1Date }) {
     amount: String(item.Amount || ""),
     vendor: item.Vendor || "",
   });
-  const formYear = form.date ? form.date.split("-")[0] : String(new Date().getFullYear());
+  const formYear = String(item.Year || (form.date ? form.date.split("-")[0] : new Date().getFullYear()));
   const autoDay = calcDay(form.date, day1Date);
+  const dateValid = isValidFYDate(form.date, formYear);
   const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
   return (
@@ -3221,8 +3248,13 @@ function EditExpenseForm({ item, categories, onSubmit, onClose, day1Date }) {
           <label style={{ ...styles.label, flex: 1 }}>{t("date", lang)}
             <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
           </label>
-          <DayBadge day={autoDay} lang={lang} />
+          {autoDay ? <DayBadge day={autoDay} lang={lang} /> : null}
         </div>
+        {!dateValid && form.date && (
+          <div style={{ fontSize: 12, color: "#dc2626", padding: "4px 0" }}>
+            ✕ {t("invalidFYDate", lang).replace("{year}", formYear)}
+          </div>
+        )}
         <label style={styles.label}>{t("category", lang)}
           <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
             {cats.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
@@ -3240,9 +3272,9 @@ function EditExpenseForm({ item, categories, onSubmit, onClose, day1Date }) {
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && autoDay && form.description && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: (saving || !autoDay) ? 0.6 : 1 }}
-        disabled={saving || !autoDay || !form.description || !form.amount}
+        onClick={() => { if (!saving && dateValid && form.description && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay || "", year: formYear }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#2563eb", opacity: (saving || !dateValid || !form.description || !form.amount) ? 0.6 : 1 }}
+        disabled={saving || !dateValid || !form.description || !form.amount}
       >
         {saving ? "⏳ Updating..." : t("updateExpense", lang)}
       </button>
@@ -3253,7 +3285,7 @@ function EditExpenseForm({ item, categories, onSubmit, onClose, day1Date }) {
 // ============================================================
 // INCOME FORM
 // ============================================================
-function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1Date, fixedCategory }) {
+function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1Date, fixedCategory, fyYear }) {
   const lang = useLang();
   const [saving, setSaving] = useState(false);
   const today = todayISO();
@@ -3268,9 +3300,9 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
     amount: "",
     description: "",
   });
-  // Auto-derive year from date
-  const formYear = form.date ? form.date.split("-")[0] : String(new Date().getFullYear());
+  const formYear = fyYear ? String(fyYear) : (form.date ? form.date.split("-")[0] : String(new Date().getFullYear()));
   const autoDay = calcDay(form.date, day1Date);
+  const dateValid = isValidFYDate(form.date, formYear);
 
   const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
   const formTitle = t("recordIncome", lang);
@@ -3282,8 +3314,13 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
           <label style={{ ...styles.label, flex: 1 }}>{t("date", lang)}
             <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
           </label>
-          <DayBadge day={autoDay} lang={lang} />
+          {autoDay ? <DayBadge day={autoDay} lang={lang} /> : null}
         </div>
+        {!dateValid && form.date && (
+          <div style={{ fontSize: 12, color: "#dc2626", padding: "4px 0" }}>
+            ✕ {t("invalidFYDate", lang).replace("{year}", formYear)}
+          </div>
+        )}
         <label style={styles.label}>{t("donorType", lang)}
           <select value={form.donorType} onChange={(e) => set("donorType", e.target.value)} style={styles.input}>
             {dtypes.map((tp) => <option key={tp} value={tp}>{tp === "Family" ? t("family", lang) : tp === "External" ? t("external", lang) : tp}</option>)}
@@ -3337,14 +3374,14 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
       </div>
       <button
         onClick={() => {
-          if (saving || !autoDay) return;
+          if (saving || !dateValid) return;
           const isMatDon = form.category === "Material Donation";
           if (form.donorName && (isMatDon || form.amount)) {
-            setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear, amount: isMatDon ? "0" : form.amount });
+            setSaving(true); onSubmit({ ...form, day: autoDay || "", year: formYear, amount: isMatDon ? "0" : form.amount });
           }
         }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: (saving || !autoDay || !form.donorName || (form.category !== "Material Donation" && !form.amount)) ? 0.4 : 1 }}
-        disabled={saving || !autoDay || !form.donorName || (form.category !== "Material Donation" && !form.amount)}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: (saving || !dateValid || !form.donorName || (form.category !== "Material Donation" && !form.amount)) ? 0.4 : 1 }}
+        disabled={saving || !dateValid || !form.donorName || (form.category !== "Material Donation" && !form.amount)}
       >
         {saving ? "⏳ Saving..." : t("saveIncome", lang)}
       </button>
@@ -3352,7 +3389,7 @@ function IncomeForm({ families, onSubmit, onClose, categories, donorTypes, day1D
   );
 }
 
-function ExpenseForm({ onSubmit, onClose, categories, day1Date }) {
+function ExpenseForm({ onSubmit, onClose, categories, day1Date, fyYear }) {
   const lang = useLang();
   const [saving, setSaving] = useState(false);
   const today = todayISO();
@@ -3364,8 +3401,11 @@ function ExpenseForm({ onSubmit, onClose, categories, day1Date }) {
     amount: "",
     vendor: "",
   });
-  const formYear = form.date ? form.date.split("-")[0] : String(new Date().getFullYear());
+  const formYear = fyYear ? String(fyYear) : (form.date ? form.date.split("-")[0] : String(new Date().getFullYear()));
   const autoDay = calcDay(form.date, day1Date);
+  // Date valid if on or before end of Feb of the financial year. No event
+  // configuration required.
+  const dateValid = isValidFYDate(form.date, formYear);
 
   const set = (k, v) => setForm((prev) => ({ ...prev, [k]: v }));
 
@@ -3376,8 +3416,13 @@ function ExpenseForm({ onSubmit, onClose, categories, day1Date }) {
           <label style={{ ...styles.label, flex: 1 }}>{t("date", lang)}
             <input type="date" value={form.date} onChange={(e) => set("date", e.target.value)} style={styles.input} />
           </label>
-          <DayBadge day={autoDay} lang={lang} />
+          {autoDay ? <DayBadge day={autoDay} lang={lang} /> : null}
         </div>
+        {!dateValid && form.date && (
+          <div style={{ fontSize: 12, color: "#dc2626", padding: "4px 0" }}>
+            ✕ {t("invalidFYDate", lang).replace("{year}", formYear)}
+          </div>
+        )}
         <label style={styles.label}>{t("category", lang)}
           <select value={form.category} onChange={(e) => set("category", e.target.value)} style={styles.input}>
             {cats.map((c) => <option key={c} value={c}>{tCat(c, lang)}</option>)}
@@ -3395,9 +3440,9 @@ function ExpenseForm({ onSubmit, onClose, categories, day1Date }) {
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && autoDay && form.description && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay, year: formYear }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: (saving || !autoDay) ? 0.6 : 1 }}
-        disabled={saving || !autoDay || !form.description || !form.amount}
+        onClick={() => { if (!saving && dateValid && form.description && form.amount) { setSaving(true); onSubmit({ ...form, day: autoDay || "", year: formYear }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, opacity: (saving || !dateValid || !form.description || !form.amount) ? 0.6 : 1 }}
+        disabled={saving || !dateValid || !form.description || !form.amount}
       >
         {saving ? "⏳ Saving..." : t("saveExpense", lang)}
       </button>
@@ -4192,6 +4237,7 @@ function LoanAddForm({ families, allLoans, currentYear, onSubmit, onClose, day1D
   const intAmt = intOnLoan + intOnPrev;
   const totalRec = lastYrRec + loanAmt + intAmt;
   const autoDay = calcDay(form.issuedDate, day1Date);
+  const dateValid = isValidFYDate(form.issuedDate, currentYear);
 
   return (
     <Modal title={t("addLoan", lang)} onClose={onClose}>
@@ -4217,8 +4263,13 @@ function LoanAddForm({ families, allLoans, currentYear, onSubmit, onClose, day1D
           <label style={{ ...styles.label, flex: 1 }}>{t("issuedDate", lang)}
             <input type="date" value={form.issuedDate} onChange={(e) => set("issuedDate", e.target.value)} style={styles.input} />
           </label>
-          <DayBadge day={autoDay} lang={lang} />
+          {autoDay ? <DayBadge day={autoDay} lang={lang} /> : null}
         </div>
+        {!dateValid && form.issuedDate && (
+          <div style={{ fontSize: 12, color: "#dc2626", padding: "4px 0" }}>
+            ✕ {t("invalidFYDate", lang).replace("{year}", String(currentYear))}
+          </div>
+        )}
         {/* Auto-calculated summary */}
         {(loanAmt > 0 || lastYrRec > 0) && (
           <div style={{ background: "#f5f5f4", borderRadius: 8, padding: 12, fontSize: 13 }}>
@@ -4234,9 +4285,9 @@ function LoanAddForm({ families, allLoans, currentYear, onSubmit, onClose, day1D
         </label>
       </div>
       <button
-        onClick={() => { if (!saving && autoDay && form.familyId && (form.loanAmount || form.lastYearReceivable)) { setSaving(true); onSubmit({ ...form, year: String(currentYear) }); } }}
-        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#b45309", opacity: (saving || !autoDay || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)) ? 0.6 : 1 }}
-        disabled={saving || !autoDay || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)}
+        onClick={() => { if (!saving && dateValid && form.familyId && (form.loanAmount || form.lastYearReceivable)) { setSaving(true); onSubmit({ ...form, year: String(currentYear) }); } }}
+        style={{ ...styles.btnPrimary, width: "100%", marginTop: 16, background: "#b45309", opacity: (saving || !dateValid || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)) ? 0.6 : 1 }}
+        disabled={saving || !dateValid || !form.familyId || (!form.loanAmount && !form.lastYearReceivable)}
       >
         {saving ? "⏳ Saving..." : t("addLoan", lang)}
       </button>
