@@ -1095,6 +1095,36 @@ function App() {
     }
   };
 
+  // Edit just the amount of a receivable (or any income) row — Admin only.
+  // Reuses the editIncome backend route, resending the row with a new Amount.
+  const editReceivableAmount = async (txnId, newAmount) => {
+    const row = income.find((d) => String(d.TxnID) === String(txnId));
+    if (!row) return;
+    setBusy(true);
+    try {
+      await backendRef.current.post("editIncome", {
+        txnId: txnId,
+        year: row.Year,
+        day: row.Day,
+        date: row.Date,
+        donorType: row.DonorType,
+        familyId: row.FamilyID || "",
+        donorName: row.DonorName,
+        category: row.Category,
+        amount: newAmount,
+        description: row.Description || "",
+      });
+      setIncome((prev) => prev.map((r) =>
+        String(r.TxnID) === String(txnId) ? { ...r, Amount: newAmount } : r
+      ));
+      showToast(t("updated", lang));
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Seed standard 48 auction items for a year
   const seedAuctionItems = async (year) => {
     setBusy(true);
@@ -1378,6 +1408,7 @@ function App() {
                 currentYear={currentYear}
                 onConfirm={confirmIncome}
                 onDelete={deleteIncome}
+                onEditAmount={editReceivableAmount}
                 isAdmin={isAdmin}
                 canEdit={canEdit}
               />
@@ -1979,10 +2010,12 @@ function AddFYConfirmModal({ currentYear, families, loans, income, onConfirm, on
 // button that flips it to Status="Confirmed". After confirming, the
 // row counts as real income.
 // ============================================================
-function ReceivableView({ families, income, category, currentYear, onConfirm, onDelete, isAdmin, canEdit }) {
+function ReceivableView({ families, income, category, currentYear, onConfirm, onDelete, onEditAmount, isAdmin, canEdit }) {
   const lang = useLang();
   const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
   const [busy, setBusy] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState("");
 
   const isConfirmed = (row) => !row.Status || row.Status === "Confirmed";
   const isExpected = (row) => row.Status === "Expected";
@@ -2028,6 +2061,20 @@ function ReceivableView({ families, income, category, currentYear, onConfirm, on
     setBusy(row.row.TxnID);
     await onDelete(row.row.TxnID);
     setBusy(null);
+  };
+
+  const startEdit = (row) => {
+    setEditingId(row.row.TxnID);
+    setEditValue(String(Number(row.row.Amount) || 0));
+  };
+
+  const saveEdit = async (row) => {
+    const newAmt = Number(editValue);
+    if (isNaN(newAmt) || newAmt < 0) { setEditingId(null); return; }
+    setBusy(row.row.TxnID);
+    if (onEditAmount) await onEditAmount(row.row.TxnID, newAmt);
+    setBusy(null);
+    setEditingId(null);
   };
 
   return (
@@ -2077,8 +2124,45 @@ function ReceivableView({ families, income, category, currentYear, onConfirm, on
                   </div>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8 }}>
-                  <strong style={{ fontSize: 14, fontFamily: "'Outfit', sans-serif", color: "#292524" }}>{fmt(r.row.Amount)}</strong>
-                  {expected && canEdit && (
+                  {editingId === r.row.TxnID ? (
+                    <>
+                      <input
+                        type="number"
+                        value={editValue}
+                        onChange={(e) => setEditValue(e.target.value)}
+                        autoFocus
+                        style={{ width: 90, padding: "5px 8px", fontSize: 13, border: "1px solid #7c3aed", borderRadius: 6, textAlign: "right", fontFamily: "'Outfit', sans-serif" }}
+                      />
+                      <button
+                        onClick={() => saveEdit(r)}
+                        disabled={busy === r.row.TxnID}
+                        style={{ padding: "6px 10px", fontSize: 11, fontWeight: 700, background: "#7c3aed", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", opacity: busy === r.row.TxnID ? 0.6 : 1 }}
+                        title={t("save", lang)}
+                      >
+                        {busy === r.row.TxnID ? "⏳" : "💾"}
+                      </button>
+                      <button
+                        onClick={() => setEditingId(null)}
+                        style={{ padding: "6px 8px", fontSize: 11, background: "transparent", color: "#78716c", border: "1px solid #d6d3d1", borderRadius: 6, cursor: "pointer" }}
+                        title={t("cancel", lang)}
+                      >
+                        ✕
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <strong style={{ fontSize: 14, fontFamily: "'Outfit', sans-serif", color: "#292524" }}>{fmt(r.row.Amount)}</strong>
+                      {isAdmin && onEditAmount && (
+                        <button
+                          onClick={() => startEdit(r)}
+                          disabled={busy === r.row.TxnID}
+                          style={{ padding: "6px 8px", fontSize: 11, background: "transparent", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: 6, cursor: "pointer" }}
+                          title={t("edit", lang)}
+                        >
+                          ✏️
+                        </button>
+                      )}
+                      {expected && canEdit && (
                     <button
                       onClick={() => doConfirm(r)}
                       disabled={busy === r.row.TxnID}
@@ -2116,6 +2200,8 @@ function ReceivableView({ families, income, category, currentYear, onConfirm, on
                     >
                       🗑
                     </button>
+                  )}
+                    </>
                   )}
                 </div>
               </div>
