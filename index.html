@@ -226,6 +226,17 @@ const T = {
   statusConfirmed: { en: "Confirmed", ta: "உறுதி" },
   confirmCollection: { en: "Confirm collection", ta: "வசூல் உறுதி" },
   toastConfirmed: { en: "Collection confirmed", ta: "வசூல் உறுதி செய்யப்பட்டது" },
+  toastCollected: { en: "Payment collected", ta: "கட்டணம் வசூலிக்கப்பட்டது" },
+  collectPayment: { en: "Collect payment", ta: "வசூல் செய்" },
+  amountNow: { en: "Amount collecting now", ta: "இப்போது வசூல் தொகை" },
+  owed: { en: "Owed", ta: "பாக்கி" },
+  collected: { en: "Collected", ta: "வசூலானது" },
+  remaining: { en: "Remaining", ta: "மீதம்" },
+  interestPreview: { en: "interest", ta: "வட்டி" },
+  months: { en: "mo", ta: "மா" },
+  fullyCollected: { en: "Fully collected", ta: "முழுவதும் வசூல்" },
+  ifPaidToday: { en: "if remaining paid today", ta: "மீதம் இன்று செலுத்தினால்" },
+  lockedInterest: { en: "Interest locked", ta: "பதிந்த வட்டி" },
   expectedTotal: { en: "Expected total", ta: "எதிர்பார்க்கப்படும் மொத்தம்" },
   collectedTotal: { en: "Collected total", ta: "வசூலிக்கப்பட்ட மொத்தம்" },
   // Voice input
@@ -459,6 +470,26 @@ const isValidFYDate = (dateStr, fyYear) => {
   // day 0 of March = last day of Feb).
   const endOfFeb = new Date(fy, 2, 0, 23, 59, 59);
   return d.getTime() <= endOfFeb.getTime();
+};
+
+// Time-based interest (mirrors backend). Months counted from February of
+// the financial year up to & including the payment month, capped 0..12.
+const monthsSinceEvent = (fyYear, paymentDateStr) => {
+  if (!paymentDateStr) return 0;
+  const pay = new Date(paymentDateStr);
+  if (isNaN(pay.getTime())) return 0;
+  const fy = Number(fyYear);
+  if (!fy) return 0;
+  let months = (pay.getFullYear() - fy) * 12 + (pay.getMonth() - 1);
+  if (months < 0) months = 0;
+  if (months > 12) months = 12;
+  return months;
+};
+const calcTimeInterest = (principal, annualRatePct, months) => {
+  const p = Number(principal) || 0;
+  let r = Number(annualRatePct); if (isNaN(r)) r = 9;
+  const m = Number(months) || 0;
+  return Math.round(p * (r / 100) * (m / 12));
 };
 
 // --- Audit Log ---
@@ -1142,6 +1173,27 @@ function App() {
     }
   };
 
+  // Collect a (partial) principal payment against a family's Cash Receivable.
+  // Backend writes the collected principal row + accrues time-based interest
+  // into the family's single Interest Receivable row, then returns the full
+  // refreshed state so the UI reflects it.
+  const collectReceivable = async (familyId, amount, date) => {
+    setBusy(true);
+    try {
+      await backendRef.current.post("collectReceivable", {
+        familyId, year: String(currentYear), amount, date,
+      });
+      // Refresh income so the new collected row + updated interest flow in.
+      const fresh = await backendRef.current.post("loadAll", {});
+      if (fresh && fresh.income) setIncome(fresh.income);
+      showToast(t("toastCollected", lang));
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Seed standard 48 auction items for a year
   const seedAuctionItems = async (year) => {
     setBusy(true);
@@ -1404,13 +1456,12 @@ function App() {
               />
             )}
             {incomeSubTab === "cashrec" && (
-              <ReceivableView
+              <CashReceivableView
                 key="cash-rec"
                 families={families}
                 income={yearIncome}
-                category="Cash Receivable"
                 currentYear={currentYear}
-                onConfirm={confirmIncome}
+                onCollect={collectReceivable}
                 onDelete={deleteIncome}
                 isAdmin={isAdmin}
                 canEdit={canEdit}
@@ -2023,6 +2074,184 @@ function AddFYConfirmModal({ currentYear, families, loans, income, onConfirm, on
 }
 
 // ============================================================
+// CASH RECEIVABLE VIEW (partial principal collection, time-based interest)
+// ============================================================
+// Per-family: shows principal owed, collected so far, remaining, each
+// installment already paid, and a "+ Collect" dialog. Each collection is
+// priced by its payment month (interest = amount × 9% × months/12) and
+// accrues into the family's single Interest Receivable row (backend).
+// ============================================================
+function CashReceivableView({ families, income, currentYear, onCollect, onDelete, isAdmin, canEdit }) {
+  const lang = useLang();
+  const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
+  const [collectFor, setCollectFor] = useState(null); // family object being collected
+  const [busy, setBusy] = useState(false);
+
+  const yr = String(currentYear);
+  const isCollectedStatus = (s) => String(s || "").trim() === "Collected";
+
+  // Group this year's Cash Receivable rows by family: the Expected obligation
+  // + the list of Collected installments.
+  const byFamily = {};
+  (income || []).forEach((d) => {
+    if (String(d.Year) !== yr) return;
+    if (String(d.Category || "").trim().toLowerCase() !== "cash receivable") return;
+    const fid = String(d.FamilyID || "").trim();
+    if (!fid) return;
+    if (!byFamily[fid]) byFamily[fid] = { expected: null, collected: [] };
+    if (isCollectedStatus(d.Status)) byFamily[fid].collected.push(d);
+    else byFamily[fid].expected = d; // Expected / blank = obligation anchor
+  });
+
+  const rows = (families || [])
+    .map((f) => {
+      const fid = String(f.FamilyID || "").trim();
+      const g = byFamily[fid];
+      if (!g) return null;
+      const owed = g.expected ? Number(g.expected.Amount) || 0 : 0;
+      const collectedSum = g.collected.reduce((s, r) => s + (Number(r.Amount) || 0), 0);
+      const fully = g.expected ? String(g.expected.Status).trim() === "Confirmed" : collectedSum > 0;
+      return { id: fid, name: f.FamilyName, owed, collectedSum,
+               remaining: Math.max(0, owed - collectedSum), installments: g.collected, fully };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (parseInt(String(a.id).replace(/\D/g,""))||0) - (parseInt(String(b.id).replace(/\D/g,""))||0));
+
+  const totalOwed = rows.reduce((s, r) => s + r.owed, 0);
+  const totalCollected = rows.reduce((s, r) => s + r.collectedSum, 0);
+  const totalRemaining = rows.reduce((s, r) => s + r.remaining, 0);
+
+  const doCollect = async (familyId, amount, date) => {
+    setBusy(true);
+    await onCollect(familyId, amount, date);
+    setBusy(false);
+    setCollectFor(null);
+  };
+
+  return (
+    <div style={styles.page}>
+      {/* Summary */}
+      <div style={{ display: "flex", gap: 8, padding: "8px 12px", background: "#fafaf9", borderBottom: "1px solid #e7e5e4" }}>
+        <div style={{ flex: 1, padding: 10, background: "#fef3c7", borderRadius: 8 }}>
+          <div style={{ color: "#92400e", fontWeight: 600, fontSize: 11 }}>{t("owed", lang)}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#92400e" }}>{fmt(totalOwed)}</div>
+        </div>
+        <div style={{ flex: 1, padding: 10, background: "#d1fae5", borderRadius: 8 }}>
+          <div style={{ color: "#065f46", fontWeight: 600, fontSize: 11 }}>✓ {t("collected", lang)}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#065f46" }}>{fmt(totalCollected)}</div>
+        </div>
+        <div style={{ flex: 1, padding: 10, background: "#fee2e2", borderRadius: 8 }}>
+          <div style={{ color: "#991b1b", fontWeight: 600, fontSize: 11 }}>{t("remaining", lang)}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#991b1b" }}>{fmt(totalRemaining)}</div>
+        </div>
+      </div>
+
+      {rows.length === 0 ? (
+        <p style={styles.empty}>{lang === "ta" ? "பாக்கி இல்லை" : "No receivables for this year"}</p>
+      ) : (
+        <div style={{ padding: 8 }}>
+          {rows.map((r) => (
+            <div key={r.id} style={{
+              marginBottom: 6, background: "#fff", borderRadius: 8,
+              border: "1px solid " + (r.fully ? "#a7f3d0" : "#fde68a"),
+              borderLeft: "4px solid " + (r.fully ? "#10b981" : "#f59e0b"),
+              padding: "10px 12px",
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</div>
+                  <div style={{ fontSize: 11, color: "#78716c", marginTop: 2 }}>
+                    {t("owed", lang)}: {fmt(r.owed)} · {t("collected", lang)}: {fmt(r.collectedSum)} · <strong style={{ color: r.remaining > 0 ? "#991b1b" : "#065f46" }}>{t("remaining", lang)}: {fmt(r.remaining)}</strong>
+                  </div>
+                  {r.installments.length > 0 && (
+                    <div style={{ marginTop: 4, display: "flex", flexDirection: "column", gap: 2 }}>
+                      {r.installments.map((inst, i) => {
+                        const m = monthsSinceEvent(currentYear, inst.Date);
+                        return (
+                          <div key={i} style={{ fontSize: 10, color: "#065f46" }}>
+                            ✓ {fmt(inst.Amount)} {inst.Date ? "· " + formatDateDisplay(inst.Date) + " (" + m + t("months", lang) + ")" : ""}
+                            {isAdmin && (
+                              <button onClick={() => onDelete(inst.TxnID)} style={{ marginLeft: 6, fontSize: 9, background: "transparent", border: "none", color: "#dc2626", cursor: "pointer" }}>🗑</button>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <div style={{ marginLeft: 8 }}>
+                  {r.fully ? (
+                    <span style={{ fontSize: 11, fontWeight: 700, color: "#065f46" }}>✓ {t("fullyCollected", lang)}</span>
+                  ) : canEdit ? (
+                    <button
+                      onClick={() => setCollectFor(r)}
+                      style={{ padding: "6px 12px", fontSize: 11, fontWeight: 700, background: "#10b981", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer", whiteSpace: "nowrap" }}
+                    >
+                      + {t("collectPayment", lang)}
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {collectFor && (
+        <CollectPaymentModal
+          family={collectFor}
+          currentYear={currentYear}
+          busy={busy}
+          onSubmit={doCollect}
+          onClose={() => setCollectFor(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// Modal for collecting one principal installment, with live interest preview.
+function CollectPaymentModal({ family, currentYear, busy, onSubmit, onClose }) {
+  const lang = useLang();
+  const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
+  const [amount, setAmount] = useState(String(family.remaining || ""));
+  const [date, setDate] = useState(todayISO());
+
+  const amt = Number(amount) || 0;
+  const months = monthsSinceEvent(currentYear, date);
+  const interest = calcTimeInterest(amt, 9, months);
+  const validAmt = amt > 0 && amt <= family.remaining + 0.5;
+  const validDate = isValidFYDate(date, Number(currentYear) + 1) || true; // allow through next FY collection window
+
+  return (
+    <Modal title={t("collectPayment", lang)} onClose={onClose}>
+      <div style={{ fontSize: 13, marginBottom: 10 }}>
+        <strong>{family.name}</strong><br/>
+        <span style={{ color: "#78716c" }}>{t("remaining", lang)}: {fmt(family.remaining)}</span>
+      </div>
+      <label style={styles.label}>{t("amountNow", lang)} (₹)
+        <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} style={styles.input} autoFocus />
+      </label>
+      <label style={styles.label}>{t("date", lang)}
+        <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={styles.input} />
+      </label>
+      <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 8, padding: 10, fontSize: 13, margin: "8px 0", color: "#1e40af" }}>
+        {months} {t("months", lang)} → {fmt(interest)} {t("interestPreview", lang)}
+      </div>
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+        <button onClick={onClose} disabled={busy} style={{ ...styles.btnPrimary, flex: 1, background: "#a8a29e" }}>{t("cancel", lang)}</button>
+        <button
+          onClick={() => { if (validAmt && !busy) onSubmit(family.id, amt, date); }}
+          disabled={busy || !validAmt}
+          style={{ ...styles.btnPrimary, flex: 1, background: "#10b981", opacity: (busy || !validAmt) ? 0.6 : 1 }}
+        >
+          {busy ? "⏳" : "✓ " + t("confirmCollection", lang)}
+        </button>
+      </div>
+    </Modal>
+  );
+}
+
 // RECEIVABLE VIEW (Cash Receivable / Interest Receivable)
 // ============================================================
 // Per-family list — shows each family's expected amount from the
@@ -2037,7 +2266,7 @@ function ReceivableView({ families, income, category, currentYear, onConfirm, on
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState("");
 
-  const isConfirmed = (row) => !row.Status || row.Status === "Confirmed";
+  const isConfirmed = (row) => !row.Status || row.Status === "Confirmed" || row.Status === "Collected";
   const isExpected = (row) => row.Status === "Expected";
 
   // Build family → row map (1 row per family per category for current year)
@@ -3568,12 +3797,19 @@ function BalanceSheetView({ income, expenses, auction, loans, ledger, currentYea
     .filter((d) => norm(d.Category) === "cash donation")
     .reduce((s, d) => s + (Number(d.Amount) || 0), 0);
 
+  // Cash Receivable: count only actually-collected installments
+  // (Status="Collected"). The Expected row is the obligation, not cash in.
+  // Legacy rows (blank/Confirmed, from the old single-confirm model) still count.
   const cashReceivable = income
     .filter((d) => norm(d.Category) === "cash receivable")
+    .filter((d) => { const s = String(d.Status || "").trim(); return s === "Collected" || s === "Confirmed" || s === ""; })
     .reduce((s, d) => s + (Number(d.Amount) || 0), 0);
 
+  // Interest Receivable: the single per-family row's Amount is the accrued
+  // collected interest (Expected ₹0 rows contribute nothing).
   const interestReceivable = income
     .filter((d) => norm(d.Category) === "interest receivable")
+    .filter((d) => { const s = String(d.Status || "").trim(); return s === "Collected" || s === "Confirmed" || s === ""; })
     .reduce((s, d) => s + (Number(d.Amount) || 0), 0);
 
   const totalVaravu = generalIncome + pulliVari + penPulli + auctionConfirmed + cashDonation + cashReceivable + interestReceivable;
