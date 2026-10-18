@@ -1329,9 +1329,15 @@ function App() {
   const yearExpenses = expenses.filter((e) => String(e.Year) === yearStr);
   const yearLoans = loans.filter((l) => String(l.Year) === yearStr);
   const yearAuction = auction.filter((a) => String(a.Year) === yearStr);
-  // "Realized" income = excluding rows pre-populated as Expected (not yet collected)
-  // Legacy rows without a Status field are treated as Confirmed for backward compatibility.
-  const isIncomeConfirmed = (d) => !d.Status || d.Status === "Confirmed";
+  // "Realized" income = money actually received. Counts:
+  //   - legacy rows with no Status (treated as confirmed)
+  //   - Confirmed rows
+  //   - Collected rows (partial receivable installments + accrued interest)
+  // Excludes "Expected" rows (the un-collected obligation anchors).
+  const isIncomeConfirmed = (d) => {
+    const s = String(d.Status || "").trim();
+    return s === "" || s === "Confirmed" || s === "Collected";
+  };
   const yearIncomeRealized = yearIncome.filter(isIncomeConfirmed);
   const totalIncome = yearIncomeRealized.reduce((s, d) => s + Number(d.Amount || 0), 0);
   const totalExpenses = yearExpenses.reduce((s, e) => s + Number(e.Amount || 0), 0);

@@ -991,7 +991,7 @@ function handleConfirmIncome(data, email) {
   // Set Status=Confirmed
   sheet.getRange(found, statusIdx + 1).setValue("Confirmed");
   // Update Date if blank
-  if (dateIdx >= 0) sheet.getRange(found, dateIdx + 1).setValue(todayDate);
+  if (dateIdx >= 0) sheet.getRange(found, dateIdx + 1).setNumberFormat("@").setValue(todayDate);
   // Compute and update Day (relative to Ledger Day1 for this year)
   if (dayIdx >= 0 && rowYear) {
     var day = computeDayFromLedger(ss, rowYear, todayDate);
@@ -1027,6 +1027,26 @@ function monthsSinceEvent(fyYear, paymentDateStr) {
   if (months < 0) months = 0;
   if (months > 12) months = 12;
   return months;
+}
+
+// Normalize any date value to a plain "yyyy-MM-dd" string so Google Sheets
+// stores it as text, not an auto-converted Date object (which renders as
+// "Sat Oct 17 2026 12:30:00 GMT+0530..."). Accepts Date objects, ISO
+// strings, or dd/MM/yyyy.
+function toDateStr(v) {
+  if (!v) return "";
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return Utilities.formatDate(v, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  }
+  var s = String(v).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;                 // already ISO
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s)) return s.split("T")[0];   // ISO datetime
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) {                        // dd/MM/yyyy
+    var p = s.split("/"); return p[2] + "-" + p[1] + "-" + p[0];
+  }
+  var d = new Date(s);
+  if (!isNaN(d.getTime())) return Utilities.formatDate(d, Session.getScriptTimeZone(), "yyyy-MM-dd");
+  return s;
 }
 
 // Interest on a principal amount for a given number of months at a rate.
@@ -1090,7 +1110,7 @@ function handleCollectReceivable(data, email) {
   var familyId = String(data.familyId || "").trim();
   var year = String(data.year || "").trim();
   var amount = Number(data.amount) || 0;
-  var payDate = String(data.date || "").trim();
+  var payDate = toDateStr(String(data.date || "").trim());
   var rate = (data.rate === undefined || data.rate === null || data.rate === "") ? 9 : Number(data.rate);
   if (!familyId) throw new Error("familyId required");
   if (!year) throw new Error("year required");
@@ -1148,7 +1168,8 @@ function handleCollectReceivable(data, email) {
   var computedDay = computeDayFromLedger(ss, year, payDate) || "";
   var months = monthsSinceEvent(year, payDate);
 
-  // 1. Write the collected principal row.
+  // 1. Write the collected principal row. Force the Date cell to plain-text
+  //    format BEFORE writing so Sheets doesn't convert it to a Date object.
   var collectedRow = buildIncomeRow(headers, {
     TxnID: generateId("DON"), Year: year, Day: computedDay, Date: payDate,
     DonorType: "Family", FamilyID: familyId, DonorName: donorName,
@@ -1157,6 +1178,10 @@ function handleCollectReceivable(data, email) {
     EnteredBy: email, Timestamp: now(), Status: "Collected",
   });
   sheet.appendRow(collectedRow);
+  var newRowNo = sheet.getLastRow();
+  if (dateIdx >= 0) {
+    sheet.getRange(newRowNo, dateIdx + 1).setNumberFormat("@").setValue(payDate);
+  }
 
   // 2. REBATE-MODEL interest: full-year interest on the full principal owed,
   //    minus the rebate on every early principal payment (including this one).
@@ -1165,7 +1190,7 @@ function handleCollectReceivable(data, email) {
   if (interestRowNo !== -1) {
     sheet.getRange(interestRowNo, amtIdx + 1).setValue(newInterestTotal);
     sheet.getRange(interestRowNo, statusIdx + 1).setValue("Collected");
-    sheet.getRange(interestRowNo, dateIdx + 1).setValue(payDate);
+    sheet.getRange(interestRowNo, dateIdx + 1).setNumberFormat("@").setValue(payDate);
     sheet.getRange(interestRowNo, headers.indexOf("Description") + 1).setValue(
       "Full " + Math.round(expectedCashAmt * rate / 100) + " − early-pay rebate"
     );
@@ -1178,6 +1203,9 @@ function handleCollectReceivable(data, email) {
       EnteredBy: email, Timestamp: now(), Status: "Collected",
     });
     sheet.appendRow(intRow);
+    if (dateIdx >= 0) {
+      sheet.getRange(sheet.getLastRow(), dateIdx + 1).setNumberFormat("@").setValue(payDate);
+    }
   }
 
   // 3. If principal fully collected, flip the Expected row to Confirmed.
@@ -1245,6 +1273,13 @@ function handleRecalcInterest(data, email) {
       if (st === "Collected") {
         if (!installmentsByFamily[fid]) installmentsByFamily[fid] = [];
         installmentsByFamily[fid].push({ amount: Number(rows[i][amtIdx]) || 0, date: rows[i][dateIdx] });
+        // Clean up any ugly full-timestamp date stored on this collected row.
+        if (dateIdx >= 0) {
+          var clean = toDateStr(rows[i][dateIdx]);
+          if (clean && clean !== String(rows[i][dateIdx])) {
+            sheet.getRange(i + 1, dateIdx + 1).setNumberFormat("@").setValue(clean);
+          }
+        }
       } else {
         // Expected / blank / Confirmed obligation anchor = full principal owed
         fullPrincipalByFamily[fid] = Number(rows[i][amtIdx]) || 0;
