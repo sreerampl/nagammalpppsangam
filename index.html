@@ -499,6 +499,21 @@ const calcTimeInterest = (principal, annualRatePct, months) => {
   return Math.round(p * (r / 100) * (m / 12));
 };
 
+// Rebate-model interest (mirrors backend): full-year interest on the full
+// principal owed, minus a rebate for each early principal payment.
+//   rebate(payment) = payment × rate × (12 − monthsElapsed)/12
+const interestOwed = (fullPrincipal, installments, fyYear, annualRatePct) => {
+  let r = Number(annualRatePct); if (isNaN(r)) r = 9;
+  const fullInterest = (Number(fullPrincipal) || 0) * (r / 100);
+  let rebate = 0;
+  (installments || []).forEach((ins) => {
+    const elapsed = monthsSinceEvent(fyYear, ins.date !== undefined ? ins.date : ins.Date);
+    const remaining = 12 - elapsed;
+    rebate += (Number(ins.amount !== undefined ? ins.amount : ins.Amount) || 0) * (r / 100) * (remaining / 12);
+  });
+  return Math.max(0, Math.round(fullInterest - rebate));
+};
+
 // --- Audit Log ---
 
 // --- CSV Export Utility ---
@@ -2186,21 +2201,21 @@ function CashReceivableView({ families, income, currentYear, onCollect, onDelete
                   {r.installments.length > 0 && (
                     <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
                       {r.installments.map((inst, i) => {
-                        const m = monthsSinceEvent(currentYear, inst.Date);
-                        const instInterest = calcTimeInterest(Number(inst.Amount) || 0, 9, m);
+                        const elapsed = monthsSinceEvent(currentYear, inst.Date);
+                        const remaining = 12 - elapsed;
+                        const rebate = Math.round((Number(inst.Amount) || 0) * 0.09 * remaining / 12);
                         return (
                           <div key={i} style={{ paddingLeft: 2 }}>
                             {/* Payment node */}
                             <div style={{ fontSize: 11, color: "#065f46", fontWeight: 600 }}>
-                              ✓ {fmt(inst.Amount)} {inst.Date ? "· " + formatDateDisplay(inst.Date) : ""}
+                              ✓ {fmt(inst.Amount)} {inst.Date ? "· " + formatDateDisplay(inst.Date) : ""} ({elapsed} {t("months", lang)})
                               {isAdmin && (
                                 <button onClick={() => onDelete(inst.TxnID)} style={{ marginLeft: 6, fontSize: 9, background: "transparent", border: "none", color: "#dc2626", cursor: "pointer" }}>🗑</button>
                               )}
                             </div>
-                            {/* Tree branches: principal + interest */}
+                            {/* Tree branch: interest rebate earned by paying early */}
                             <div style={{ fontSize: 10, color: "#78716c", paddingLeft: 12, borderLeft: "1px solid #d6d3d1", marginLeft: 3 }}>
-                              <div>├─ {t("principal", lang)}: {fmt(inst.Amount)}</div>
-                              <div>└─ {t("interestPreview", lang)}: {fmt(instInterest)} ({m} {t("months", lang)} @ 9%)</div>
+                              <div>└─ {lang === "ta" ? "வட்டி தள்ளுபடி" : "interest rebate"}: −{fmt(rebate)} ({remaining}{t("months", lang)} {lang === "ta" ? "மீதம்" : "early"})</div>
                             </div>
                           </div>
                         );
@@ -2292,9 +2307,10 @@ function InterestReceivableView({ families, income, currentYear, onEditAmount, o
 
   const yr = String(currentYear);
 
-  // Collected principal installments per family.
+  // Per family: full principal owed (Expected Cash Receivable), collected
+  // installments, and the stored Interest Receivable row.
+  const fullPrincipalByFamily = {};
   const collectedByFamily = {};
-  // The stored Interest Receivable row per family (for admin override + id).
   const interestRowByFamily = {};
   (income || []).forEach((d) => {
     if (String(d.Year) !== yr) return;
@@ -2302,9 +2318,13 @@ function InterestReceivableView({ families, income, currentYear, onEditAmount, o
     if (!fid) return;
     const cat = String(d.Category || "").trim().toLowerCase();
     const st = String(d.Status || "").trim();
-    if (cat === "cash receivable" && st === "Collected") {
-      if (!collectedByFamily[fid]) collectedByFamily[fid] = [];
-      collectedByFamily[fid].push(d);
+    if (cat === "cash receivable") {
+      if (st === "Collected") {
+        if (!collectedByFamily[fid]) collectedByFamily[fid] = [];
+        collectedByFamily[fid].push(d);
+      } else {
+        fullPrincipalByFamily[fid] = Number(d.Amount) || 0; // obligation
+      }
     } else if (cat === "interest receivable") {
       interestRowByFamily[fid] = d;
     }
@@ -2316,13 +2336,14 @@ function InterestReceivableView({ families, income, currentYear, onEditAmount, o
       const intRow = interestRowByFamily[fid];
       if (!intRow) return null; // only families that have an interest row
       const installments = collectedByFamily[fid] || [];
-      // Live computed interest from collected installments.
-      const computed = installments.reduce((s, inst) => {
-        const m = monthsSinceEvent(currentYear, inst.Date);
-        return s + calcTimeInterest(Number(inst.Amount) || 0, 9, m);
-      }, 0);
+      const fullP = fullPrincipalByFamily[fid] || 0;
+      const fullInterest = Math.round(fullP * 0.09);
+      // Rebate model: only meaningful once something is collected.
+      const computed = installments.length > 0
+        ? interestOwed(fullP, installments, currentYear, 9)
+        : 0;
       const stored = Number(intRow.Amount) || 0;
-      return { id: fid, name: f.FamilyName, intRow, installments, computed, stored };
+      return { id: fid, name: f.FamilyName, intRow, installments, fullP, fullInterest, computed, stored };
     })
     .filter(Boolean)
     .sort((a, b) => (parseInt(String(a.id).replace(/\D/g,""))||0) - (parseInt(String(b.id).replace(/\D/g,""))||0));
@@ -2382,16 +2403,23 @@ function InterestReceivableView({ families, income, currentYear, onEditAmount, o
                   <div style={{ minWidth: 0, flex: 1 }}>
                     <div style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</div>
                     {r.installments.length === 0 ? (
-                      <div style={{ fontSize: 11, color: "#a8a29e", marginTop: 2 }}>{lang === "ta" ? "வசூல் இல்லை" : "No collection yet"}</div>
+                      <div style={{ fontSize: 11, color: "#a8a29e", marginTop: 2 }}>
+                        {lang === "ta" ? "வசூல் இல்லை" : "No collection yet"} · {lang === "ta" ? "முழு வட்டி" : "full"} {fmt(r.fullInterest)}
+                      </div>
                     ) : (
                       <div style={{ marginTop: 4, fontSize: 10, color: "#78716c", paddingLeft: 4 }}>
+                        <div>{lang === "ta" ? "முழு வட்டி" : "Full interest"}: {fmt(r.fullP)} × 9% = <strong>{fmt(r.fullInterest)}</strong></div>
                         {r.installments.map((inst, i) => {
-                          const m = monthsSinceEvent(currentYear, inst.Date);
-                          const it = calcTimeInterest(Number(inst.Amount) || 0, 9, m);
+                          const elapsed = monthsSinceEvent(currentYear, inst.Date);
+                          const remaining = 12 - elapsed;
+                          const reb = Math.round((Number(inst.Amount) || 0) * 0.09 * remaining / 12);
                           return (
-                            <div key={i}>└─ {fmt(inst.Amount)} × 9% × {m}/12 = <strong style={{ color: "#3730a3" }}>{fmt(it)}</strong></div>
+                            <div key={i}>└─ {lang === "ta" ? "தள்ளுபடி" : "rebate"} {fmt(inst.Amount)} × 9% × {remaining}/12 = <strong style={{ color: "#b45309" }}>−{fmt(reb)}</strong></div>
                           );
                         })}
+                        <div style={{ borderTop: "1px solid #e7e5e4", marginTop: 2, paddingTop: 2 }}>
+                          = <strong style={{ color: "#3730a3" }}>{fmt(r.computed)}</strong>
+                        </div>
                       </div>
                     )}
                     {mismatch && (

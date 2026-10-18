@@ -1039,6 +1039,32 @@ function calcTimeInterest(principal, annualRatePct, months) {
 }
 
 // ============================================================
+// INTEREST = REBATE MODEL
+// ============================================================
+// Each family owes a full year's interest on the full principal:
+//   fullInterest = fullPrincipal × rate
+// Paying principal early earns a rebate on the UNEXPIRED months:
+//   rebate(payment) = payment × rate × (12 − monthsElapsed) / 12
+// Interest owed = fullInterest − Σ rebate(payment), floored at 0.
+//
+// monthsElapsed = months from the previous February (loan origination) to
+// the payment month, 0..12 (same as monthsSinceEvent). Paying AT the next
+// event (12 months elapsed) gives 0 rebate = full interest.
+// Example: 12L owed, pay 3L in Oct (8 months elapsed, 4 remaining):
+//   full = 1,08,000; rebate = 3L × 9% × 4/12 = 9,000; owed = 99,000.
+function interestOwed(fullPrincipal, installments, fyYear, annualRatePct) {
+  var r = Number(annualRatePct); if (isNaN(r)) r = 9;
+  var fullInterest = (Number(fullPrincipal) || 0) * (r / 100);
+  var rebate = 0;
+  (installments || []).forEach(function(ins) {
+    var elapsed = monthsSinceEvent(fyYear, ins.date);
+    var remaining = 12 - elapsed;
+    rebate += (Number(ins.amount) || 0) * (r / 100) * (remaining / 12);
+  });
+  return Math.max(0, Math.round(fullInterest - rebate));
+}
+
+// ============================================================
 // COLLECT RECEIVABLE (partial principal payment + time-based interest)
 // ============================================================
 // Records one principal installment against a family's Cash Receivable
@@ -1119,43 +1145,36 @@ function handleCollectReceivable(data, email) {
     throw new Error("No Cash Receivable found for " + familyId + " in " + year);
   }
 
-  // Interest on THIS installment, priced at its payment month.
-  var months = monthsSinceEvent(year, payDate);
-  var thisInterest = calcTimeInterest(amount, rate, months);
   var computedDay = computeDayFromLedger(ss, year, payDate) || "";
+  var months = monthsSinceEvent(year, payDate);
 
   // 1. Write the collected principal row.
   var collectedRow = buildIncomeRow(headers, {
     TxnID: generateId("DON"), Year: year, Day: computedDay, Date: payDate,
     DonorType: "Family", FamilyID: familyId, DonorName: donorName,
     Category: "Cash Receivable", Amount: amount,
-    Description: "Collected " + payDate + " (" + months + "mo int " + thisInterest + ")",
+    Description: "Collected " + payDate + " (" + months + "mo elapsed)",
     EnteredBy: email, Timestamp: now(), Status: "Collected",
   });
   sheet.appendRow(collectedRow);
 
-  // 2. RECOMPUTE the family's total interest = sum over ALL collected
-  //    installments (existing + this new one), each priced at its own
-  //    payment month. This self-corrects any stale rollover value.
-  var newInterestTotal = thisInterest;
-  for (var ci = 0; ci < collectedInstallments.length; ci++) {
-    var cm = monthsSinceEvent(year, collectedInstallments[ci].date);
-    newInterestTotal += calcTimeInterest(collectedInstallments[ci].amount, rate, cm);
-  }
+  // 2. REBATE-MODEL interest: full-year interest on the full principal owed,
+  //    minus the rebate on every early principal payment (including this one).
+  var allInstallments = collectedInstallments.concat([{ amount: amount, date: payDate }]);
+  var newInterestTotal = interestOwed(expectedCashAmt, allInstallments, year, rate);
   if (interestRowNo !== -1) {
     sheet.getRange(interestRowNo, amtIdx + 1).setValue(newInterestTotal);
     sheet.getRange(interestRowNo, statusIdx + 1).setValue("Collected");
     sheet.getRange(interestRowNo, dateIdx + 1).setValue(payDate);
     sheet.getRange(interestRowNo, headers.indexOf("Description") + 1).setValue(
-      "Accrued on " + (collectedInstallments.length + 1) + " payment(s) to " + payDate
+      "Full " + Math.round(expectedCashAmt * rate / 100) + " − early-pay rebate"
     );
   } else {
-    // No interest row yet — create one carrying the recomputed total.
     var intRow = buildIncomeRow(headers, {
       TxnID: generateId("DON"), Year: year, Day: computedDay, Date: payDate,
       DonorType: "Family", FamilyID: familyId, DonorName: donorName,
       Category: "Interest Receivable", Amount: newInterestTotal,
-      Description: "Accrued on 1 payment to " + payDate,
+      Description: "Full " + Math.round(expectedCashAmt * rate / 100) + " − early-pay rebate",
       EnteredBy: email, Timestamp: now(), Status: "Collected",
     });
     sheet.appendRow(intRow);
@@ -1170,13 +1189,13 @@ function handleCollectReceivable(data, email) {
 
   writeAudit("COLLECT", "Income",
     familyId + " " + year + " collected ₹" + amount + " on " + payDate +
-    " (+₹" + thisInterest + " interest, " + months + "mo)" +
+    " (" + months + "mo elapsed · interest now ₹" + newInterestTotal + ")" +
     (fullyPaid ? " · principal fully paid" : ""), email);
 
   return jsonResponse({ success: true, data: {
     familyId: familyId, year: year, collected: amount, date: payDate,
-    months: months, interestAdded: thisInterest,
-    interestTotal: newInterestTotal, totalCollected: totalCollected,
+    months: months, interestTotal: newInterestTotal,
+    totalCollected: totalCollected,
     remaining: Math.max(0, expectedCashAmt - totalCollected),
     fullyPaid: fullyPaid,
   }});
@@ -1211,19 +1230,25 @@ function handleRecalcInterest(data, email) {
   var dateIdx = headers.indexOf("Date");
   var descIdx = headers.indexOf("Description");
 
-  // Sum collected-installment interest per family.
-  var interestByFamily = {};   // fid -> computed interest
-  var interestRowNoByFamily = {}; // fid -> 1-indexed row of the interest row
+  // Per family: full principal owed (Expected Cash Receivable) + collected
+  // installments + the interest row location. Then apply the rebate model.
+  var fullPrincipalByFamily = {}; // fid -> Expected Cash Receivable amount
+  var installmentsByFamily = {};  // fid -> [{amount,date}]
+  var interestRowNoByFamily = {}; // fid -> 1-indexed interest row
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][yearIdx]) !== year) continue;
     var fid = String(rows[i][fidIdx] || "").trim();
     if (!fid) continue;
     var cat = String(rows[i][catIdx] || "").trim().toLowerCase();
     var st = String(rows[i][statusIdx] || "").trim();
-    if (cat === "cash receivable" && st === "Collected") {
-      var m = monthsSinceEvent(year, rows[i][dateIdx]);
-      var it = calcTimeInterest(Number(rows[i][amtIdx]) || 0, 9, m);
-      interestByFamily[fid] = (interestByFamily[fid] || 0) + it;
+    if (cat === "cash receivable") {
+      if (st === "Collected") {
+        if (!installmentsByFamily[fid]) installmentsByFamily[fid] = [];
+        installmentsByFamily[fid].push({ amount: Number(rows[i][amtIdx]) || 0, date: rows[i][dateIdx] });
+      } else {
+        // Expected / blank / Confirmed obligation anchor = full principal owed
+        fullPrincipalByFamily[fid] = Number(rows[i][amtIdx]) || 0;
+      }
     } else if (cat === "interest receivable") {
       interestRowNoByFamily[fid] = i + 1;
     }
@@ -1232,12 +1257,19 @@ function handleRecalcInterest(data, email) {
   var updated = 0;
   for (var fid2 in interestRowNoByFamily) {
     var rowNo = interestRowNoByFamily[fid2];
-    var computed = interestByFamily[fid2] || 0;
+    var fullP = fullPrincipalByFamily[fid2] || 0;
+    var insts = installmentsByFamily[fid2] || [];
+    // Rebate model: full-year interest on full principal − early-pay rebate.
+    var computed = interestOwed(fullP, insts, year, 9);
+    // If nothing collected yet, the row sits as the full obligation but
+    // "Expected" (not yet realized income).
+    var anyCollected = insts.length > 0;
     sheet.getRange(rowNo, amtIdx + 1).setValue(computed);
-    sheet.getRange(rowNo, statusIdx + 1).setValue(computed > 0 ? "Collected" : "Expected");
+    sheet.getRange(rowNo, statusIdx + 1).setValue(anyCollected ? "Collected" : "Expected");
     if (descIdx >= 0) {
       sheet.getRange(rowNo, descIdx + 1).setValue(
-        computed > 0 ? "Recalculated from collections" : "Accrues on collection (9% × months)"
+        anyCollected ? ("Full " + Math.round(fullP * 0.09) + " − early-pay rebate")
+                     : "Accrues as principal is collected"
       );
     }
     updated++;
