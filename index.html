@@ -237,7 +237,11 @@ const T = {
   months: { en: "mo", ta: "மா" },
   fullyCollected: { en: "Fully collected", ta: "முழுவதும் வசூல்" },
   ifPaidToday: { en: "if remaining paid today", ta: "மீதம் இன்று செலுத்தினால்" },
-  lockedInterest: { en: "Interest locked", ta: "பதிந்த வட்டி" },
+  lockedInterest: { en: "Interest (computed)", ta: "வட்டி (கணக்கிட்டது)" },
+  recalc: { en: "Recalculate", ta: "மீண்டும் கணக்கிடு" },
+  recalcHint: { en: "Recompute all interest from collected payments", ta: "வசூலிலிருந்து வட்டியை மீண்டும் கணக்கிடு" },
+  toastRecalc: { en: "Interest recalculated", ta: "வட்டி மீண்டும் கணக்கிடப்பட்டது" },
+  staleWarn: { en: "Stored interest differs from computed — recalculate to fix", ta: "பதிந்த வட்டி வேறுபடுகிறது — மீண்டும் கணக்கிடவும்" },
   expectedTotal: { en: "Expected total", ta: "எதிர்பார்க்கப்படும் மொத்தம்" },
   collectedTotal: { en: "Collected total", ta: "வசூலிக்கப்பட்ட மொத்தம்" },
   // Voice input
@@ -1197,6 +1201,22 @@ function App() {
     }
   };
 
+  // Recalculate every family's Interest Receivable row for the current year
+  // from their collected principal installments (fixes stale rollover values).
+  const recalcInterest = async () => {
+    setBusy(true);
+    try {
+      await backendRef.current.post("recalcInterest", { year: String(currentYear) });
+      const fresh = await backendRef.current.post("loadAll", {});
+      if (fresh && fresh.income) setIncome(fresh.income);
+      showToast(t("toastRecalc", lang));
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // Seed standard 48 auction items for a year
   const seedAuctionItems = async (year) => {
     setBusy(true);
@@ -1471,17 +1491,14 @@ function App() {
               />
             )}
             {incomeSubTab === "intrec" && (
-              <ReceivableView
+              <InterestReceivableView
                 key="int-rec"
                 families={families}
                 income={yearIncome}
-                category="Interest Receivable"
                 currentYear={currentYear}
-                onConfirm={confirmIncome}
-                onDelete={deleteIncome}
                 onEditAmount={editReceivableAmount}
+                onRecalc={recalcInterest}
                 isAdmin={isAdmin}
-                canEdit={canEdit}
               />
             )}
             {incomeSubTab === "general" && (
@@ -2255,6 +2272,164 @@ function CollectPaymentModal({ family, currentYear, busy, onSubmit, onClose }) {
         </button>
       </div>
     </Modal>
+  );
+}
+
+// ============================================================
+// INTEREST RECEIVABLE VIEW (computed LIVE from collected principal)
+// ============================================================
+// Interest is derived, not stored: for each family we sum, over every
+// collected Cash Receivable installment, amount × 9% × months/12 (months
+// from the previous February). This always agrees with the backend and
+// never shows a stale rollover figure. Admin can override per family.
+// ============================================================
+function InterestReceivableView({ families, income, currentYear, onEditAmount, onRecalc, isAdmin }) {
+  const lang = useLang();
+  const fmt = (v) => "₹" + Number(v || 0).toLocaleString("en-IN");
+  const [editingId, setEditingId] = useState(null);
+  const [editValue, setEditValue] = useState("");
+  const [busy, setBusy] = useState(null);
+
+  const yr = String(currentYear);
+
+  // Collected principal installments per family.
+  const collectedByFamily = {};
+  // The stored Interest Receivable row per family (for admin override + id).
+  const interestRowByFamily = {};
+  (income || []).forEach((d) => {
+    if (String(d.Year) !== yr) return;
+    const fid = String(d.FamilyID || "").trim();
+    if (!fid) return;
+    const cat = String(d.Category || "").trim().toLowerCase();
+    const st = String(d.Status || "").trim();
+    if (cat === "cash receivable" && st === "Collected") {
+      if (!collectedByFamily[fid]) collectedByFamily[fid] = [];
+      collectedByFamily[fid].push(d);
+    } else if (cat === "interest receivable") {
+      interestRowByFamily[fid] = d;
+    }
+  });
+
+  const rows = (families || [])
+    .map((f) => {
+      const fid = String(f.FamilyID || "").trim();
+      const intRow = interestRowByFamily[fid];
+      if (!intRow) return null; // only families that have an interest row
+      const installments = collectedByFamily[fid] || [];
+      // Live computed interest from collected installments.
+      const computed = installments.reduce((s, inst) => {
+        const m = monthsSinceEvent(currentYear, inst.Date);
+        return s + calcTimeInterest(Number(inst.Amount) || 0, 9, m);
+      }, 0);
+      const stored = Number(intRow.Amount) || 0;
+      return { id: fid, name: f.FamilyName, intRow, installments, computed, stored };
+    })
+    .filter(Boolean)
+    .sort((a, b) => (parseInt(String(a.id).replace(/\D/g,""))||0) - (parseInt(String(b.id).replace(/\D/g,""))||0));
+
+  const totalComputed = rows.reduce((s, r) => s + r.computed, 0);
+  const totalStored = rows.reduce((s, r) => s + r.stored, 0);
+  const anyMismatch = rows.some((r) => Math.abs(r.computed - r.stored) > 0.5);
+
+  const saveEdit = async (r) => {
+    const v = Number(editValue);
+    if (isNaN(v) || v < 0) { setEditingId(null); return; }
+    setBusy(r.id);
+    if (onEditAmount) await onEditAmount(r.intRow.TxnID, v);
+    setBusy(null);
+    setEditingId(null);
+  };
+
+  return (
+    <div style={styles.page}>
+      {/* Summary */}
+      <div style={{ display: "flex", gap: 8, padding: "8px 12px", background: "#fafaf9", borderBottom: "1px solid #e7e5e4", alignItems: "center" }}>
+        <div style={{ flex: 1, padding: 10, background: "#e0e7ff", borderRadius: 8 }}>
+          <div style={{ color: "#3730a3", fontWeight: 600, fontSize: 11 }}>{t("lockedInterest", lang)}</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#3730a3" }}>{fmt(totalComputed)}</div>
+        </div>
+        {isAdmin && anyMismatch && onRecalc && (
+          <button
+            onClick={onRecalc}
+            style={{ padding: "8px 12px", fontSize: 11, fontWeight: 700, background: "#7c3aed", color: "#fff", border: "none", borderRadius: 8, cursor: "pointer", whiteSpace: "nowrap" }}
+            title={t("recalcHint", lang)}
+          >
+            🔄 {t("recalc", lang)}
+          </button>
+        )}
+      </div>
+
+      {anyMismatch && (
+        <div style={{ margin: "8px 12px", padding: 8, background: "#fef9c3", border: "1px solid #fde68a", borderRadius: 8, fontSize: 11, color: "#92400e" }}>
+          ⚠ {t("staleWarn", lang)} ({t("lockedInterest", lang)}: {fmt(totalStored)})
+        </div>
+      )}
+
+      {rows.length === 0 ? (
+        <p style={styles.empty}>{lang === "ta" ? "பாக்கி இல்லை" : "No receivables for this year"}</p>
+      ) : (
+        <div style={{ padding: 8 }}>
+          {rows.map((r) => {
+            const mismatch = Math.abs(r.computed - r.stored) > 0.5;
+            return (
+              <div key={r.id} style={{
+                marginBottom: 6, background: "#fff", borderRadius: 8,
+                border: "1px solid " + (r.computed > 0 ? "#c7d2fe" : "#e7e5e4"),
+                borderLeft: "4px solid " + (r.computed > 0 ? "#6366f1" : "#d6d3d1"),
+                padding: "10px 12px",
+              }}>
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600 }}>{r.name}</div>
+                    {r.installments.length === 0 ? (
+                      <div style={{ fontSize: 11, color: "#a8a29e", marginTop: 2 }}>{lang === "ta" ? "வசூல் இல்லை" : "No collection yet"}</div>
+                    ) : (
+                      <div style={{ marginTop: 4, fontSize: 10, color: "#78716c", paddingLeft: 4 }}>
+                        {r.installments.map((inst, i) => {
+                          const m = monthsSinceEvent(currentYear, inst.Date);
+                          const it = calcTimeInterest(Number(inst.Amount) || 0, 9, m);
+                          return (
+                            <div key={i}>└─ {fmt(inst.Amount)} × 9% × {m}/12 = <strong style={{ color: "#3730a3" }}>{fmt(it)}</strong></div>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {mismatch && (
+                      <div style={{ fontSize: 10, color: "#b45309", marginTop: 2 }}>
+                        {lang === "ta" ? "பதிந்தது" : "stored"}: {fmt(r.stored)} → {lang === "ta" ? "கணக்கிட்டது" : "computed"}: {fmt(r.computed)}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, marginLeft: 8 }}>
+                    {editingId === r.id ? (
+                      <>
+                        <input type="number" value={editValue} onChange={(e) => setEditValue(e.target.value)} autoFocus
+                          style={{ width: 90, padding: "5px 8px", fontSize: 13, border: "1px solid #7c3aed", borderRadius: 6, textAlign: "right" }} />
+                        <button onClick={() => saveEdit(r)} disabled={busy === r.id}
+                          style={{ padding: "6px 10px", fontSize: 11, fontWeight: 700, background: "#7c3aed", color: "#fff", border: "none", borderRadius: 6, cursor: "pointer" }}>
+                          {busy === r.id ? "⏳" : "💾"}
+                        </button>
+                        <button onClick={() => setEditingId(null)}
+                          style={{ padding: "6px 8px", fontSize: 11, background: "transparent", color: "#78716c", border: "1px solid #d6d3d1", borderRadius: 6, cursor: "pointer" }}>✕</button>
+                      </>
+                    ) : (
+                      <>
+                        <strong style={{ fontSize: 14, color: "#3730a3" }}>{fmt(r.computed)}</strong>
+                        {isAdmin && onEditAmount && (
+                          <button onClick={() => { setEditingId(r.id); setEditValue(String(r.computed)); }}
+                            style={{ padding: "6px 8px", fontSize: 11, background: "transparent", color: "#2563eb", border: "1px solid #bfdbfe", borderRadius: 6, cursor: "pointer" }}
+                            title={t("edit", lang)}>✏️</button>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -120,6 +120,8 @@ function handleRequest(e) {
         return requireRole(userRole, "Editor", function() { return handleConfirmIncome(params.data, email); });
       case "collectReceivable":
         return requireRole(userRole, "Editor", function() { return handleCollectReceivable(params.data, email); });
+      case "recalcInterest":
+        return requireRole(userRole, "Admin", function() { return handleRecalcInterest(params.data, email); });
 
       case "seedAuctionItems":
         return requireRole(userRole, "Admin", function() { return handleSeedAuctionItems(params.data, email); });
@@ -1178,6 +1180,71 @@ function handleCollectReceivable(data, email) {
     remaining: Math.max(0, expectedCashAmt - totalCollected),
     fullyPaid: fullyPaid,
   }});
+}
+
+// ============================================================
+// RECALCULATE INTEREST (fix stale rollover values)
+// ============================================================
+// For a given year, recompute every family's single Interest Receivable
+// row as the sum over their collected Cash Receivable installments of
+// amount × 9% × months/12. Overwrites any stale value (e.g. a fixed
+// figure written by an older rollover). Interest rows with no collections
+// are reset to 0.
+// ============================================================
+function handleRecalcInterest(data, email) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.INCOME);
+  if (!sheet) throw new Error("Income sheet not found");
+  var year = String(data.year || "").trim();
+  if (!year) throw new Error("year required");
+
+  ensureColumn(sheet, "Status");
+  SpreadsheetApp.flush();
+
+  var rows = sheet.getDataRange().getValues();
+  var headers = rows[0];
+  var yearIdx = headers.indexOf("Year");
+  var fidIdx = headers.indexOf("FamilyID");
+  var catIdx = headers.indexOf("Category");
+  var amtIdx = headers.indexOf("Amount");
+  var statusIdx = headers.indexOf("Status");
+  var dateIdx = headers.indexOf("Date");
+  var descIdx = headers.indexOf("Description");
+
+  // Sum collected-installment interest per family.
+  var interestByFamily = {};   // fid -> computed interest
+  var interestRowNoByFamily = {}; // fid -> 1-indexed row of the interest row
+  for (var i = 1; i < rows.length; i++) {
+    if (String(rows[i][yearIdx]) !== year) continue;
+    var fid = String(rows[i][fidIdx] || "").trim();
+    if (!fid) continue;
+    var cat = String(rows[i][catIdx] || "").trim().toLowerCase();
+    var st = String(rows[i][statusIdx] || "").trim();
+    if (cat === "cash receivable" && st === "Collected") {
+      var m = monthsSinceEvent(year, rows[i][dateIdx]);
+      var it = calcTimeInterest(Number(rows[i][amtIdx]) || 0, 9, m);
+      interestByFamily[fid] = (interestByFamily[fid] || 0) + it;
+    } else if (cat === "interest receivable") {
+      interestRowNoByFamily[fid] = i + 1;
+    }
+  }
+
+  var updated = 0;
+  for (var fid2 in interestRowNoByFamily) {
+    var rowNo = interestRowNoByFamily[fid2];
+    var computed = interestByFamily[fid2] || 0;
+    sheet.getRange(rowNo, amtIdx + 1).setValue(computed);
+    sheet.getRange(rowNo, statusIdx + 1).setValue(computed > 0 ? "Collected" : "Expected");
+    if (descIdx >= 0) {
+      sheet.getRange(rowNo, descIdx + 1).setValue(
+        computed > 0 ? "Recalculated from collections" : "Accrues on collection (9% × months)"
+      );
+    }
+    updated++;
+  }
+
+  writeAudit("RECALC_INT", "Income", "Recalculated interest for " + year + " · " + updated + " families", email);
+  return jsonResponse({ success: true, data: { year: year, updated: updated } });
 }
 
 // Helpers used by FY rollover and confirmIncome
