@@ -1339,11 +1339,22 @@ function App() {
     return s === "" || s === "Confirmed" || s === "Collected";
   };
   const yearIncomeRealized = yearIncome.filter(isIncomeConfirmed);
-  // Total Income counts collected principal + regular income, but NOT
-  // Interest Receivable (interest is tracked separately as a receivable on
-  // its own tab and the Balance Sheet — it is not headline income here).
+  // Total Income counts collected principal + regular income. Rules:
+  //   - Interest Receivable: excluded entirely (tracked separately).
+  //   - Cash Receivable: count ONLY "Collected" installment rows. The
+  //     obligation anchor flips to "Confirmed" when fully paid, so counting
+  //     Confirmed Cash Receivable would double the amount (anchor + the
+  //     installment that paid it).
+  //   - Everything else: counted as before.
+  const countsAsIncome = (d) => {
+    const cat = String(d.Category || "").trim().toLowerCase();
+    const st = String(d.Status || "").trim();
+    if (cat === "interest receivable") return false;
+    if (cat === "cash receivable") return st === "Collected"; // installments only
+    return true; // regular income (already passed isIncomeConfirmed)
+  };
   const totalIncome = yearIncomeRealized
-    .filter((d) => String(d.Category || "").trim().toLowerCase() !== "interest receivable")
+    .filter(countsAsIncome)
     .reduce((s, d) => s + Number(d.Amount || 0), 0);
   const totalExpenses = yearExpenses.reduce((s, e) => s + Number(e.Amount || 0), 0);
   const totalAuction = yearAuction
@@ -4017,19 +4028,21 @@ function BalanceSheetView({ income, expenses, auction, loans, ledger, currentYea
     .filter((d) => norm(d.Category) === "cash donation")
     .reduce((s, d) => s + (Number(d.Amount) || 0), 0);
 
-  // Cash Receivable: count only actually-collected installments
-  // (Status="Collected"). The Expected row is the obligation, not cash in.
-  // Legacy rows (blank/Confirmed, from the old single-confirm model) still count.
+  // Cash Receivable: count actually-collected installments (Status="Collected")
+  // and legacy single-value rows (blank status, from 2026's old model). Do NOT
+  // count "Confirmed" — in the new model that is the obligation anchor flipped
+  // after full payment, which would double-count against its Collected rows.
+  // "Expected" is the un-collected obligation (not cash in).
   const cashReceivable = income
     .filter((d) => norm(d.Category) === "cash receivable")
-    .filter((d) => { const s = String(d.Status || "").trim(); return s === "Collected" || s === "Confirmed" || s === ""; })
+    .filter((d) => { const s = String(d.Status || "").trim(); return s === "Collected" || s === ""; })
     .reduce((s, d) => s + (Number(d.Amount) || 0), 0);
 
-  // Interest Receivable: the single per-family row's Amount is the accrued
-  // collected interest (Expected ₹0 rows contribute nothing).
+  // Interest Receivable: the single per-family row's accrued value. Count
+  // Collected (accrued on collection) and legacy blank rows; exclude Expected.
   const interestReceivable = income
     .filter((d) => norm(d.Category) === "interest receivable")
-    .filter((d) => { const s = String(d.Status || "").trim(); return s === "Collected" || s === "Confirmed" || s === ""; })
+    .filter((d) => { const s = String(d.Status || "").trim(); return s === "Collected" || s === ""; })
     .reduce((s, d) => s + (Number(d.Amount) || 0), 0);
 
   const totalVaravu = generalIncome + pulliVari + penPulli + auctionConfirmed + cashDonation + cashReceivable + interestReceivable;
