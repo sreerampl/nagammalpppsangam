@@ -1332,14 +1332,19 @@ function App() {
   // "Realized" income = money actually received. Counts:
   //   - legacy rows with no Status (treated as confirmed)
   //   - Confirmed rows
-  //   - Collected rows (partial receivable installments + accrued interest)
-  // Excludes "Expected" rows (the un-collected obligation anchors).
+  //   - Collected rows (partial receivable principal installments)
+  // Excludes "Expected" rows (un-collected obligation anchors).
   const isIncomeConfirmed = (d) => {
     const s = String(d.Status || "").trim();
     return s === "" || s === "Confirmed" || s === "Collected";
   };
   const yearIncomeRealized = yearIncome.filter(isIncomeConfirmed);
-  const totalIncome = yearIncomeRealized.reduce((s, d) => s + Number(d.Amount || 0), 0);
+  // Total Income counts collected principal + regular income, but NOT
+  // Interest Receivable (interest is tracked separately as a receivable on
+  // its own tab and the Balance Sheet — it is not headline income here).
+  const totalIncome = yearIncomeRealized
+    .filter((d) => String(d.Category || "").trim().toLowerCase() !== "interest receivable")
+    .reduce((s, d) => s + Number(d.Amount || 0), 0);
   const totalExpenses = yearExpenses.reduce((s, e) => s + Number(e.Amount || 0), 0);
   const totalAuction = yearAuction
     .filter((a) => a.Status === "Confirmed")
