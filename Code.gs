@@ -1009,15 +1009,19 @@ function handleConfirmIncome(data, email) {
 // Example: event Feb, paid May → Mar,Apr,May = 3 months → 2.25%.
 // ============================================================
 
-// Months from Feb of fyYear up to & including the payment month, 0..12.
+// Months of accrual up to & including the payment month, 0..12.
+// The interest clock for FYn receivables starts at the PREVIOUS event —
+// February of (fyYear − 1) — because the loan was given at that event and
+// is repaid over the following year. So a payment in Oct for FY2027
+// (loan from the Feb 2026 event) = 8 months (Mar..Oct 2026).
 function monthsSinceEvent(fyYear, paymentDateStr) {
   if (!paymentDateStr) return 0;
   var pay = (paymentDateStr instanceof Date) ? paymentDateStr : new Date(paymentDateStr);
   if (isNaN(pay.getTime())) return 0;
   var fy = Number(fyYear);
   if (!fy) return 0;
-  // Event anchor = February (month index 1) of the financial year.
-  var months = (pay.getFullYear() - fy) * 12 + (pay.getMonth() - 1);
+  var anchorYear = fy - 1; // February of the previous year = loan origination
+  var months = (pay.getFullYear() - anchorYear) * 12 + (pay.getMonth() - 1);
   if (months < 0) months = 0;
   if (months > 12) months = 12;
   return months;
@@ -1081,9 +1085,12 @@ function handleCollectReceivable(data, email) {
   var dayIdx = headers.indexOf("Day");
 
   // Scan this family/year's Cash Receivable + Interest Receivable rows.
+  // Collect the existing collected installments so we can RECOMPUTE the
+  // interest total from scratch (never trust a stale rollover figure).
   var expectedCashRowNo = -1, expectedCashAmt = 0;
   var collectedCashSum = 0;
-  var interestRowNo = -1, interestRowAmt = 0, interestRowStatus = "";
+  var collectedInstallments = []; // {amount, date}
+  var interestRowNo = -1;
   var donorName = "";
   for (var i = 1; i < rows.length; i++) {
     if (String(rows[i][yearIdx]) !== year) continue;
@@ -1093,7 +1100,9 @@ function handleCollectReceivable(data, email) {
     if (!donorName) donorName = String(rows[i][nameIdx] || "").trim();
     if (cat === "cash receivable") {
       if (st === "Collected") {
-        collectedCashSum += Number(rows[i][amtIdx]) || 0;
+        var instAmt = Number(rows[i][amtIdx]) || 0;
+        collectedCashSum += instAmt;
+        collectedInstallments.push({ amount: instAmt, date: rows[i][dateIdx] });
       } else {
         // Expected (or legacy blank) = the obligation anchor
         expectedCashRowNo = i + 1;
@@ -1101,8 +1110,6 @@ function handleCollectReceivable(data, email) {
       }
     } else if (cat === "interest receivable") {
       interestRowNo = i + 1;
-      interestRowAmt = Number(rows[i][amtIdx]) || 0;
-      interestRowStatus = st;
     }
   }
 
@@ -1125,22 +1132,28 @@ function handleCollectReceivable(data, email) {
   });
   sheet.appendRow(collectedRow);
 
-  // 2. Accumulate interest into the family's single Interest Receivable row.
-  var newInterestTotal = interestRowAmt + thisInterest;
+  // 2. RECOMPUTE the family's total interest = sum over ALL collected
+  //    installments (existing + this new one), each priced at its own
+  //    payment month. This self-corrects any stale rollover value.
+  var newInterestTotal = thisInterest;
+  for (var ci = 0; ci < collectedInstallments.length; ci++) {
+    var cm = monthsSinceEvent(year, collectedInstallments[ci].date);
+    newInterestTotal += calcTimeInterest(collectedInstallments[ci].amount, rate, cm);
+  }
   if (interestRowNo !== -1) {
     sheet.getRange(interestRowNo, amtIdx + 1).setValue(newInterestTotal);
     sheet.getRange(interestRowNo, statusIdx + 1).setValue("Collected");
     sheet.getRange(interestRowNo, dateIdx + 1).setValue(payDate);
     sheet.getRange(interestRowNo, headers.indexOf("Description") + 1).setValue(
-      "Accrued to " + payDate + " · last +" + thisInterest + " (" + months + "mo)"
+      "Accrued on " + (collectedInstallments.length + 1) + " payment(s) to " + payDate
     );
   } else {
-    // No interest row yet — create one carrying this interest.
+    // No interest row yet — create one carrying the recomputed total.
     var intRow = buildIncomeRow(headers, {
       TxnID: generateId("DON"), Year: year, Day: computedDay, Date: payDate,
       DonorType: "Family", FamilyID: familyId, DonorName: donorName,
-      Category: "Interest Receivable", Amount: thisInterest,
-      Description: "Accrued to " + payDate + " (" + months + "mo)",
+      Category: "Interest Receivable", Amount: newInterestTotal,
+      Description: "Accrued on 1 payment to " + payDate,
       EnteredBy: email, Timestamp: now(), Status: "Collected",
     });
     sheet.appendRow(intRow);
