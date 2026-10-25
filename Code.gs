@@ -593,6 +593,15 @@ function handleUploadAuctionPhoto(data, email) {
 // FILES — Admin upload, any-logged-in download (Drive-backed)
 // ============================================================
 
+// One-time authorization helper. Run this ONCE from the Apps Script editor
+// (select "authorizeDrive" in the Run dropdown and click Run) to grant the
+// Drive permission and create the shared files folder. Safe to run again.
+function authorizeDrive() {
+  var folder = getFilesFolder_();
+  Logger.log("Files folder ready: " + folder.getName() + " (id: " + folder.getId() + ")");
+  return folder.getId();
+}
+
 // Returns the shared Drive folder, creating it once and caching the id.
 function getFilesFolder_() {
   var props = PropertiesService.getScriptProperties();
