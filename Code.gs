@@ -649,33 +649,57 @@ function handleUploadFile(data, email) {
     }
 
     var blob = Utilities.newBlob(bytes, mime, data.fileName);
-    var folder = getFilesFolder_();
-    var driveFile = folder.createFile(blob);
+    var driveFile;
+    try {
+      var folder = getFilesFolder_();
+      driveFile = folder.createFile(blob);
+    } catch (driveErr) {
+      // Translate Google Drive's raw errors into something an Admin understands.
+      var m = String(driveErr && driveErr.message ? driveErr.message : driveErr).toLowerCase();
+      var friendly;
+      if (m.indexOf("quota") !== -1 || m.indexOf("storage") !== -1 || m.indexOf("space") !== -1 || m.indexOf("limit") !== -1) {
+        friendly = "Google Drive storage is full. Please free up space in the account that owns this app, then try again.";
+      } else if (m.indexOf("malware") !== -1 || m.indexOf("virus") !== -1 || m.indexOf("abuse") !== -1 || m.indexOf("blocked") !== -1) {
+        friendly = "Google Drive refused this file because it may be unsafe. Please check the file and try a different one.";
+      } else if (m.indexOf("permission") !== -1 || m.indexOf("auth") !== -1) {
+        friendly = "The app is not authorized to use Google Drive. Run authorizeDrive() once in the Apps Script editor, then redeploy.";
+      } else {
+        friendly = "Google Drive could not save the file right now. Please try again in a moment.";
+      }
+      return jsonResponse({ success: false, error: friendly });
+    }
     // Anyone with the link can view (download is link-gated by the app login UI)
     try { driveFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
 
     var fileId = generateId("FILE");
-    var sheet = getFilesSheet_();
     var uploadDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
-    var row = [
-      fileId,
-      String(data.fileName),
-      mime,
-      bytes.length,
-      driveFile.getId(),
-      String(data.category || ""),
-      String(data.description || ""),
-      email,
-      uploadDate,
-      String(data.year || ""),
-      "Active"
-    ];
-    var newRowNo = sheet.getLastRow() + 1;
-    sheet.getRange(newRowNo, 1, 1, row.length).setValues([row]);
-    // Keep date + year as plain text
-    var hdr = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-    var dIdx = hdr.indexOf("UploadedDate");
-    if (dIdx !== -1) sheet.getRange(newRowNo, dIdx + 1).setNumberFormat("@").setValue(uploadDate);
+    try {
+      var sheet = getFilesSheet_();
+      var row = [
+        fileId,
+        String(data.fileName),
+        mime,
+        bytes.length,
+        driveFile.getId(),
+        String(data.category || ""),
+        String(data.description || ""),
+        email,
+        uploadDate,
+        String(data.year || ""),
+        "Active"
+      ];
+      var newRowNo = sheet.getLastRow() + 1;
+      sheet.getRange(newRowNo, 1, 1, row.length).setValues([row]);
+      // Keep date + year as plain text
+      var hdr = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+      var dIdx = hdr.indexOf("UploadedDate");
+      if (dIdx !== -1) sheet.getRange(newRowNo, dIdx + 1).setNumberFormat("@").setValue(uploadDate);
+    } catch (rowErr) {
+      // Index write failed after the Drive file was created — remove the orphan
+      // so no untracked bytes are left in Drive, then report the failure.
+      try { driveFile.setTrashed(true); } catch (e) {}
+      return jsonResponse({ success: false, error: "Could not save the file record. The upload was rolled back — please try again." });
+    }
 
     writeAudit("UPLOAD", "Files", "Uploaded " + data.fileName + " (" + fileId + ")", email);
     return jsonResponse({ success: true, data: { fileId: fileId, driveFileId: driveFile.getId() } });
