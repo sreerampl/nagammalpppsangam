@@ -280,6 +280,20 @@ const T = {
   // Loans (Pangali Advances)
   navLoans: { en: "Loans", ta: "கடன்" },
   navMore: { en: "More", ta: "மேலும்" },
+  navFiles: { en: "Files", ta: "கோப்புகள்" },
+  // Files screen
+  filesTitle: { en: "📁 Shared Files", ta: "📁 பகிர்வு கோப்புகள்" },
+  filesUpload: { en: "Upload File", ta: "கோப்பை பதிவேற்று" },
+  filesChoose: { en: "Choose file (PDF, image, or Excel)", ta: "கோப்பைத் தேர்ந்தெடு (PDF, படம், Excel)" },
+  filesCategory: { en: "Category (optional)", ta: "வகை (விருப்பம்)" },
+  filesDescription: { en: "Description (optional)", ta: "விவரம் (விருப்பம்)" },
+  filesNone: { en: "No files uploaded yet.", ta: "இன்னும் கோப்புகள் எதுவும் இல்லை." },
+  filesDownload: { en: "Download", ta: "பதிவிறக்கு" },
+  filesUploadedBy: { en: "Uploaded by", ta: "பதிவேற்றியவர்" },
+  fileUploaded: { en: "File uploaded!", ta: "கோப்பு பதிவேற்றப்பட்டது!" },
+  fileDeleted: { en: "File deleted", ta: "கோப்பு நீக்கப்பட்டது" },
+  filesTooBig: { en: "File too large (max 10 MB)", ta: "கோப்பு மிகப் பெரியது (அதிகபட்சம் 10 MB)" },
+  filesUploading: { en: "Uploading…", ta: "பதிவேற்றுகிறது…" },
   // Income sub-tabs
   generalIncome: { en: "General", ta: "பொது வரவு" },
   pulliVari: { en: "Pulli Vari", ta: "புள்ளி வரி" },
@@ -692,6 +706,7 @@ function App() {
   const [auditLog, setAuditLog] = useState([]);
   const [ledger, setLedger] = useState([]);
   const [loans, setLoans] = useState([]);
+  const [files, setFiles] = useState([]);
 
   // UI state
   const [activeTab, setActiveTab] = useState("dashboard");
@@ -818,6 +833,7 @@ function App() {
       if (result.auditLog) setAuditLog(result.auditLog.reverse());
       if (result.ledger) setLedger(result.ledger);
       if (result.loans) setLoans(result.loans);
+      if (result.files) setFiles(result.files);
       setRole(result.role || null);
     } catch (e) {
       setError("Failed to load data: " + e.message);
@@ -1323,6 +1339,84 @@ function App() {
     }
   };
 
+  // --- Files (shared documents) ---
+  // Admin uploads a file (read as base64 in the browser, stored in Drive by the backend).
+  const uploadFile = async ({ file, category, description }) => {
+    setBusy(true);
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = () => reject(new Error("Could not read file"));
+        reader.readAsDataURL(file); // yields "data:<mime>;base64,...."
+      });
+      const result = await backendRef.current.post("uploadFile", {
+        fileName: file.name,
+        fileType: file.type,
+        base64,
+        category: category || "",
+        description: description || "",
+        year: String(currentYear),
+      });
+      const row = {
+        FileID: result.fileId,
+        FileName: file.name,
+        FileType: file.type,
+        Size: file.size,
+        DriveFileID: result.driveFileId || "",
+        Category: category || "",
+        Description: description || "",
+        UploadedBy: user.email,
+        UploadedDate: new Date().toISOString().slice(0, 10),
+        Year: String(currentYear),
+        Status: "Active",
+      };
+      setFiles((prev) => [...prev, row]);
+      showToast(t("fileUploaded", lang));
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Any logged-in user: fetch the bytes and trigger a browser download.
+  const downloadFile = async (fileRow) => {
+    setBusy(true);
+    try {
+      const result = await backendRef.current.post("getFile", { fileId: fileRow.FileID });
+      const byteChars = atob(result.base64);
+      const byteNums = new Array(byteChars.length);
+      for (let i = 0; i < byteChars.length; i++) byteNums[i] = byteChars.charCodeAt(i);
+      const blob = new Blob([new Uint8Array(byteNums)], { type: result.fileType || "application/octet-stream" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.fileName || fileRow.FileName || "download";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const deleteFile = async (fileId) => {
+    setBusy(true);
+    try {
+      await backendRef.current.post("deleteFile", { fileId });
+      setFiles((prev) => prev.filter((f) => f.FileID !== fileId));
+      showToast(t("fileDeleted", lang));
+    } catch (e) {
+      showToast("Error: " + e.message, "error");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // --- Computed values (filtered by selected year) ---
   const yearStr = String(currentYear);
   const yearIncome = income.filter((d) => String(d.Year) === yearStr);
@@ -1653,6 +1747,18 @@ function App() {
         {activeTab === "auditlog" && isAdmin && (
           <AuditLogView entries={auditLog} />
         )}
+        {activeTab === "files" && (
+          <FilesView
+            files={files}
+            currentYear={currentYear}
+            isAdmin={isAdmin}
+            onUpload={uploadFile}
+            onDownload={downloadFile}
+            onDelete={deleteFile}
+            busy={busy}
+            lang={lang}
+          />
+        )}
       </main>
 
       {/* Forms (Modal) */}
@@ -1745,15 +1851,14 @@ function App() {
             <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: 0.5 }}>{tab.label}</span>
           </button>
         ))}
-        {/* More button (Admin only — Editor/Viewer get Family directly in main nav) */}
-        {isAdmin && (
+        {/* More button — shown to everyone (Files is available to all roles) */}
         <div style={{ position: "relative" }}>
           <button
             onClick={() => setShowMoreMenu(!showMoreMenu)}
             style={{
               ...styles.navBtn,
-              color: ["families", "reports", "auditlog"].includes(activeTab) ? "#b45309" : "#78716c",
-              borderTop: ["families", "reports", "auditlog"].includes(activeTab) ? "3px solid #b45309" : "3px solid transparent",
+              color: ["families", "reports", "auditlog", "files"].includes(activeTab) ? "#b45309" : "#78716c",
+              borderTop: ["families", "reports", "auditlog", "files"].includes(activeTab) ? "3px solid #b45309" : "3px solid transparent",
             }}
           >
             <span style={{ fontSize: 20 }}>⋯</span>
@@ -1768,7 +1873,8 @@ function App() {
               padding: 8, minWidth: 160, zIndex: 200,
             }}>
               {[
-                { id: "families", icon: "👨‍👩‍👧‍👦", label: t("navFamily", lang) },
+                { id: "files", icon: "📁", label: t("navFiles", lang) },
+                ...(isAdmin ? [{ id: "families", icon: "👨‍👩‍👧‍👦", label: t("navFamily", lang) }] : []),
                 ...(isAdmin ? [{ id: "reports", icon: "📋", label: t("navReports", lang) }] : []),
                 ...(isAdmin ? [{ id: "auditlog", icon: "📜", label: t("navAuditLog", lang) }] : []),
               ].map((tab) => (
@@ -1790,7 +1896,6 @@ function App() {
             </>
           )}
         </div>
-        )}
       </nav>
 
     </div>
@@ -5079,6 +5184,142 @@ function AuditLogView({ entries }) {
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 10, color: "#a8a29e" }}>
                 <span>👤 {e.User}</span>
                 <span>🕐 {e.Timestamp}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// FILES VIEW — Admin upload, any-logged-in download (Drive-backed)
+// ============================================================
+function fileIcon(mime) {
+  const m = String(mime || "").toLowerCase();
+  if (m.indexOf("pdf") !== -1) return "📄";
+  if (m.indexOf("image") !== -1) return "🖼️";
+  if (m.indexOf("sheet") !== -1 || m.indexOf("excel") !== -1 || m.indexOf("csv") !== -1) return "📊";
+  return "📎";
+}
+function fmtSize(bytes) {
+  const b = Number(bytes) || 0;
+  if (b < 1024) return b + " B";
+  if (b < 1048576) return Math.round(b / 1024) + " KB";
+  return (Math.round(b / 1048576 * 10) / 10) + " MB";
+}
+
+function FilesView({ files, currentYear, isAdmin, onUpload, onDownload, onDelete, busy, lang }) {
+  const [picked, setPicked] = useState(null);
+  const [category, setCategory] = useState("");
+  const [description, setDescription] = useState("");
+  const fileInputRef = useRef(null);
+
+  const yearFiles = (files || []).filter((f) => String(f.Year) === String(currentYear));
+
+  const submit = async () => {
+    if (!picked) return;
+    if (picked.size > 10 * 1024 * 1024) { alert(t("filesTooBig", lang)); return; }
+    await onUpload({ file: picked, category, description });
+    setPicked(null); setCategory(""); setDescription("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  return (
+    <div>
+      <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 12, fontFamily: "'Outfit', sans-serif" }}>
+        {t("filesTitle", lang)}
+      </h2>
+
+      {isAdmin && (
+        <div style={{
+          background: "#fff", borderRadius: 12, padding: 16, marginBottom: 16,
+          border: "1px solid #e7e5e4", boxShadow: "0 1px 3px rgba(0,0,0,0.05)",
+        }}>
+          <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 10, color: "#292524", fontFamily: "'Outfit', sans-serif" }}>
+            ⬆️ {t("filesUpload", lang)} — {currentYear}
+          </div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.gif,.webp,.heic,.xlsx,.xls,.csv,application/pdf,image/*,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
+            onChange={(e) => setPicked(e.target.files && e.target.files[0] ? e.target.files[0] : null)}
+            style={{ display: "block", width: "100%", marginBottom: 10, fontSize: 13 }}
+          />
+          {picked && (
+            <div style={{ fontSize: 12, color: "#78716c", marginBottom: 10 }}>
+              {fileIcon(picked.type)} {picked.name} · {fmtSize(picked.size)}
+            </div>
+          )}
+          <input
+            type="text" value={category} onChange={(e) => setCategory(e.target.value)}
+            placeholder={t("filesCategory", lang)}
+            style={{ display: "block", width: "100%", boxSizing: "border-box", padding: "8px 10px", marginBottom: 8, borderRadius: 8, border: "1px solid #d6d3d1", fontSize: 13 }}
+          />
+          <input
+            type="text" value={description} onChange={(e) => setDescription(e.target.value)}
+            placeholder={t("filesDescription", lang)}
+            style={{ display: "block", width: "100%", boxSizing: "border-box", padding: "8px 10px", marginBottom: 10, borderRadius: 8, border: "1px solid #d6d3d1", fontSize: 13 }}
+          />
+          <button
+            onClick={submit} disabled={!picked || busy}
+            style={{
+              width: "100%", padding: "10px 12px", borderRadius: 8, border: "none",
+              background: (!picked || busy) ? "#d6d3d1" : "#16a34a", color: "#fff",
+              fontSize: 14, fontWeight: 700, cursor: (!picked || busy) ? "default" : "pointer",
+              fontFamily: "'Outfit', sans-serif",
+            }}
+          >
+            {busy ? t("filesUploading", lang) : t("filesUpload", lang)}
+          </button>
+        </div>
+      )}
+
+      {yearFiles.length === 0 ? (
+        <p style={{ textAlign: "center", color: "#a8a29e", padding: 40 }}>{t("filesNone", lang)}</p>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {yearFiles.map((f) => (
+            <div key={f.FileID} style={{
+              background: "#fff", borderRadius: 10, padding: "12px 14px",
+              border: "1px solid #e7e5e4", boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
+            }}>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <span style={{ fontSize: 24 }}>{fileIcon(f.FileType)}</span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: "#292524", wordBreak: "break-word" }}>{f.FileName}</div>
+                  {f.Category && <div style={{ fontSize: 11, color: "#b45309", fontWeight: 600, marginTop: 2 }}>{f.Category}</div>}
+                  {f.Description && <div style={{ fontSize: 12, color: "#57534e", marginTop: 2 }}>{f.Description}</div>}
+                  <div style={{ fontSize: 10, color: "#a8a29e", marginTop: 4 }}>
+                    {fmtSize(f.Size)} · {t("filesUploadedBy", lang)} {f.UploadedBy} · {f.UploadedDate}
+                  </div>
+                </div>
+              </div>
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <button
+                  onClick={() => onDownload(f)} disabled={busy}
+                  style={{
+                    flex: 1, padding: "8px 10px", borderRadius: 8, border: "none",
+                    background: "#2563eb", color: "#fff", fontSize: 13, fontWeight: 600,
+                    cursor: busy ? "default" : "pointer", fontFamily: "'Outfit', sans-serif",
+                  }}
+                >
+                  ⬇️ {t("filesDownload", lang)}
+                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => { if (confirm(t("fileDeleted", lang) + "?")) onDelete(f.FileID); }}
+                    disabled={busy}
+                    style={{
+                      padding: "8px 12px", borderRadius: 8, border: "1px solid #fecaca",
+                      background: "#fff", color: "#dc2626", fontSize: 13, fontWeight: 600,
+                      cursor: busy ? "default" : "pointer",
+                    }}
+                  >
+                    🗑️
+                  </button>
+                )}
               </div>
             </div>
           ))}

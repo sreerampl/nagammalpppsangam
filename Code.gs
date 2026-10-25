@@ -22,8 +22,21 @@ var SHEETS = {
   LEDGER: "Ledger",
   ACCESS: "AccessControl",
   AUDIT: "AuditLog",
-  LOANS: "Loans"
+  LOANS: "Loans",
+  FILES: "Files"
 };
+
+// Drive folder (bytes live here; Sheet holds only the index row)
+var FILES_FOLDER_PROP = "SANGAM_FILES_FOLDER_ID";
+var FILES_FOLDER_NAME = "Nagammal Sangam Files";
+var MAX_FILE_BYTES = 10 * 1024 * 1024; // 10 MB cap per upload
+var ALLOWED_FILE_TYPES = [
+  "application/pdf",
+  "image/jpeg", "image/png", "image/gif", "image/webp", "image/heic",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+  "application/vnd.ms-excel", // .xls
+  "text/csv"
+];
 
 // ============================================================
 // ENTRY POINTS
@@ -126,6 +139,14 @@ function handleRequest(e) {
       case "seedAuctionItems":
         return requireRole(userRole, "Admin", function() { return handleSeedAuctionItems(params.data, email); });
 
+      // --- FILES (shared documents) ---
+      case "uploadFile":
+        return requireRole(userRole, "Admin", function() { return handleUploadFile(params.data, email); });
+      case "getFile":
+        return handleGetFile(params.data, email); // any logged-in role (Viewer+)
+      case "deleteFile":
+        return requireRole(userRole, "Admin", function() { return handleDeleteFile(params.data, email); });
+
       // --- LOANS (Pangali Advances) ---
       case "addLoan":
         return requireRole(userRole, "Admin", function() { return handleAddLoan(params.data, email); });
@@ -196,6 +217,7 @@ function handleLoadAll(email, userRole) {
     access: readSheet(ss, SHEETS.ACCESS),
     ledger: readSheet(ss, SHEETS.LEDGER),
     loans: readSheet(ss, SHEETS.LOANS),
+    files: readSheet(ss, SHEETS.FILES),
     role: userRole,
   };
 
@@ -565,6 +587,150 @@ function handleUploadAuctionPhoto(data, email) {
   }
   
   return jsonResponse({ success: false, error: "Item #" + data.itemNo + " not found" });
+}
+
+// ============================================================
+// FILES — Admin upload, any-logged-in download (Drive-backed)
+// ============================================================
+
+// Returns the shared Drive folder, creating it once and caching the id.
+function getFilesFolder_() {
+  var props = PropertiesService.getScriptProperties();
+  var id = props.getProperty(FILES_FOLDER_PROP);
+  if (id) {
+    try { return DriveApp.getFolderById(id); } catch (e) { /* folder gone; recreate */ }
+  }
+  var folder = DriveApp.createFolder(FILES_FOLDER_NAME);
+  props.setProperty(FILES_FOLDER_PROP, folder.getId());
+  return folder;
+}
+
+// Ensures the Files index tab exists with the right header row.
+function getFilesSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEETS.FILES);
+  var headers = ["FileID", "FileName", "FileType", "Size", "DriveFileID",
+                 "Category", "Description", "UploadedBy", "UploadedDate", "Year", "Status"];
+  if (!sheet) {
+    sheet = ss.insertSheet(SHEETS.FILES);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight("bold");
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function handleUploadFile(data, email) {
+  try {
+    if (!data || !data.base64 || !data.fileName) {
+      return jsonResponse({ success: false, error: "Missing file data." });
+    }
+    var mime = String(data.fileType || "").trim();
+    if (ALLOWED_FILE_TYPES.indexOf(mime) === -1) {
+      return jsonResponse({ success: false, error: "File type not allowed: " + (mime || "unknown") + ". Allowed: PDF, images, Excel/CSV." });
+    }
+
+    // base64 may arrive as a data URL ("data:...;base64,XXXX") or raw base64
+    var b64 = String(data.base64);
+    var comma = b64.indexOf(",");
+    if (b64.substring(0, 5) === "data:" && comma !== -1) b64 = b64.substring(comma + 1);
+
+    var bytes = Utilities.base64Decode(b64);
+    if (bytes.length > MAX_FILE_BYTES) {
+      return jsonResponse({ success: false, error: "File too large (" + Math.round(bytes.length / 1048576 * 10) / 10 + " MB). Max 10 MB." });
+    }
+
+    var blob = Utilities.newBlob(bytes, mime, data.fileName);
+    var folder = getFilesFolder_();
+    var driveFile = folder.createFile(blob);
+    // Anyone with the link can view (download is link-gated by the app login UI)
+    try { driveFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW); } catch (e) {}
+
+    var fileId = generateId("FILE");
+    var sheet = getFilesSheet_();
+    var uploadDate = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+    var row = [
+      fileId,
+      String(data.fileName),
+      mime,
+      bytes.length,
+      driveFile.getId(),
+      String(data.category || ""),
+      String(data.description || ""),
+      email,
+      uploadDate,
+      String(data.year || ""),
+      "Active"
+    ];
+    var newRowNo = sheet.getLastRow() + 1;
+    sheet.getRange(newRowNo, 1, 1, row.length).setValues([row]);
+    // Keep date + year as plain text
+    var hdr = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+    var dIdx = hdr.indexOf("UploadedDate");
+    if (dIdx !== -1) sheet.getRange(newRowNo, dIdx + 1).setNumberFormat("@").setValue(uploadDate);
+
+    writeAudit("UPLOAD", "Files", "Uploaded " + data.fileName + " (" + fileId + ")", email);
+    return jsonResponse({ success: true, data: { fileId: fileId, driveFileId: driveFile.getId() } });
+  } catch (err) {
+    return jsonResponse({ success: false, error: "Upload failed: " + err.message });
+  }
+}
+
+// Returns the file bytes as base64 so the browser can download even if the
+// Drive file's sharing is restricted. Any logged-in role may call this.
+function handleGetFile(data, email) {
+  try {
+    if (!data || !data.fileId) return jsonResponse({ success: false, error: "Missing fileId." });
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.FILES);
+    if (!sheet) return jsonResponse({ success: false, error: "No files." });
+    var all = sheet.getDataRange().getValues();
+    var hdr = all[0];
+    var idIdx = hdr.indexOf("FileID");
+    var driveIdx = hdr.indexOf("DriveFileID");
+    var nameIdx = hdr.indexOf("FileName");
+    var typeIdx = hdr.indexOf("FileType");
+    for (var i = 1; i < all.length; i++) {
+      if (String(all[i][idIdx]) === String(data.fileId)) {
+        var driveFile = DriveApp.getFileById(String(all[i][driveIdx]));
+        var blob = driveFile.getBlob();
+        writeAudit("DOWNLOAD", "Files", "Downloaded " + all[i][nameIdx] + " (" + data.fileId + ")", email);
+        return jsonResponse({
+          success: true,
+          data: {
+            fileName: String(all[i][nameIdx]),
+            fileType: String(all[i][typeIdx]),
+            base64: Utilities.base64Encode(blob.getBytes())
+          }
+        });
+      }
+    }
+    return jsonResponse({ success: false, error: "File not found: " + data.fileId });
+  } catch (err) {
+    return jsonResponse({ success: false, error: "Download failed: " + err.message });
+  }
+}
+
+function handleDeleteFile(data, email) {
+  try {
+    if (!data || !data.fileId) return jsonResponse({ success: false, error: "Missing fileId." });
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(SHEETS.FILES);
+    if (!sheet) return jsonResponse({ success: false, error: "No files." });
+    var all = sheet.getDataRange().getValues();
+    var hdr = all[0];
+    var idIdx = hdr.indexOf("FileID");
+    var driveIdx = hdr.indexOf("DriveFileID");
+    var nameIdx = hdr.indexOf("FileName");
+    for (var i = 1; i < all.length; i++) {
+      if (String(all[i][idIdx]) === String(data.fileId)) {
+        try { DriveApp.getFileById(String(all[i][driveIdx])).setTrashed(true); } catch (e) {}
+        writeAudit("DELETE", "Files", "Deleted " + all[i][nameIdx] + " (" + data.fileId + ")", email);
+        sheet.deleteRow(i + 1);
+        return jsonResponse({ success: true, data: { fileId: data.fileId } });
+      }
+    }
+    return jsonResponse({ success: false, error: "File not found: " + data.fileId });
+  } catch (err) {
+    return jsonResponse({ success: false, error: "Delete failed: " + err.message });
+  }
 }
 
 function writeAudit(action, module, details, email) {
